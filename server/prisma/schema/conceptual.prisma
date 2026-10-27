@@ -1,0 +1,80 @@
+/// Conceptual sessions: a course's live classes, held on Zoom, recorded and
+/// put up on YouTube the next day for its students to watch. Grouped by topic
+/// ("Algorithms week 04"), each topic holding its recordings in order.
+///
+/// Deliberately apart from the curriculum (milestones, modules, videos): no
+/// quizzes, assignments, locks or release dates, and watching a recording
+/// moves no course progress, streak or XP. Either course type can have them.
+model ConceptualTopic {
+  id          String   @id @default(uuid(7))
+  courseId    String
+  title       String
+  description String?
+  /// 1-based position in the course, unique per course like the curriculum's.
+  order       Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sessions    ConceptualSession[]
+  liveClasses LiveClass[]
+
+  @@unique([courseId, order])
+  @@index([courseId, isPublished])
+  @@map("conceptual_topic")
+  @@schema("learning")
+}
+
+/// One recording — an unlisted YouTube upload; only its link is kept, as
+/// with `Video`. A student sees it once both it and its topic are published.
+model ConceptualSession {
+  id             String    @id @default(uuid(7))
+  topicId        String
+  /// Denormalised from the topic, so course-wide reads skip a join.
+  courseId       String
+  title          String
+  description    String?
+  youtubeUrl     String
+  /// Parsed out of `youtubeUrl` at write time, like `Video.youtubeVideoId`.
+  youtubeVideoId String
+  thumbnail      String?
+  /// Seconds.
+  duration       Int       @default(0)
+  /// 1-based position in its topic.
+  order          Int
+  isPublished    Boolean   @default(false)
+  /// When the course's students were told about it: the first moment it was
+  /// published inside a published topic. Never cleared, so hiding and
+  /// showing a recording again doesn't notify twice.
+  notifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  topic   ConceptualTopic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  course  Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  watches ConceptualSessionWatch[]
+
+  @@unique([topicId, order])
+  @@index([courseId, isPublished])
+  @@index([topicId, isPublished])
+  @@map("conceptual_session")
+  @@schema("learning")
+}
+
+/// A student's "watched" tick on a recording. Per student rather than per
+/// enrolment: it's a personal marker and nothing is computed from it.
+model ConceptualSessionWatch {
+  id        String   @id @default(uuid(7))
+  sessionId String
+  studentId String
+  watchedAt DateTime @default(now())
+
+  session ConceptualSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("conceptual_session_watch")
+  @@schema("learning")
+}

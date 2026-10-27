@@ -1,0 +1,63 @@
+/// A dated support window for one course, hosted by one mentor (plan §22-23).
+/// `startTime`/`endTime` are absolute instants so "is it live yet?" is a plain
+/// timestamp comparison rather than a timezone-sensitive wall-clock guess.
+model SupportSession {
+  id             String               @id @default(uuid(7))
+  courseId       String
+  mentorId       String
+  title          String?
+  meetingLink    String?
+  startTime      DateTime
+  endTime        DateTime
+  status         SupportSessionStatus @default(SCHEDULED)
+  /// Minutes granted to each student in the queue (plan §25). Configurable
+  /// per session so it can move from 5 to 10 minutes without a migration.
+  slotMinutes    Int                  @default(5)
+  /// Lets a mentor cut off new sign-ups before `endTime` (e.g. at 8:55 for a
+  /// 9:00 close) without ending the session outright — students already
+  /// queued keep being served, but nobody new can take a number.
+  joinOpen       Boolean              @default(true)
+  notes          String?
+  /// One-shot guard: the release scheduler stamps this the moment it fires
+  /// the "session is live now" notification, so a poll that catches the
+  /// session mid-window never sends it twice. Reset to null when `startTime`
+  /// is rescheduled so a moved session gets its own fresh notification.
+  liveNotifiedAt DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  course Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  mentor User           @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  queue  SupportQueue[]
+
+  @@index([courseId, startTime])
+  @@index([mentorId, startTime])
+  @@index([status, startTime])
+  @@map("support_session")
+  @@schema("learning")
+}
+
+/// One student's place in a session's queue (plan §24). `queueNumber` is
+/// assigned on join and is unique within the session.
+model SupportQueue {
+  id          String             @id @default(uuid(7))
+  sessionId   String
+  studentId   String
+  queueNumber Int
+  status      SupportQueueStatus @default(WAITING)
+  topic       String?
+  joinedAt    DateTime           @default(now())
+  servedAt    DateTime?
+  completedAt DateTime?
+  mentorNote  String?
+
+  session SupportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, queueNumber])
+  @@unique([sessionId, studentId])
+  @@index([sessionId, status])
+  @@index([studentId])
+  @@map("support_queue")
+  @@schema("learning")
+}

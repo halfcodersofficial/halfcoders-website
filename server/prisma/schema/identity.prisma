@@ -1,0 +1,165 @@
+/// ============================================================================
+/// IDENTITY — Half Coders' own accounts
+/// ============================================================================
+///
+/// Who someone is and how they sign in: email + password, a verified email,
+/// and the sessions their browsers hold. Half Coders owns all of it — sign-up,
+/// sign-in, password resets and sessions live in `module/auth` and
+/// `lib/session.ts`.
+///
+/// The account's role (`role`) is its role on Half Coders. Anything else
+/// learning-specific about a person — whether they're blocked from learning,
+/// their student id, bio, preferences — lives in `LearningProfile`.
+
+model User {
+  id                 String        @id @default(uuid(7))
+  name               String
+  /// Stored lowercase. A real, lasting inbox (utils/realEmail.ts) — it's where
+  /// every receipt, code and notice goes.
+  email              String        @unique
+  emailVerified      Boolean       @default(false)
+  image              String?
+  /// The mobile number Half Coders reaches the person on, asked for at sign-up.
+  phone              String?       @unique
+  phoneVerified      Boolean       @default(false)
+  /// scrypt hash (lib/password.ts). Null only for an account that has never
+  /// set one.
+  passwordHash       String?
+  /// Account-wide status: BLOCKED/DELETED signs the person out everywhere.
+  /// Learning-only moderation uses `LearningProfile.status` instead.
+  status             AccountStatus @default(ACTIVE)
+  role               Role          @default(STUDENT)
+  /// Set for an account an admin created with a temporary password.
+  needPasswordChange Boolean       @default(false)
+  isDeleted          Boolean       @default(false)
+  deletedAt          DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  sessions  Session[]
+  authCodes AuthCode[]
+
+  learningProfile LearningProfile?
+  mentorProfile   MentorProfile?
+
+  // Student "View Profile" module — see studentProfile.prisma
+  additionalInfo StudentAdditionalInfo?
+  studentAddress StudentAddress?
+  education      StudentEducation?
+  links          StudentLinks?
+  jobProfile     StudentJobProfile?
+  projects       StudentProject[]
+  skills         StudentSkill[]
+  jobExperiences StudentJobExperience[]
+  hiredRecords   StudentHiredRecord[]
+  courseRequests StudentCourseRequest[]
+
+  // Student-side relations
+  enrollments         Enrollment[]
+  orders              Order[]
+  videoProgress       VideoProgress[]
+  moduleProgress      ModuleProgress[]
+  milestoneProgress   MilestoneProgress[]
+  submissions         AssignmentSubmission[]
+  practiceCompletions PracticeCompletion[]
+  quizAttempts        QuizAttempt[]
+  certificates        Certificate[]
+  notifications       Notification[]
+  xpTransactions      XpTransaction[]
+  courseXp            CourseXp[]
+  testimonials        Testimonial[]
+  supportQueueEntries SupportQueue[]
+  lessonNotes         LessonNote[]
+  lessonInteractions  LessonInteraction[]
+  conceptualWatches   ConceptualSessionWatch[]
+  courseGrants        CourseGrant[]            @relation("CourseGrants")
+  bundleOrders        BundleOrder[]            @relation("BundleOrders")
+
+  // Mentor / admin-side relations
+  mentoredCourses  CourseMentor[]
+  supportSessions  SupportSession[]
+  reviewedWork     AssignmentSubmission[] @relation("SubmissionReviewer")
+  createdCourses   Course[]               @relation("CourseCreatedBy")
+  sentNotification Notification[]         @relation("NotificationSender")
+  createdQuizzes   Quiz[]                 @relation("QuizCreatedBy")
+  updatedQuizzes   Quiz[]                 @relation("QuizUpdatedBy")
+  staffActivities  StaffActivity[]        @relation("StaffActivityActor")
+  announcements    CourseAnnouncement[]   @relation("AnnouncementAuthor")
+  courseReviews    CourseReview[]         @relation("CourseReviewAuthor")
+  moderatedReviews CourseReview[]         @relation("CourseReviewModerator")
+  lessonQuestions  LessonQuestion[]       @relation("LessonQuestionAuthor")
+  lessonAnswers    LessonAnswer[]         @relation("LessonAnswerAuthor")
+  liveClasses      LiveClass[]            @relation("LiveClassCreatedBy")
+  createdCoupons   Coupon[]               @relation("CouponCreatedBy")
+  refundRequests   RefundRequest[]        @relation("RefundRequester")
+  refundDecisions  RefundRequest[]        @relation("RefundDecider")
+
+  @@map("user")
+  @@schema("learning")
+}
+
+/// Account-wide status. Learning-only moderation is `LearningStatus`.
+enum AccountStatus {
+  ACTIVE
+  BLOCKED
+  DELETED
+
+  @@schema("learning")
+}
+
+/// An account's role on Half Coders — see lib/roles.ts.
+enum Role {
+  STUDENT
+  MENTOR
+  ADMIN
+  SUPER_ADMIN
+
+  @@schema("learning")
+}
+
+/// A signed-in browser. The cookie carries a random token; only its SHA-256
+/// is stored, so a leaked table can't be replayed (lib/session.ts).
+model Session {
+  id        String   @id @default(uuid(7))
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+  @@schema("learning")
+}
+
+enum AuthCodePurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+
+  @@schema("learning")
+}
+
+/// A one-time code mailed to the account's email: to verify it, or to reset
+/// the password. Hashed like a session token; short-lived, and dead after a
+/// few wrong tries (lib/authCodes.ts).
+model AuthCode {
+  id         String          @id @default(uuid(7))
+  userId     String
+  purpose    AuthCodePurpose
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int             @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("auth_code")
+  @@schema("learning")
+}

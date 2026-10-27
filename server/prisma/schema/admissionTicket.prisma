@@ -1,0 +1,42 @@
+// =============================================================================
+// Admission tickets — the picture a student gets on enrolling, to save and
+// share ("your seat is confirmed"). Drawn in the browser from these words,
+// the student's name and photo; nothing is stored per student.
+// =============================================================================
+
+/// One course's ticket, written by an admin: what it says where. A course
+/// without one, or with it switched off, gives its students no ticket.
+model AdmissionTicket {
+  id            String   @id @default(uuid(7))
+  courseId      String   @unique
+  isActive      Boolean  @default(true)
+  /// Above the ticket: the big word ("CONGRATULATIONS") and the line under it.
+  headline      String
+  subheadline   String?
+  /// The ticket's own top line ("YOUR NEXT JOURNEY") and the chip beside it.
+  ticketTitle   String?
+  badge         String?
+  /// Labels over the student's name and the course's name.
+  learnerLabel  String?
+  courseLabel   String?
+  /// What the ticket calls the course — its title when empty.
+  courseName    String?
+  /// Up to three { label, value } pairs along the ticket's foot.
+  fields        Json     @default("[]")
+  /// The torn-off stub: a small label over one big value ("BATCH" / "08").
+  stubLabel     String?
+  stubValue     String?
+  showPhoto     Boolean  @default(true)
+  /// Under the ticket: two lines, the second in green.
+  taglineLead   String?
+  taglineAccent String?
+  /// The pill at the foot, beside the site's address.
+  footerText    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("admission_ticket")
+  @@schema("learning")
+}

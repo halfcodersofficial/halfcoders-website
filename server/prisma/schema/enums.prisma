@@ -1,0 +1,290 @@
+/// Learning-only access state (`LearningProfile.status`). Account-wide locks are
+/// `AccountStatus`.
+enum LearningStatus {
+  ACTIVE
+  BLOCKED
+  DELETED
+
+  @@schema("learning")
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@schema("learning")
+}
+
+/// Which learning experience a course uses (plan: "two separate curriculum
+/// systems" — bootcamp's real-time outline vs. traditional's syllabus).
+/// BOOTCAMP is the default because it matches the platform's original,
+/// single-mode behaviour: every course created before this field existed
+/// already used the date-scheduled, progressively-released outline.
+enum CourseType {
+  BOOTCAMP
+  TRADITIONAL
+
+  @@schema("learning")
+}
+
+/// Where a course is in its life, set by an admin — separate from
+/// `CourseStatus`, which is whether it's published at all. PRESENT is
+/// running: everything as it always was. UPCOMING hasn't started, so it has
+/// no modules and no outline yet. PREVIOUS is over and sold as recorded
+/// classes: no support sessions and no batch. The catalogue lists them in
+/// this order, which is also the enum's sort order.
+enum CoursePhase {
+  PRESENT
+  UPCOMING
+  PREVIOUS
+
+  @@schema("learning")
+}
+
+/// Free or paid, as the admin classified it. A free course always costs ৳0
+/// and a paid one at least ৳1 — the course service keeps `price` in step.
+enum CoursePricing {
+  FREE
+  PAID
+
+  @@schema("learning")
+}
+
+/// How the classes are delivered — shown on the cards and the course page.
+enum CourseDelivery {
+  LIVE
+  RECORDED
+  HYBRID
+
+  @@schema("learning")
+}
+
+/// Where the course happens: online, in person at a venue, or both. Separate
+/// from `CourseDelivery` (live or recorded), and filterable in the catalogue,
+/// where a BOTH course lists under online and under offline. Only a BOTH
+/// course marks its modules and outline items one by one, ONLINE or OFFLINE
+/// — never BOTH (see `utils/courseMode.ts`).
+enum CourseMode {
+  ONLINE
+  OFFLINE
+  BOTH
+
+  @@schema("learning")
+}
+
+/// How a bundle is priced: one fixed sum, or a percentage off the courses'
+/// combined sale price.
+enum BundlePricing {
+  FIXED
+  PERCENT
+
+  @@schema("learning")
+}
+
+/// What a completion reward asks for: 100% of the course, or its certificate
+/// (which also needs every assignment accepted).
+enum RewardCondition {
+  COURSE_COMPLETE
+  CERTIFICATE
+
+  @@schema("learning")
+}
+
+/// Why a student was given a course without buying it.
+enum GrantSource {
+  OFFER
+  REWARD
+
+  @@schema("learning")
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL_LEVELS
+
+  @@schema("learning")
+}
+
+enum CourseMentorRole {
+  LEAD
+  CO_MENTOR
+  SUPPORT
+
+  @@schema("learning")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  EXPIRED
+
+  @@schema("learning")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+
+  @@schema("learning")
+}
+
+enum PaymentGateway {
+  BKASH
+  MANUAL
+  FREE
+
+  @@schema("learning")
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ACCEPTED
+  NEEDS_REVISION
+  REJECTED
+
+  @@schema("learning")
+}
+
+enum SupportSessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+
+  @@schema("learning")
+}
+
+enum SupportQueueStatus {
+  WAITING
+  SERVING
+  COMPLETED
+  SKIPPED
+  LEFT
+
+  @@schema("learning")
+}
+
+enum NotificationType {
+  GENERAL
+  COURSE
+  MODULE
+  ASSIGNMENT
+  QUIZ
+  SUPPORT
+  PAYMENT
+  CERTIFICATE
+  SYSTEM
+
+  @@schema("learning")
+}
+
+enum CertificateStatus {
+  ISSUED
+  REVOKED
+
+  @@schema("learning")
+}
+
+/// Every action that can award XP. The point value per source is *not*
+/// hard-coded here — it lives in PlatformSetting under `xp.rules` so the
+/// scoring can be retuned without a migration (plan §31).
+enum ReactionType {
+  LIKE
+  DISLIKE
+
+  @@schema("learning")
+}
+
+enum XpSource {
+  VIDEO_COMPLETE
+  ASSIGNMENT_SUBMIT
+  ASSIGNMENT_SCORE
+  PRACTICE_COMPLETE
+  QUIZ_COMPLETE
+  MODULE_COMPLETE
+  MILESTONE_COMPLETE
+  COURSE_COMPLETE
+  SUPPORT_PARTICIPATION
+
+  @@schema("learning")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+
+  @@schema("learning")
+}
+
+enum CourseRequestStatus {
+  PENDING
+  REVIEWED
+  FULFILLED
+  DECLINED
+
+  @@schema("learning")
+}
+
+/// What a lesson inside a module is. VIDEO plays `youtubeUrl`, TEXT renders
+/// `content`, RESOURCE links out to `resourceUrl` (a PDF, a repo, a doc).
+/// Every existing lesson predates the others, hence the VIDEO default.
+enum LessonType {
+  VIDEO
+  TEXT
+  RESOURCE
+
+  @@schema("learning")
+}
+
+/// One row on the planned course outline. NO_MODULE is a deliberate gap day —
+/// it exists so the schedule can say "nothing today" rather than skip a date.
+enum OutlineItemKind {
+  MODULE
+  PRACTICE
+  NO_MODULE
+
+  @@schema("learning")
+}
+
+/// How a coupon takes money off: a share of the price, or a fixed amount.
+enum CouponKind {
+  PERCENT
+  FIXED
+
+  @@schema("learning")
+}
+
+/// A student's request for their money back, and what an admin decided.
+enum RefundRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  WITHDRAWN
+
+  @@schema("learning")
+}
+
+/// A student's rating of a course. It reaches the public course page only
+/// once an admin publishes it — the page says only what staff chose to show.
+enum CourseReviewStatus {
+  PENDING
+  PUBLISHED
+  HIDDEN
+
+  @@schema("learning")
+}
+
+enum LiveClassStatus {
+  SCHEDULED
+  CANCELLED
+
+  @@schema("learning")
+}

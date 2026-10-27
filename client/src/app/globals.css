@@ -1,0 +1,1174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Half Coders design tokens — "the editor".
+ *
+ * The site is dressed as a code editor: a light editor theme for reading
+ * pages, a fixed dark editor surface (`.editor`) for heroes, code windows and
+ * the footer, monospace for everything that is "code" (eyebrows, file names,
+ * figures, commands), syntax colours for emphasis, square-ish corners, hairline
+ * borders and almost no shadow.
+ *
+ * Layers:
+ * - The palette is the logo's colours, fixed in both themes.
+ * - The syntax colours (`syn-*`) are semantic: `.editor` re-points them to
+ *   their dark-surface shades, so `text-syn-string` reads on either ground.
+ * - Everything else is the semantic set below, re-pointed by `.dark`.
+ *
+ * Contrast (WCAG 2.x, pair by pair):
+ * - `primary` violet-600 is 5.2–6.1:1 as text on white / surface; white on it 6.1:1.
+ * - Light syntax shades are the 700 steps (all ≥ 4.6:1 on white); the dark
+ *   ones are pastel (all ≥ 7:1 on `--editor-bg`).
+ * - Each status has an `-ink` for text on its own soft tint.
+ */
+:root {
+  /* ---- Palette: primary violet (the logo's ring and C) */
+  --violet-50: #F5F1FF;
+  --violet-100: #ECE3FF;
+  --violet-200: #DBCBFF;
+  --violet-300: #C2A5FF;
+  --violet-400: #A57AFF;
+  --violet-500: #8B4DFF;
+  --violet-600: #7432F0;
+  --violet-700: #6022CF;
+  --violet-800: #4E1CA6;
+  --violet-900: #3E1984;
+  --violet-950: #1A0D3D;
+
+  /* ---- Palette: lilac accent (the logo's light highlight) */
+  --lilac-50: #FCF5FF;
+  --lilac-100: #F7E8FF;
+  --lilac-200: #EFD0FF;
+  --lilac-300: #E3ADFF;
+  --lilac-400: #D48AFF;
+  --lilac-500: #C065F7;
+  --lilac-600: #A646E3;
+  --lilac-700: #8A33C0;
+  --lilac-800: #712C9A;
+  --lilac-900: #5C267C;
+  --lilac-950: #3C0D57;
+
+  /* ---- Palette: green — success, live and valid states, and `string` */
+  --green-50: #F2FBEA;
+  --green-100: #E0F5CF;
+  --green-200: #C2EBA0;
+  --green-300: #9DDC6B;
+  --green-400: #7ACB43;
+  --green-500: #5DB52A;
+  --green-600: #47961E;
+  --green-700: #387719;
+  --green-800: #2F5E18;
+  --green-900: #284F17;
+  --green-950: #18300E;
+
+  /* Leaderboard medals — decorative, always beside the rank they mark. */
+  --medal-gold: #D9A441;
+  --medal-silver: #9CA3AF;
+  --medal-bronze: #B45309;
+
+  /* ---- The dark editor surface (fixed in both themes) */
+  --editor-bg: #100C1D;
+  --editor-panel: #16112A;
+  --editor-raised: #1E1836;
+  --editor-line: #2A2247;
+  --editor-gutter: #5F5880;
+  --editor-fg: #ECE8F8;
+  --editor-muted: #A69FC2;
+
+  /* ---- Syntax colours, light editor theme */
+  --syn-keyword: #6E2BE6;
+  --syn-string: #2F7A12;
+  --syn-func: #0B6E8A;
+  --syn-number: #A8520A;
+  --syn-tag: #B3245F;
+  --syn-comment: #77708F;
+  /* …and on the dark editor surface */
+  --syn-dark-keyword: #C9A8FF;
+  --syn-dark-string: #B5E8A0;
+  --syn-dark-func: #8EDCF0;
+  --syn-dark-number: #FFC08A;
+  --syn-dark-tag: #FFA8CF;
+  --syn-dark-comment: #8079A3;
+
+  /* ---- Semantic: base */
+  --background: #FCFBFE;
+  --foreground: #15112A;
+  /* The quiet page tint: alternating bands, wells, the gutter. */
+  --surface: #F3F1F9;
+
+  --card: #FFFFFF;
+  --card-foreground: #15112A;
+  --popover: #FFFFFF;
+  --popover-foreground: #15112A;
+
+  /* Brand */
+  --primary: var(--violet-600);
+  --primary-foreground: #FFFFFF;
+  --primary-hover: var(--violet-700);
+  --primary-ink: var(--violet-600);
+
+  --secondary: #EFEBFA;
+  --secondary-foreground: var(--violet-900);
+
+  --muted: var(--surface);
+  /* Holds 5.3+ on white, surface, secondary and the primary/10 tint. */
+  --muted-foreground: #5F5975;
+
+  /* Accent — the logo lilac, as a fill under deep-violet text. */
+  --accent: var(--lilac-400);
+  --accent-foreground: var(--violet-950);
+
+  /* Status */
+  --success: var(--green-700);
+  --success-foreground: #FFFFFF;
+  --success-ink: var(--green-800);
+
+  --warning: #F59E0B;
+  --warning-foreground: var(--violet-950);
+  --warning-ink: #B45309;
+
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --destructive-ink: #B91C1C;
+
+  /* Lines */
+  --border: #E4E0EF;
+  --border-strong: #CCC5DE;
+  --input: var(--border-strong);
+  --ring: var(--violet-500);
+  /* The page's faint graph-paper grid (`.bg-grid`). */
+  --grid-line: rgb(110 43 230 / 0.06);
+
+  /* Shape: an editor's corners — barely rounded. In px so they don't grow
+     with the 110% root size. */
+  --radius: 0.375rem;
+  --radius-card: 8px;
+  --radius-panel: 10px;
+
+  /* Depth: hairlines do the separating; the only shadows are a floating
+     window's and a hover's thin violet halo. */
+  --shadow-card: 0 1px 0 rgb(21 17 42 / 0.04);
+  --shadow-card-hover:
+    0 0 0 1px color-mix(in oklch, var(--violet-500) 35%, transparent),
+    0 10px 24px -14px rgb(21 17 42 / 0.25);
+  --shadow-panel: 0 28px 64px -28px rgb(16 12 29 / 0.45);
+
+  /* Kept for the few brand surfaces; flat-ish on purpose. */
+  --gradient-brand: linear-gradient(90deg, var(--violet-700), var(--violet-600));
+  --gradient-brand-soft: linear-gradient(180deg, var(--surface), var(--background));
+}
+
+/*
+ * Dark theme. next-themes puts `.dark` on <html> (providers/ThemeProvider.tsx)
+ * when someone picks it in the theme switch (components/shared/ThemeToggle.tsx).
+ */
+.dark {
+  --background: #0E0A1C;
+  --foreground: #E8E4F3;
+  --surface: #151027;
+
+  --card: #151027;
+  --card-foreground: #E8E4F3;
+  --popover: #151027;
+  --popover-foreground: #E8E4F3;
+
+  --primary: var(--violet-400);
+  --primary-foreground: #0E0A1C;
+  --primary-hover: var(--violet-300);
+  --primary-ink: var(--violet-300);
+
+  --secondary: #221A3D;
+  --secondary-foreground: #E8E4F3;
+
+  --muted: #1B1531;
+  --muted-foreground: #A39CB8;
+
+  --success: var(--green-400);
+  --success-foreground: var(--violet-950);
+  --success-ink: var(--green-300);
+
+  --warning-ink: #FBBF24;
+
+  --destructive: #F87171;
+  --destructive-foreground: #0E0A1C;
+  --destructive-ink: #FCA5A5;
+
+  --border: #261E42;
+  --border-strong: #362C57;
+  --input: var(--border-strong);
+  --ring: var(--violet-400);
+  --grid-line: rgb(255 255 255 / 0.04);
+
+  --syn-keyword: var(--syn-dark-keyword);
+  --syn-string: var(--syn-dark-string);
+  --syn-func: var(--syn-dark-func);
+  --syn-number: var(--syn-dark-number);
+  --syn-tag: var(--syn-dark-tag);
+  --syn-comment: var(--syn-dark-comment);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ink: var(--primary-ink);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-ink: var(--destructive-ink);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-ink: var(--success-ink);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-ink: var(--warning-ink);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Syntax: `text-syn-string`, `bg-syn-keyword/10`… */
+  --color-syn-keyword: var(--syn-keyword);
+  --color-syn-string: var(--syn-string);
+  --color-syn-func: var(--syn-func);
+  --color-syn-number: var(--syn-number);
+  --color-syn-tag: var(--syn-tag);
+  --color-syn-comment: var(--syn-comment);
+
+  /* The editor surface: `bg-editor`, `border-editor-line`, `text-editor-muted`… */
+  --color-editor: var(--editor-bg);
+  --color-editor-panel: var(--editor-panel);
+  --color-editor-raised: var(--editor-raised);
+  --color-editor-line: var(--editor-line);
+  --color-editor-gutter: var(--editor-gutter);
+  --color-editor-fg: var(--editor-fg);
+  --color-editor-muted: var(--editor-muted);
+
+  /* The fixed palette: primary-50…950 (violet), lilac-50…950 (the accent)
+     and green-50…950 (replaces Tailwind's stock green). */
+  --color-primary-50: var(--violet-50);
+  --color-primary-100: var(--violet-100);
+  --color-primary-200: var(--violet-200);
+  --color-primary-300: var(--violet-300);
+  --color-primary-400: var(--violet-400);
+  --color-primary-500: var(--violet-500);
+  --color-primary-600: var(--violet-600);
+  --color-primary-700: var(--violet-700);
+  --color-primary-800: var(--violet-800);
+  --color-primary-900: var(--violet-900);
+  --color-primary-950: var(--violet-950);
+  --color-lilac-50: var(--lilac-50);
+  --color-lilac-100: var(--lilac-100);
+  --color-lilac-200: var(--lilac-200);
+  --color-lilac-300: var(--lilac-300);
+  --color-lilac-400: var(--lilac-400);
+  --color-lilac-500: var(--lilac-500);
+  --color-lilac-600: var(--lilac-600);
+  --color-lilac-700: var(--lilac-700);
+  --color-lilac-800: var(--lilac-800);
+  --color-lilac-900: var(--lilac-900);
+  --color-lilac-950: var(--lilac-950);
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-300: var(--green-300);
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-green-700: var(--green-700);
+  --color-green-800: var(--green-800);
+  --color-green-900: var(--green-900);
+  --color-green-950: var(--green-950);
+  --color-medal-gold: var(--medal-gold);
+  --color-medal-silver: var(--medal-silver);
+  --color-medal-bronze: var(--medal-bronze);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-card: var(--radius-card);
+  --radius-panel: var(--radius-panel);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-panel: var(--shadow-panel);
+
+  /* Type. The next/font variables live on <html> (app/layout.tsx). Latin
+     faces come first; Bangla falls through to the Bengali faces, which only
+     download when a page actually has Bangla on it. */
+  --font-sans: var(--font-geist), var(--font-hind-siliguri), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-space-grotesk), var(--font-baloo-da), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), var(--font-hind-siliguri), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Heading scale, fluid from 360px phones to wide desktops. */
+  --text-display: clamp(2.375rem, 1.6rem + 3.2vw, 4.25rem);
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 700;
+  --text-h1: clamp(1.875rem, 1.4rem + 2vw, 3.125rem);
+  --text-h1--line-height: 1.08;
+  --text-h1--letter-spacing: -0.03em;
+  --text-h1--font-weight: 700;
+  --text-h2: clamp(1.5rem, 1.2rem + 1.3vw, 2.375rem);
+  --text-h2--line-height: 1.15;
+  --text-h2--letter-spacing: -0.025em;
+  --text-h2--font-weight: 700;
+  --text-h3: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem);
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.015em;
+  --text-h3--font-weight: 600;
+  --text-lead: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --text-lead--line-height: 1.65;
+
+  /* 400px: where the navbar swaps the horizontal lockup for icon + wordmark. */
+  --breakpoint-xs: 25rem;
+}
+
+/* The editor's own motion: the caret's blink, a skeleton's scan, a ticker. */
+@theme {
+  --animate-blink: blink 1.05s steps(1, end) infinite;
+  --animate-scan: scan 1.6s ease-in-out infinite;
+  --animate-ticker: ticker 40s linear infinite;
+  --animate-type-in: type-in 0.5s steps(24, end) both;
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+  }
+
+  @keyframes scan {
+    from { background-position: 150% 0; }
+    to { background-position: -50% 0; }
+  }
+
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  @keyframes type-in {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* A slightly larger root size (16px -> 17.6px) scales every rem-based
+     Tailwind utility site-wide — text, icons, spacing — so the whole app
+     reads a bit bigger without rewriting every text-sm/text-xs by hand.
+     Media-query breakpoints are unaffected (they resolve rem against the
+     browser default, not this). */
+  html {
+    font-family: var(--font-sans);
+    font-size: 110.00%;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+/* Bangla's vowel signs and conjuncts reach well above and below the Latin
+   line, so Bangla text gets more leading. Unlayered on purpose: it has to win
+   over the line-height every `text-*` utility sets. Mark Bangla copy with
+   `lang={langOf(text)}` (lib/lang.ts) for it to apply. */
+:lang(bn) {
+  line-height: 1.7;
+  /* Bangla letters hang from one continuous headline (matra): tracking them
+     in or out breaks it, so the headings' negative tracking stops here. */
+  letter-spacing: normal;
+}
+
+/* …but a Bangla heading at 1.7 falls apart into separate lines when it wraps
+   — the heading itself, and anything inside one (a link, a button's label). */
+:lang(bn):is(h1, h2, h3, h4, h5, h6, .text-display, .text-h1, .text-h2, .text-h3),
+:is(h1, h2, h3, h4, h5, h6):lang(bn) * {
+  line-height: 1.4;
+}
+
+/* ============================================================================
+ * The editor kit — the classes the whole site is dressed in.
+ * ========================================================================== */
+@layer base {
+  code, kbd, samp, pre {
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--violet-500) 26%, transparent);
+  }
+}
+
+@layer components {
+  /* The dark editor surface: heroes, code windows, the footer. Re-points the
+     syntax colours to their dark shades and sets its own ink, so anything
+     inside reads without per-element dark variants. */
+  .editor {
+    --syn-keyword: var(--syn-dark-keyword);
+    --syn-string: var(--syn-dark-string);
+    --syn-func: var(--syn-dark-func);
+    --syn-number: var(--syn-dark-number);
+    --syn-tag: var(--syn-dark-tag);
+    --syn-comment: var(--syn-dark-comment);
+    --grid-line: rgb(255 255 255 / 0.045);
+    background-color: var(--editor-bg);
+    color: var(--editor-fg);
+  }
+
+  /* Graph paper — an editor's canvas. */
+  .bg-grid {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 2rem 2rem;
+    background-position: -1px -1px;
+  }
+
+  /* …fading out toward the edges. */
+  .bg-grid-fade {
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 85%);
+  }
+
+  /* An editor's squiggly underline — used as a highlighter on headline words. */
+  .squiggle {
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.28em;
+    text-decoration-skip-ink: none;
+    text-decoration-color: var(--syn-string);
+  }
+
+  /* A word "selected" in the editor. */
+  .selected-text {
+    background-color: color-mix(in oklch, var(--violet-500) 22%, transparent);
+    box-shadow: 0 0 0 0.12em color-mix(in oklch, var(--violet-500) 22%, transparent);
+    border-radius: 2px;
+  }
+
+  /* Line numbers down a gutter: put `.code-lines` on the list and each
+     direct child gets the next number. */
+  .code-lines {
+    counter-reset: line;
+  }
+
+  .code-lines > * {
+    counter-increment: line;
+    position: relative;
+  }
+
+  .code-lines > *::before {
+    content: counter(line);
+    position: absolute;
+    left: 0;
+    width: 2.25rem;
+    padding-right: 0.75rem;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 0.75em;
+    line-height: inherit;
+    color: var(--editor-gutter);
+    user-select: none;
+  }
+
+  /* Skeletons: a soft band scanning across, like a line being read. */
+  .skeleton-scan {
+    background-color: var(--secondary);
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in oklch, white 55%, transparent) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-scan);
+  }
+
+  /* On a dark ground the white band would glare: the editor's faint one. */
+  .dark .skeleton-scan {
+    background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.06) 50%, transparent 70%);
+  }
+
+  .editor .skeleton-scan {
+    background-color: var(--editor-raised);
+    background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.06) 50%, transparent 70%);
+  }
+
+  /* The public site's calls to action (components/site/CtaButton.tsx): a
+     command, typed. Square corners, mono label, a prompt glyph in front; on
+     hover the prompt turns into a caret and a thin halo arrives. */
+  .cmd {
+    position: relative;
+    font-family: var(--font-mono);
+    letter-spacing: -0.01em;
+    transition-property: color, background-color, border-color, box-shadow;
+    transition-duration: 150ms;
+  }
+
+  @media (hover: hover) {
+    .cmd:hover {
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--violet-500) 25%, transparent);
+    }
+  }
+
+  .cmd:active {
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--violet-500) 40%, transparent);
+  }
+
+  /* The navbar: an editor's title bar — solid, hairline under it. */
+  .titlebar {
+    background-color: color-mix(in srgb, var(--background) 92%, transparent);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+
+  .titlebar[data-tone="dark"] {
+    background-color: color-mix(in srgb, var(--editor-bg) 94%, transparent);
+    box-shadow: inset 0 -1px 0 var(--editor-line);
+    color: var(--editor-fg);
+  }
+
+  /* A tab in a tab strip (navbar, editor windows, page tabs). The active one
+     wears a violet line across its top, like a focused editor tab. */
+  .editor-tab {
+    position: relative;
+  }
+
+  .editor-tab[data-active]::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background-color: var(--primary);
+  }
+
+  .editor .editor-tab[data-active]::before {
+    background-color: var(--violet-400);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-scan {
+      animation: none;
+    }
+  }
+}
+
+/* A block caret after the text, blinking. A utility (not a component class)
+   so variants work: `group-hover:caret`. */
+@utility caret {
+  &::after {
+    content: "";
+    display: inline-block;
+    width: 0.55em;
+    height: 1.05em;
+    margin-left: 0.12em;
+    vertical-align: -0.15em;
+    background-color: currentColor;
+    animation: var(--animate-blink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
+  }
+}
+
+@layer components {
+  /* ---- Long-form reading (components/site/Prose.tsx) ------------------------
+     The legal pages' plain elements, at a reading measure. Bangla inside a
+     `lang="bn"` block picks up its taller line from the :lang rules. */
+  .prose-site {
+    @apply text-base leading-[1.75] text-foreground;
+  }
+
+  .prose-site > * + * {
+    @apply mt-5;
+  }
+
+  .prose-site h2 {
+    @apply mt-12 scroll-mt-32 font-heading text-2xl font-bold tracking-tight;
+  }
+
+  .prose-site h3 {
+    @apply mt-8 font-heading text-lg font-semibold;
+  }
+
+  .prose-site h2 + *,
+  .prose-site h3 + * {
+    @apply mt-3;
+  }
+
+  .prose-site p,
+  .prose-site li {
+    @apply text-foreground/90;
+  }
+
+  .prose-site ul,
+  .prose-site ol {
+    @apply space-y-2 pl-5;
+  }
+
+  .prose-site ul {
+    @apply list-disc;
+  }
+
+  .prose-site ol {
+    @apply list-decimal;
+  }
+
+  .prose-site li::marker {
+    @apply text-muted-foreground;
+  }
+
+  .prose-site a {
+    @apply font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary;
+  }
+
+  .prose-site strong {
+    @apply font-semibold text-foreground;
+  }
+
+  .prose-site hr {
+    @apply my-10 border-border;
+  }
+
+  .prose-site blockquote {
+    @apply border-l-2 border-primary pl-4 text-muted-foreground;
+  }
+
+  /* The old price on the purchase card, struck through as the card arrives. */
+  .price-strike {
+    transform-origin: left center;
+    animation: price-strike 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .price-strike {
+      animation: none;
+    }
+  }
+
+  /* ---- Dashboard "Up next" (app/(public)/dashboard) -------------------------
+     The course route under the stage: each milestone's fill grows in turn,
+     then the marker lands where the next lesson sits and keeps a slow pulse. */
+  .up-next-fill {
+    transform-origin: left;
+    animation: up-next-fill 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .up-next-marker {
+    box-shadow:
+      0 0 0 4px oklch(1 0 0 / 0.14),
+      0 0 14px oklch(0.83 0.11 230 / 0.9);
+    animation: up-next-marker 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+  }
+
+  .up-next-marker::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: oklch(0.83 0.11 230 / 0.6);
+    opacity: 0;
+    animation: up-next-ping 2.2s ease-out 1.4s infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .up-next-fill,
+    .up-next-marker,
+    .up-next-marker::after {
+      animation: none;
+    }
+  }
+
+  /* ---- Spotlight cards (components/site/SpotlightCard.tsx) ------------------
+     A soft glow in the card's own colour (`--spot`) follows the pointer across
+     the card, and the edge nearest the pointer lights up in the same colour.
+     The card sets `--spot-x` / `--spot-y` as the pointer moves. */
+  .spotlight {
+    isolation: isolate;
+  }
+
+  .spotlight::before,
+  .spotlight::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .spotlight::before {
+    z-index: -1;
+    background: radial-gradient(
+      22rem circle at var(--spot-x, 50%) var(--spot-y, 0%),
+      color-mix(in oklch, var(--spot, var(--violet-500)) 12%, transparent),
+      transparent 65%
+    );
+  }
+
+  .spotlight::after {
+    padding: 1px;
+    background: radial-gradient(
+      12rem circle at var(--spot-x, 50%) var(--spot-y, 0%),
+      color-mix(in oklch, var(--spot, var(--violet-500)) 80%, transparent),
+      transparent 70%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  @media (hover: hover) {
+    .spotlight:hover::before,
+    .spotlight:hover::after {
+      opacity: 1;
+    }
+  }
+
+  /* ---- Homepage FAQ ----------------------------------------------------------
+     Answers slide open where the browser can animate to `auto` height; the
+     rest simply open, as a plain <details> does. */
+  .faq-item {
+    interpolate-size: allow-keywords;
+  }
+
+  .faq-item::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition:
+      block-size 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      content-visibility 0.32s allow-discrete;
+  }
+
+  .faq-item[open]::details-content {
+    block-size: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .faq-item::details-content {
+      transition: none;
+    }
+  }
+
+  /* ---- About: paper -----------------------------------------------------------
+     The About page is set on paper rather than in the editor: dotted paper
+     for its canvas (the rest of the site uses graph paper), and ruled paper
+     for the letter at its end. */
+  .bg-dots {
+    background-image: radial-gradient(color-mix(in oklch, var(--violet-500) 22%, transparent) 1px, transparent 1.3px);
+    background-size: 22px 22px;
+  }
+
+  .bg-ruled {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(2rem - 1px),
+      color-mix(in oklch, var(--violet-500) 14%, transparent) calc(2rem - 1px),
+      color-mix(in oklch, var(--violet-500) 14%, transparent) 2rem
+    );
+  }
+
+  /* ---- The account screens' brand panel ((auth)/layout.tsx) ----------------
+     The dark editor surface with the brand's violet glowing up through it,
+     brightest behind the badge. Worn with `.editor`, which sets the ink. */
+  .auth-panel {
+    background-color: var(--editor-bg);
+    background-image:
+      radial-gradient(60% 45% at 50% 28%, color-mix(in oklch, var(--violet-600) 38%, transparent), transparent 70%),
+      radial-gradient(45% 40% at 95% 100%, color-mix(in oklch, var(--lilac-500) 16%, transparent), transparent 70%),
+      radial-gradient(40% 35% at 0% 100%, color-mix(in oklch, var(--violet-500) 14%, transparent), transparent 70%);
+  }
+
+  /* Its window's lines are Bangla, which sits lower in the line than the
+     mono gutter numbers: nudge the numbers down to meet the text. */
+  .auth-panel .code-lines > *::before {
+    top: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .warp-grid {
+      animation: none;
+    }
+  }
+}
+
+/* The About page's motions. */
+/* A card bobbing gently in place. */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* A photo slowly pushing in while it's on show. */
+@keyframes ken-burns {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
+
+/* A line drawing itself in (an SVG path with pathLength="1"). */
+@keyframes draw-line {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* The homepage's small motions, named so the components can run them inline. */
+/* A progress bar filling across (the day timeline's countdown). */
+@keyframes fill-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* A speaker's level meter on the support call. */
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+/* Light catching the certificate's foil, every few seconds. */
+@keyframes sheen {
+  0% { transform: translateX(-160%) skewX(-20deg); }
+  45%, 100% { transform: translateX(360%) skewX(-20deg); }
+}
+
+/* A certificate ID typed into the check box. */
+@keyframes type-id {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@layer utilities {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* The two ways the brand gradient is worn: as a surface (the primary CTA,
+     the auth panel) and as ink (a headline's accent half). */
+  .bg-brand {
+    background-image: var(--gradient-brand);
+  }
+
+  .bg-brand-soft {
+    background-image: var(--gradient-brand-soft);
+  }
+
+
+  /* Long descriptions on cards need a hard stop, or one verbose course breaks
+     the grid alignment. */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Section rhythm. Every marketing band used its own py-16 / py-12 / py-20,
+     which is why the homepage read as a list of boxes rather than a page.
+     One scale, applied everywhere, is most of what "designed" looks like. */
+  .section {
+    @apply py-14 sm:py-20;
+  }
+
+  .section-sm {
+    @apply py-10 sm:py-14;
+  }
+
+  /* Horizontal filter/category rails scroll on mobile; the bar itself is noise. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Headlines break far better when the browser balances them, and it costs
+     nothing in browsers that don't support it. */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* In-page anchor targets sit under the sticky header without this. */
+  .scroll-anchor {
+    scroll-margin-top: 8rem;
+  }
+
+}
+
+/* Asterisk masking for password fields.
+
+   Browsers mask a password field with bullets and offer no way to change the
+   glyph, so the field keeps `type="password"` (autofill, password managers
+   and the platform's own handling all depend on it) and paints its own text
+   transparent; a sibling overlay draws one asterisk per character. Both use
+   the same monospace face, so the caret — which the real input still owns —
+   lands exactly between the stars. */
+.password-masked {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+
+.password-masked::selection {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Browser autofill.
+
+   Chrome paints an autofilled field pale blue and forces its text black —
+   a UA style that outranks the page's own `background`/`color`. Inside the
+   boxed credential fields that shows up as a blue slab, and on a masked
+   password it un-hides the browser's bullets so they render on top of the
+   asterisk overlay. The background is a UA-drawn layer, so the only way to
+   cover it is an inset shadow the size of the field; the text colour is
+   reclaimed through `-webkit-text-fill-color`, which is the property the UA
+   style actually sets. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+  box-shadow: 0 0 0 1000px var(--card) inset;
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  /* Chrome only lets the shadow win once its own background transition has
+     ended; parking that transition for hours means it never repaints blue. */
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.password-masked:-webkit-autofill,
+.password-masked:-webkit-autofill:hover,
+.password-masked:-webkit-autofill:focus,
+.password-masked:-webkit-autofill:active {
+  -webkit-text-fill-color: transparent;
+}
+
+.password-mask-overlay {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Credential screens: the form arrives from the side the reader is moving
+   toward (see app/(auth)/template.tsx). Short and eased-out, so it reads as
+   the page settling rather than as a slideshow. */
+/* The purchase card's old price being struck through (.price-strike). */
+@keyframes price-strike {
+  from { transform: scaleX(0); }
+}
+
+/* Dashboard "Up next" (.up-next-* above). */
+@keyframes up-next-fill {
+  from { transform: scaleX(0); }
+}
+
+@keyframes up-next-marker {
+  from { opacity: 0; scale: 0.2; }
+}
+
+@keyframes up-next-ping {
+  0%        { opacity: 0.7; scale: 1; }
+  70%, 100% { opacity: 0; scale: 2.8; }
+}
+
+@keyframes auth-enter-right {
+  from { opacity: 0; transform: translateX(2rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes auth-enter-left {
+  from { opacity: 0; transform: translateX(-2rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes auth-enter-fade {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.auth-enter-right { animation: auth-enter-right 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.auth-enter-left  { animation: auth-enter-left 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.auth-enter-fade  { animation: auth-enter-fade 0.3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-enter-right,
+  .auth-enter-left,
+  .auth-enter-fade {
+    animation: none;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* The visitor pages' smooth scroll (components/site/SmoothScroll.tsx, Lenis) —
+   its own few rules. It sets each frame's position instantly, so the
+   `scroll-behavior` above never doubles the easing. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+/* An iframe under the pointer would swallow the wheel mid-glide. */
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* SweetAlert2 confirmations (see lib/confirm.ts).
+ *
+ * Its theme is light-only and injected as a <style> tag at runtime, so it
+ * lands after this stylesheet and would win any tie on source order. These
+ * selectors carry one extra class each to take the popup chrome back on
+ * specificity rather than hoping to be loaded last.
+ *
+ * Buttons are absent on purpose: `buttonsStyling: false` drops SweetAlert's
+ * button classes entirely, leaving them to `buttonVariants` — the same styles
+ * the rest of the console uses.
+ */
+.swal2-container .swal2-popup {
+  @apply rounded-2xl border border-border bg-card text-card-foreground;
+  box-shadow: var(--shadow-panel);
+  /* Its own stack has no Bengali face, and course titles appear in these
+     dialogs — inherit the one <html> already sets. */
+  font-family: inherit;
+}
+
+/* The same navy scrim as components/ui/modal.tsx, not SweetAlert's black. */
+.swal2-container.swal2-backdrop-show {
+  background: color-mix(in oklab, var(--violet-950) 45%, transparent);
+}
+
+.swal2-container .swal2-title {
+  @apply text-lg font-semibold text-foreground;
+}
+
+.swal2-container .swal2-html-container {
+  @apply text-sm text-muted-foreground;
+}
+
+.swal2-container .swal2-actions {
+  @apply gap-2;
+}
+
+/* Modal (components/ui/modal.tsx): on a phone the sheet slides up from the
+   bottom edge; from `sm` the card rises a little and settles. SweetAlert's
+   confirmations use the same rise, so a form popup and the question asked
+   from inside it arrive alike. No fill on the way in: a transform left on the
+   popup would trap the fixed-position SweetAlert mounted inside it. */
+@keyframes modal-sheet-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes modal-sheet-out {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+@keyframes modal-rise-in {
+  from { opacity: 0; transform: translateY(0.75rem) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-rise-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(0.5rem) scale(0.98); }
+}
+
+.modal-pop[data-state="open"]   { animation: modal-sheet-in 0.34s cubic-bezier(0.22, 1, 0.36, 1); }
+.modal-pop[data-state="closed"] { animation: modal-sheet-out 0.2s ease-in forwards; }
+
+@media (min-width: 40rem) {
+  .modal-pop[data-state="open"]   { animation: modal-rise-in 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+  .modal-pop[data-state="closed"] { animation: modal-rise-out 0.15s ease-in forwards; }
+}
+
+.swal2-container .swal2-popup.swal2-show { animation: modal-rise-in 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.swal2-container .swal2-popup.swal2-hide { animation: modal-rise-out 0.15s ease-in forwards; }
+
+/* A multi-step modal's next step slides in from the side the admin is moving
+   toward — the credential screens' motion, a touch quicker. */
+.step-enter-next { animation: auth-enter-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.step-enter-back { animation: auth-enter-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-pop[data-state="open"],
+  .modal-pop[data-state="closed"],
+  .swal2-container .swal2-popup.swal2-show,
+  .swal2-container .swal2-popup.swal2-hide,
+  .step-enter-next,
+  .step-enter-back {
+    animation: none;
+  }
+}
+
+/* The maintenance page's progress bar, sweeping across while the update runs. */
+@keyframes maintenance-progress {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}

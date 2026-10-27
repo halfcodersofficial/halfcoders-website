@@ -1,0 +1,24 @@
+// Half Coders — Online Learning & Training Platform
+//
+// One PostgreSQL database; every table lives in the `learning` schema —
+// identity (accounts, sessions, one-time codes: identity.prisma) and
+// everything learning-specific (learning profiles, courses, enrollments,
+// progress, certificates, orders…).
+//
+// The schema is split across several files under prisma/schema (enabled by
+// `schema = "prisma/schema"` in prisma.config.ts) so each domain stays
+// readable on its own. Prisma merges them into one datamodel at generate time.
+//
+// Every model and enum carries `@@schema("learning")`. Leaving it off is a
+// compile error under multiSchema, so a new table can't silently land in
+// another schema.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["learning"]
+}

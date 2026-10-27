@@ -1,0 +1,114 @@
+/// Created only after a paid order settles (plan §33, §34). Everything the
+/// student does inside a course hangs off this row, so a refund/cancellation
+/// can revoke access by flipping `status` without deleting learning history.
+model Enrollment {
+  id                 String           @id @default(uuid(7))
+  studentId          String
+  courseId           String
+  orderId            String?          @unique
+  status             EnrollmentStatus @default(ACTIVE)
+  /// 0-100, recomputed whenever a video is marked complete. Denormalised so
+  /// dashboard listings never have to aggregate progress rows.
+  progress           Int              @default(0)
+  currentMilestoneId String?
+  currentModuleId    String?
+  startedAt          DateTime         @default(now())
+  completedAt        DateTime?
+  /// Optional access window for cohort-based courses.
+  expiresAt          DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  /// Restrict: financial / credential record — an account that still
+  /// owns one can't be removed (accounts are only ever soft-deleted).
+  student          User          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course           Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  order            Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  currentMilestone Milestone?    @relation("CurrentMilestone", fields: [currentMilestoneId], references: [id], onDelete: SetNull)
+  currentModule    CourseModule? @relation("CurrentModule", fields: [currentModuleId], references: [id], onDelete: SetNull)
+
+  videoProgress       VideoProgress[]
+  moduleProgress      ModuleProgress[]
+  milestoneProgress   MilestoneProgress[]
+  submissions         AssignmentSubmission[]
+  practiceCompletions PracticeCompletion[]
+  quizAttempts        QuizAttempt[]
+  certificate         Certificate?
+
+  @@unique([studentId, courseId])
+  @@index([courseId, status])
+  @@index([studentId, status])
+  @@index([createdAt])
+  @@map("enrollment")
+  @@schema("learning")
+}
+
+model VideoProgress {
+  id             String    @id @default(uuid(7))
+  enrollmentId   String
+  studentId      String
+  videoId        String
+  moduleId       String
+  isCompleted    Boolean   @default(false)
+  /// Furthest playback position, so "continue watching" resumes correctly.
+  watchedSeconds Int       @default(0)
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  video      Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, videoId])
+  @@index([enrollmentId, moduleId])
+  @@index([studentId])
+  @@map("video_progress")
+  @@schema("learning")
+}
+
+model ModuleProgress {
+  id              String    @id @default(uuid(7))
+  enrollmentId    String
+  studentId       String
+  moduleId        String
+  completedVideos Int       @default(0)
+  totalVideos     Int       @default(0)
+  progress        Int       @default(0)
+  isCompleted     Boolean   @default(false)
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  enrollment Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  module     CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, moduleId])
+  @@index([studentId])
+  @@map("module_progress")
+  @@schema("learning")
+}
+
+model MilestoneProgress {
+  id               String    @id @default(uuid(7))
+  enrollmentId     String
+  studentId        String
+  milestoneId      String
+  completedModules Int       @default(0)
+  totalModules     Int       @default(0)
+  progress         Int       @default(0)
+  isCompleted      Boolean   @default(false)
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  milestone  Milestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, milestoneId])
+  @@index([studentId])
+  @@map("milestone_progress")
+  @@schema("learning")
+}

@@ -1,0 +1,59 @@
+/// The planned course outline students see after enrolling — a schedule, not
+/// content. It has no relation to `Milestone`/`CourseModule` on purpose: the
+/// plan and the real modules keep their own dates, and neither publishes,
+/// moves or waits for the other. An item reads as "Published" on the outline
+/// once its `scheduledAt` has passed, whether or not any real module exists.
+model OutlineWeek {
+  id        String   @id @default(uuid(7))
+  courseId  String
+  /// Optional theme ("Intro to React"). The week is always labelled by its
+  /// position with the course's own `milestoneLabel` ("Week 03").
+  title     String?
+  /// 1-based position inside the course.
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  items  OutlineItem[]
+
+  @@unique([courseId, order])
+  @@map("outline_week")
+  @@schema("learning")
+}
+
+/// One row inside a planned week. A bootcamp course's rows are dated and shown
+/// in `scheduledAt` order; a traditional course has no dates and shows its
+/// rows in `position` order, each published or not by hand.
+model OutlineItem {
+  id          String          @id @default(uuid(7))
+  weekId      String
+  /// Denormalised from the week, like `CourseModule.courseId`, so access
+  /// checks on a single item don't need a join.
+  courseId    String
+  kind        OutlineItemKind @default(MODULE)
+  title       String
+  /// A line under the title — what to prepare, where the session is.
+  note        String?
+  /// Null reads as "Date to be announced". Bootcamp only.
+  scheduledAt DateTime?
+  /// Traditional only: whether students see it. A bootcamp item's status
+  /// comes from `scheduledAt` and the clock instead.
+  isPublished Boolean         @default(false)
+  /// Place in its week — the order a traditional course lists them in.
+  /// Bootcamp lists by date, and a drag there keeps this in step.
+  position    Int             @default(0)
+  /// Same rule as `CourseModule.mode`: ONLINE or OFFLINE on a BOTH course
+  /// only, null otherwise — and always null on a no-module day.
+  mode        CourseMode?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  week   OutlineWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  course Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([weekId, scheduledAt])
+  @@index([courseId])
+  @@map("outline_item")
+  @@schema("learning")
+}

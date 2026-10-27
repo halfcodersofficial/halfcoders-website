@@ -1,0 +1,63 @@
+# =============================================================================
+# Half Coders web — production image
+#
+# Uses Next.js standalone output, so the runtime layer holds only the traced
+# server and its assets rather than the whole node_modules tree.
+# =============================================================================
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+WORKDIR /app
+
+# ---- deps ------------------------------------------------------------------
+FROM base AS deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# ---- build -----------------------------------------------------------------
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# NEXT_PUBLIC_* values are inlined at build time, so they have to be present
+# here — not just at runtime. Pass them with --build-arg.
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_SITE_NAME
+# DevTools protection is on by default for production images;
+# --build-arg NEXT_PUBLIC_ENABLE_DEVTOOLS_PROTECTION=false for a debug build.
+ARG NEXT_PUBLIC_ENABLE_DEVTOOLS_PROTECTION=true
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME \
+    NEXT_PUBLIC_ENABLE_DEVTOOLS_PROTECTION=$NEXT_PUBLIC_ENABLE_DEVTOOLS_PROTECTION \
+    NEXT_TELEMETRY_DISABLED=1 \
+    BUILD_STANDALONE=true
+
+RUN pnpm build
+
+# ---- runtime ---------------------------------------------------------------
+FROM node:22-alpine AS runtime
+RUN apk add --no-cache dumb-init curl
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3001 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:3001/ || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "server.js"]

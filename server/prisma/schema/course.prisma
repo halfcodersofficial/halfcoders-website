@@ -1,0 +1,339 @@
+model CourseCategory {
+  id          String   @id @default(uuid(7))
+  title       String   @unique
+  slug        String   @unique
+  icon        String?
+  description String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses Course[]
+
+  @@index([isActive, order])
+  @@map("course_category")
+  @@schema("learning")
+}
+
+model Course {
+  id                     String          @id @default(uuid(7))
+  title                  String
+  slug                   String          @unique
+  subtitle               String?
+  description            String
+  overview               String?
+  /// The course's 16:9 image — every card, list and receipt shows this one.
+  thumbnail              String?
+  /// Up to five more 16:9 images after `thumbnail`. The course page's purchase
+  /// card slides through the thumbnail and then these, in this order.
+  gallery                String[]        @default([])
+  /// Retired 2026-10-23: the hero's faint background image (a URL). Nothing
+  /// edits or shows it now and the API no longer accepts it. Kept only so saved
+  /// links aren't dropped; remove with a migration once they aren't wanted.
+  coverImage             String?
+  promoVideoUrl          String?
+  /// Price in BDT. Stored as an integer number of Taka — the platform sells
+  /// whole-Taka courses only, and integers keep totals exact through
+  /// discounts and refunds without float drift.
+  price                  Int             @default(0)
+  discountPrice          Int?
+  currency               String          @default("BDT")
+  /// Human-readable duration shown on the course card, e.g. "6 Months". Also
+  /// printed on the certificate as its "Training Duration".
+  duration               String?
+  /// Short code that goes into this course's certificate IDs after the
+  /// platform prefix — "CE" makes "HCC-CE-2026-000125". Capital letters and
+  /// digits; without one the ID is just prefix, year and number.
+  certificateCode        String?
+  level                  CourseLevel     @default(ALL_LEVELS)
+  language               String          @default("Bangla")
+  status                 CourseStatus    @default(DRAFT)
+  /// BOOTCAMP gets the real-time, date-scheduled outline (`/learn/[slug]/outline`);
+  /// TRADITIONAL sticks to the plain milestone/module syllabus and never shows
+  /// that page. See `CourseType` for why BOOTCAMP is the default.
+  courseType             CourseType      @default(BOOTCAMP)
+  /// Present, upcoming or previous (recorded) — see `CoursePhase`. The
+  /// create form makes the admin choose; the defaults below only fill in
+  /// rows older than these columns.
+  phase                  CoursePhase     @default(PRESENT)
+  /// Null on a seeded draft whose admin hasn't decided yet ("not set") — a
+  /// course can't be published until all three are chosen (`changeStatus`).
+  pricing                CoursePricing?  @default(PAID)
+  delivery               CourseDelivery? @default(HYBRID)
+  /// Online, in person, or both. An offline or both course may say where in
+  /// `venue`; an online one never keeps one.
+  mode                   CourseMode?     @default(ONLINE)
+  venue                  String?
+  isFeatured             Boolean         @default(false)
+  isPopular              Boolean         @default(false)
+  /// Bullet list rendered under "What Students Will Learn" (plan §8).
+  outcomes               String[]        @default([])
+  requirements           String[]        @default([])
+  /// Free-text block describing how assignments / practice days / support
+  /// sessions work for this specific course.
+  assignmentInfo         String?
+  practiceInfo           String?
+  supportInfo            String?
+  /// "How this course is structured" tiles on the course page — the strip of
+  /// icon cards 10 Minute School puts under the hero ("50+ video lectures",
+  /// "10 mock tests", "1:1 consultancy"). Stored as a JSON array of
+  /// `{ icon, title, description }`; the icon is a key from the client's fixed
+  /// icon set, never a URL, so a course can't inject arbitrary markup.
+  features               Json            @default("[]")
+  /// Tech-stack chips on the course page — `{ icon, name }`, the icon a key
+  /// from the client's fixed brand-icon set, same "no free-text markup" rule
+  /// as `features`.
+  techStack              Json            @default("[]")
+  /// Retired 2026-10-23: the course page's marketing figures (`{ hiringPartners?,
+  /// studentsPlaced?, avgSalaryHikePercent? }`). Nothing edits or shows them
+  /// now and the API no longer accepts them. Kept only so saved figures aren't
+  /// dropped; remove with a migration once they aren't wanted.
+  stats                  Json?
+  /// Per-course FAQ as `{ question, answer }` pairs. The page falls back to the
+  /// platform-wide questions when a course has none of its own.
+  faqs                   Json            @default("[]")
+  /// Retired 2026-09-26: the old "This course includes" `{ icon, text }`
+  /// lines. Nothing edits or shows them now — the `features` tiles cover the
+  /// same ground — and the API no longer accepts them. Kept only so saved
+  /// lines aren't dropped; remove with a migration once they aren't wanted.
+  includes               Json            @default("[]")
+  /// The facts under the hero's description ("50+ video lessons", "12
+  /// modules") — `{ icon, text }`, same icon set and same rule: only what the
+  /// admin or a mentor wrote, none when empty.
+  heroFacts              Json            @default("[]")
+  /// BOOTCAMP only — a traditional course has no batches and stores none.
+  /// The present batch: it takes enrolments from `enrollmentStartsAt` to
+  /// `enrollmentEndsAt` and runs from `startsAt` to `endsAt` (see
+  /// `utils/courseBatch.ts`). An unset enrolment end means "until the batch
+  /// starts". `startsAt` also drives the hero countdown.
+  enrollmentStartsAt     DateTime?
+  enrollmentEndsAt       DateTime?
+  startsAt               DateTime?
+  endsAt                 DateTime?
+  /// The batch after it — enrolment for it may open while the present batch
+  /// is still running. Once the present batch ends, the scheduler moves these
+  /// four up into the present batch's.
+  nextEnrollmentStartsAt DateTime?
+  nextEnrollmentEndsAt   DateTime?
+  nextStartsAt           DateTime?
+  nextEndsAt             DateTime?
+  /// BOOTCAMP only, always false on a traditional course. Take a finished
+  /// batch's course out of the homepage and the /courses list. Only discovery:
+  /// the course page still opens by its link, enrolment still follows the
+  /// dates above, and enrolled students keep everything.
+  hiddenFromHomepage     Boolean         @default(false)
+  hiddenFromCatalogue    Boolean         @default(false)
+  /// Per-course terminology for the two-tier curriculum structure below —
+  /// lets a course call its top-level groups "Week"/"Phase"/etc instead of
+  /// the platform default "Milestone", and the groups inside those something
+  /// other than "Module". Singular form; the UI pluralizes with a trailing
+  /// "s" ("Weeks") rather than storing a second field.
+  milestoneLabel         String          @default("Milestone")
+  moduleLabel            String          @default("Module")
+  /// The static, admin-uploaded "download before you enrol" roadmap PDF —
+  /// entirely separate from the live milestone/module curriculum below.
+  /// Uploaded to Cloudinary as an *authenticated* (not public) asset, so
+  /// `curriculumPdfUrl` is a signed delivery URL rather than a plain one —
+  /// Cloudinary blocks unsigned PDF/ZIP delivery account-wide by default.
+  /// `curriculumPdfPublicId` exists only so a replace/remove can clean up the
+  /// old asset; neither ever leaves a public response — see
+  /// `stripCurriculumPdfUrl` in the course service.
+  curriculumPdfUrl       String?
+  curriculumPdfPublicId  String?
+  curriculumPdfFileName  String?
+  curriculumPdfUpdatedAt DateTime?
+  categoryId             String?
+  createdById            String?
+  publishedAt            DateTime?
+  isDeleted              Boolean         @default(false)
+  deletedAt              DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  category  CourseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy User?           @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  milestones          Milestone[]
+  modules             CourseModule[]
+  videos              Video[]
+  assignments         Assignment[]
+  practiceDays        PracticeDay[]
+  quizzes             Quiz[]
+  mentors             CourseMentor[]
+  enrollments         Enrollment[]
+  orders              Order[]
+  supportSessions     SupportSession[]
+  certificates        Certificate[]
+  xpTransactions      XpTransaction[]
+  courseXp            CourseXp[]
+  testimonials        Testimonial[]
+  outlineWeeks        OutlineWeek[]
+  outlineItems        OutlineItem[]
+  assignmentMaterials AssignmentMaterial[]
+  staffActivities     StaffActivity[]
+  conceptualTopics    ConceptualTopic[]
+  conceptualSessions  ConceptualSession[]
+  announcements       CourseAnnouncement[]
+  reviews             CourseReview[]
+  lessonQuestions     LessonQuestion[]
+  liveClasses         LiveClass[]
+  couponCourses       CouponCourse[]
+  offer               CourseOffer?           @relation("OfferPrimaryCourse")
+  offeredFreeWith     CourseOfferItem[]
+  completionReward    CompletionReward?      @relation("RewardCourse")
+  givenAsReward       CompletionRewardItem[]
+  bundleItems         CourseBundleItem[]
+  grants              CourseGrant[]
+  admissionTicket     AdmissionTicket?
+
+  @@index([status, isDeleted])
+  @@index([categoryId])
+  @@index([isFeatured, status])
+  @@index([isPopular, status])
+  @@index([createdAt])
+  @@index([courseType])
+  @@index([phase, status, isDeleted])
+  @@index([mode])
+  @@map("course")
+  @@schema("learning")
+}
+
+/// Many-to-many between mentors and courses (plan §19): a course has several
+/// mentors and a mentor teaches several courses.
+model CourseMentor {
+  id        String           @id @default(uuid(7))
+  courseId  String
+  mentorId  String
+  role      CourseMentorRole @default(CO_MENTOR)
+  order     Int              @default(0)
+  createdAt DateTime         @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  mentor User   @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, mentorId])
+  @@index([mentorId])
+  @@map("course_mentor")
+  @@schema("learning")
+}
+
+model Milestone {
+  id          String   @id @default(uuid(7))
+  courseId    String
+  title       String
+  description String?
+  /// 1-based position inside the course. Unique per course so the learning
+  /// page can order and unlock milestones deterministically.
+  order       Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course       Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  modules      CourseModule[]
+  assignments  Assignment[]
+  practiceDays PracticeDay[]
+  progress     MilestoneProgress[]
+  enrollments  Enrollment[]        @relation("CurrentMilestone")
+
+  @@unique([courseId, order])
+  @@index([courseId, isPublished])
+  @@map("milestone")
+  @@schema("learning")
+}
+
+/// Named `CourseModule` rather than `Module` so the generated type never
+/// collides with the CommonJS `module` binding in compiled output.
+model CourseModule {
+  id          String      @id @default(uuid(7))
+  milestoneId String
+  /// Denormalised from the parent milestone so course-wide queries (progress
+  /// recalculation, admin listings) avoid a join on every read.
+  courseId    String
+  title       String
+  description String?
+  order       Int
+  /// Place in the week's one mixed list of modules, assignments and practice
+  /// days (all three share this sequence). `order` stays the module-only
+  /// sequence — numbering and sequential unlocking — and is re-derived from
+  /// this whenever the week is reordered.
+  position    Int         @default(0)
+  isPublished Boolean     @default(false)
+  /// Stamped once, the moment `isPublished` first flips true — the real-time
+  /// course outline's "Date" / "Publish Date" columns read straight off this
+  /// rather than a separately maintained schedule.
+  publishedAt DateTime?
+  /// When set, the release scheduler auto-publishes this module at this
+  /// instant — always paired with `isPublished: false` (see courseModule
+  /// service validation). Left as-is once published; harmless there since
+  /// nothing reads it for an already-published module.
+  releaseAt   DateTime?
+  /// Only on a course that runs online and offline (`Course.mode` BOTH):
+  /// whether this module's classes are ONLINE or OFFLINE. Null is "not
+  /// marked", and always null on any other course.
+  mode        CourseMode?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  milestone   Milestone        @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  videos      Video[]
+  quizzes     Quiz[]
+  progress    ModuleProgress[]
+  enrollments Enrollment[]     @relation("CurrentModule")
+
+  @@unique([milestoneId, order])
+  @@index([courseId])
+  @@index([milestoneId, isPublished])
+  @@map("course_module")
+  @@schema("learning")
+}
+
+/// Videos are never stored on our server — they live on YouTube as *unlisted*
+/// uploads and we only keep the link and metadata (plan §12).
+model Video {
+  id             String     @id @default(uuid(7))
+  moduleId       String
+  courseId       String
+  title          String
+  description    String?
+  /// Decides which of the three fields below carries the lesson. Only the one
+  /// matching the type is ever set — see the video service.
+  type           LessonType @default(VIDEO)
+  /// VIDEO only.
+  youtubeUrl     String?
+  /// The 11-character YouTube id parsed out of `youtubeUrl` at write time so
+  /// the player can embed without re-parsing on every request.
+  youtubeVideoId String?
+  /// TEXT only — the lesson body, in the same light markdown the lesson notes
+  /// use (headings, bold, code, links, bullet lists).
+  content        String?
+  /// RESOURCE only — where the material lives.
+  resourceUrl    String?
+  thumbnail      String?
+  /// Duration in seconds. The API also returns a formatted "18:42" string.
+  duration       Int        @default(0)
+  order          Int
+  isPublished    Boolean    @default(false)
+  /// A free-preview lesson is playable from the public course page without
+  /// enrolling — the "watch free" sample every course marketplace offers.
+  /// Only the video id of a *published* preview lesson ever leaves the
+  /// paywall; everything else stays behind `requireCourseAccess`.
+  isFreePreview  Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  module       CourseModule        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  course       Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress     VideoProgress[]
+  notes        LessonNote[]
+  interactions LessonInteraction[]
+  questions    LessonQuestion[]
+
+  @@unique([moduleId, order])
+  @@index([courseId])
+  @@index([moduleId, isPublished])
+  @@map("video")
+  @@schema("learning")
+}

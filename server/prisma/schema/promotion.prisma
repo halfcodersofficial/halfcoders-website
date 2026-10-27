@@ -1,0 +1,194 @@
+// =============================================================================
+// Promotions — free courses with a purchase, rewards for finishing on time,
+// and bundles of courses at one discounted price.
+// =============================================================================
+
+/// "Buy this course, get these free." One offer per paid course: when an
+/// order for it is paid, the student is enrolled in every free course too
+/// (see `utils/courseGrants.ts`). Bundle purchases don't trigger it — the
+/// bundle is its own discount.
+model CourseOffer {
+  id        String    @id @default(uuid(7))
+  /// The paid course whose purchase earns the free ones.
+  courseId  String    @unique
+  isActive  Boolean   @default(true)
+  /// Optional window; outside it a purchase earns nothing.
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  course      Course            @relation("OfferPrimaryCourse", fields: [courseId], references: [id], onDelete: Cascade)
+  freeCourses CourseOfferItem[]
+  grants      CourseGrant[]
+
+  @@map("course_offer")
+  @@schema("learning")
+}
+
+model CourseOfferItem {
+  offerId  String
+  courseId String
+  order    Int    @default(0)
+
+  offer  CourseOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  course Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([offerId, courseId])
+  @@index([courseId])
+  @@map("course_offer_item")
+  @@schema("learning")
+}
+
+/// "Finish this course in time and get these free." One reward per course.
+/// The deadline is a date, a number of days from enrolling, or both (then
+/// whichever comes first); with neither, finishing at all is enough.
+model CompletionReward {
+  id         String          @id @default(uuid(7))
+  /// The course to finish.
+  courseId   String          @unique
+  condition  RewardCondition @default(COURSE_COMPLETE)
+  deadlineAt DateTime?
+  withinDays Int?
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  course        Course                 @relation("RewardCourse", fields: [courseId], references: [id], onDelete: Cascade)
+  rewardCourses CompletionRewardItem[]
+  grants        CourseGrant[]
+
+  @@map("completion_reward")
+  @@schema("learning")
+}
+
+model CompletionRewardItem {
+  rewardId String
+  courseId String
+  order    Int    @default(0)
+
+  reward CompletionReward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  course Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([rewardId, courseId])
+  @@index([courseId])
+  @@map("completion_reward_item")
+  @@schema("learning")
+}
+
+/// A course given rather than bought, and why — the record that makes each
+/// grant happen once (the unique keys) and lets a refund take an offer's
+/// courses back. Only written when it actually opened access: a student who
+/// already had the course gets no row.
+model CourseGrant {
+  id           String      @id @default(uuid(7))
+  studentId    String
+  /// The course given.
+  courseId     String
+  source       GrantSource
+  offerId      String?
+  rewardId     String?
+  /// OFFER: the paid order for the offer's course that earned it.
+  orderId      String?
+  enrollmentId String?
+  /// Set when a refund took it back; cleared if it's earned again.
+  revokedAt    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  student User              @relation("CourseGrants", fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  offer   CourseOffer?      @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  reward  CompletionReward? @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+  order   Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([offerId, studentId, courseId])
+  @@unique([rewardId, studentId, courseId])
+  @@index([studentId])
+  @@index([orderId])
+  @@map("course_grant")
+  @@schema("learning")
+}
+
+/// Several courses sold together for less. Priced either as one fixed sum or
+/// as a percentage off the courses' combined sale price; a student who
+/// already owns some of them pays the bundle price in proportion to the
+/// rest (see `utils/bundlePricing.ts`).
+model CourseBundle {
+  id              String        @id @default(uuid(7))
+  title           String
+  slug            String        @unique
+  description     String?
+  thumbnail       String?
+  pricing         BundlePricing @default(PERCENT)
+  /// FIXED: the bundle's price in Taka.
+  price           Int?
+  /// PERCENT: how much comes off the combined sale price, 1–90.
+  discountPercent Int?
+  /// Off, it's hidden and can't be bought; on, it sells within the window.
+  isActive        Boolean       @default(false)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  /// Where it sits on the bundles page, smallest first.
+  order           Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items  CourseBundleItem[]
+  orders BundleOrder[]
+
+  @@index([isActive])
+  @@map("course_bundle")
+  @@schema("learning")
+}
+
+model CourseBundleItem {
+  bundleId String
+  courseId String
+  order    Int    @default(0)
+
+  bundle CourseBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  course Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([bundleId, courseId])
+  @@index([courseId])
+  @@map("course_bundle_item")
+  @@schema("learning")
+}
+
+/// One checkout for a bundle: a single payment for the courses the student
+/// didn't already own. When it's paid, each of those courses gets its own
+/// PAID `Order` (its share of the total) and enrolment, so per-course sales,
+/// refunds and invoices work as they always have.
+model BundleOrder {
+  id            String          @id @default(uuid(7))
+  /// Also the gateway's transaction reference ("HCB-2026-000001").
+  orderNumber   String          @unique
+  studentId     String
+  bundleId      String
+  /// The courses being bought at their sale prices, added up.
+  amount        Int
+  discount      Int             @default(0)
+  total         Int
+  currency      String          @default("BDT")
+  /// What's being bought: `{ courseId, title, salePrice, share }[]`, priced
+  /// when the order was placed.
+  items         Json
+  status        OrderStatus     @default(PENDING)
+  gateway       PaymentGateway?
+  transactionId String?         @unique
+  gatewayData   Json?
+  paidAt        DateTime?
+  failureReason String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  student User         @relation("BundleOrders", fields: [studentId], references: [id], onDelete: Restrict)
+  bundle  CourseBundle @relation(fields: [bundleId], references: [id], onDelete: Restrict)
+  orders  Order[]
+
+  @@index([studentId, status])
+  @@index([bundleId, status])
+  @@map("bundle_order")
+  @@schema("learning")
+}

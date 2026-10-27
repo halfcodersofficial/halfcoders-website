@@ -1,0 +1,119 @@
+// =============================================================================
+// Engagement — what happens around a course besides its curriculum: the
+// notice board, students' ratings, questions on a lesson, live classes.
+// =============================================================================
+
+/// A post to everyone on a course, from one of its mentors or an admin.
+/// Students also get it as a notification (and by email if they want them).
+model CourseAnnouncement {
+  id        String   @id @default(uuid(7))
+  courseId  String
+  authorId  String
+  title     String
+  body      String
+  /// Pinned posts sit above the rest, newest pinned first.
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User   @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, createdAt])
+  @@map("course_announcement")
+  @@schema("learning")
+}
+
+/// One student's rating of a course they're on — one each, editable.
+model CourseReview {
+  id            String             @id @default(uuid(7))
+  courseId      String
+  studentId     String
+  /// 1–5 stars.
+  rating        Int
+  comment       String?
+  status        CourseReviewStatus @default(PENDING)
+  moderatedById String?
+  moderatedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student     User   @relation("CourseReviewAuthor", fields: [studentId], references: [id], onDelete: Cascade)
+  moderatedBy User?  @relation("CourseReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+
+  @@unique([courseId, studentId])
+  @@index([courseId, status])
+  @@index([status, createdAt])
+  @@map("course_review")
+  @@schema("learning")
+}
+
+/// A question asked on a lesson, for the course's mentors (and classmates) to answer.
+model LessonQuestion {
+  id         String   @id @default(uuid(7))
+  courseId   String
+  videoId    String
+  authorId   String
+  body       String
+  /// Marked by whoever asked, or by the course's staff.
+  isResolved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  video   Video          @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  author  User           @relation("LessonQuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  answers LessonAnswer[]
+
+  @@index([videoId, createdAt])
+  @@index([courseId, isResolved])
+  @@map("lesson_question")
+  @@schema("learning")
+}
+
+model LessonAnswer {
+  id         String   @id @default(uuid(7))
+  questionId String
+  authorId   String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question LessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author   User           @relation("LessonAnswerAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, createdAt])
+  @@map("lesson_answer")
+  @@schema("learning")
+}
+
+/// A live class on the calendar (held on Zoom or Meet), before it becomes a
+/// conceptual recording. Students see it on the course with its link.
+model LiveClass {
+  id              String          @id @default(uuid(7))
+  courseId        String
+  /// The conceptual topic it belongs to, when there is one.
+  topicId         String?
+  title           String
+  description     String?
+  startsAt        DateTime
+  durationMinutes Int             @default(60)
+  joinUrl         String?
+  status          LiveClassStatus @default(SCHEDULED)
+  /// When students were told it's about to start — once per class (reset
+  /// when it's moved, so the new time gets its own reminder).
+  remindedAt      DateTime?
+  createdById     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic     ConceptualTopic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation("LiveClassCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([courseId, startsAt])
+  @@index([status, startsAt])
+  @@map("live_class")
+  @@schema("learning")
+}

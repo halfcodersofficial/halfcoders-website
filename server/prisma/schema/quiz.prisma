@@ -1,0 +1,150 @@
+/// One quiz per module — the equivalent of Phitron's "Quiz: Module 03": a
+/// short, single-choice check students take right after finishing a module's
+/// lessons. Kept 1:1 with `CourseModule` (not a list) because that's the
+/// actual product shape here; nothing in the spec calls for more than one quiz
+/// per module, and a list would just be an empty array everywhere but index 0.
+model Quiz {
+  id          String    @id @default(uuid(7))
+  moduleId    String    @unique
+  /// Denormalised from the parent module, same rationale as
+  /// `CourseModule.courseId` — course-wide queries (the outline, the review
+  /// queue) avoid a join.
+  courseId    String
+  title       String
+  description String?
+  isPublished Boolean   @default(false)
+  /// Stamped once, the moment `isPublished` first flips true — see
+  /// `CourseModule.publishedAt`.
+  publishedAt DateTime?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  module    CourseModule   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation("QuizCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?          @relation("QuizUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([courseId])
+  @@index([moduleId, isPublished])
+  @@map("quiz")
+  @@schema("learning")
+}
+
+/// A closed list rather than a free string, same rationale as
+/// `COURSE_FEATURE_ICONS` — the client renders a different input control per
+/// type. Only `SINGLE_CHOICE` ships now; the enum exists so a future type
+/// (multi-select, true/false, short answer) is an additive migration, not a
+/// destructive one.
+enum QuizQuestionType {
+  SINGLE_CHOICE
+
+  @@schema("learning")
+}
+
+model QuizQuestion {
+  id          String           @id @default(uuid(7))
+  quizId      String
+  question    String
+  type        QuizQuestionType @default(SINGLE_CHOICE)
+  /// Shown to the student immediately after they answer — see the reference
+  /// UX's "You selected X but the correct answer is Y."
+  explanation String?
+  order       Int
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  quiz    Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options QuizOption[]
+  answers QuizAttemptAnswer[]
+
+  @@unique([quizId, order])
+  @@map("quiz_question")
+  @@schema("learning")
+}
+
+model QuizOption {
+  id         String  @id @default(uuid(7))
+  questionId String
+  text       String
+  /// Never sent to a student before they answer that question — see
+  /// `sanitiseQuestionForAttempt` in quiz.service.ts.
+  isCorrect  Boolean @default(false)
+  order      Int
+
+  question          QuizQuestion        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedInAnswers QuizAttemptAnswer[] @relation("SelectedOption")
+
+  @@unique([questionId, order])
+  @@map("quiz_option")
+  @@schema("learning")
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+
+  @@schema("learning")
+}
+
+/// One student's run through a quiz (plan-adjacent, mirrors
+/// `AssignmentSubmission`). Multiple attempts are allowed and each is kept —
+/// there is no "retry overwrites" here — so a best/latest/average score can be
+/// derived later without a schema change.
+model QuizAttempt {
+  id             String            @id @default(uuid(7))
+  quizId         String
+  studentId      String
+  enrollmentId   String
+  status         QuizAttemptStatus @default(IN_PROGRESS)
+  /// Every field below is 0 until `status` flips to COMPLETED — always
+  /// computed server-side from `QuizAttemptAnswer` rows, never trusted from
+  /// the client.
+  totalQuestions Int               @default(0)
+  correctCount   Int               @default(0)
+  incorrectCount Int               @default(0)
+  /// Percentage score, 0-100. `score` doubles as "points" if a future version
+  /// weights questions unevenly; today it equals `correctCount`.
+  score          Int               @default(0)
+  percentage     Int               @default(0)
+  startedAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  quiz       Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student    User                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment Enrollment          @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  answers    QuizAttemptAnswer[]
+
+  @@index([quizId, studentId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@map("quiz_attempt")
+  @@schema("learning")
+}
+
+/// One answered question inside one attempt. `isCorrect` is stamped at answer
+/// time from the option the student picked, so review reads never have to
+/// re-join and re-compare.
+model QuizAttemptAnswer {
+  id               String   @id @default(uuid(7))
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  isCorrect        Boolean  @default(false)
+  answeredAt       DateTime @default(now())
+
+  attempt        QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption QuizOption?  @relation("SelectedOption", fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  /// One answer per question per attempt — a re-POST to the same question
+  /// (double click, retry) is a no-op read of the existing row, not a second
+  /// row. See `quiz.service.ts` `submitAnswer`.
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+  @@map("quiz_attempt_answer")
+  @@schema("learning")
+}

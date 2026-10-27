@@ -1,0 +1,32 @@
+model Notification {
+  id            String           @id @default(uuid(7))
+  userId        String
+  title         String
+  message       String
+  type          NotificationType @default(GENERAL)
+  /// Relative frontend path the notification deep-links to, e.g.
+  /// "/dashboard/courses/mern-stack/modules/17".
+  link          String?
+  isRead        Boolean          @default(false)
+  readAt        DateTime?
+  /// Admin broadcasts only — pops up as a blocking SweetAlert the next time
+  /// this recipient logs in, instead of (or alongside) the normal bell entry.
+  showOnLogin   Boolean          @default(false)
+  /// Only meaningful when `showOnLogin` is set. false: the pop-up is marked
+  /// read the first time it's shown, so it never appears again. true: it
+  /// stays unread and reappears at every login until an admin deletes it.
+  repeatOnLogin Boolean          @default(false)
+  /// Null for system-generated notifications; set when an admin sends one.
+  senderId      String?
+  createdAt     DateTime         @default(now())
+
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([userId, showOnLogin, isRead])
+  @@index([type])
+  @@map("notification")
+  @@schema("learning")
+}

@@ -1,0 +1,39 @@
+/// A student's own note against one video (plan-adjacent — the learning page
+/// gained a Notes/Bookmark/Reaction action bar). Kept off `VideoProgress` on
+/// purpose: that row's `updatedAt` feeds the dashboard's learning-streak
+/// calculation, and editing a note is not watching a lesson.
+model LessonNote {
+  id        String   @id @default(uuid(7))
+  studentId String
+  videoId   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, videoId])
+  @@map("lesson_note")
+  @@schema("learning")
+}
+
+/// Bookmark + like/dislike on one video, combined because both are simple
+/// per-student-per-video toggles read together by the lesson action bar.
+model LessonInteraction {
+  id           String        @id @default(uuid(7))
+  studentId    String
+  videoId      String
+  isBookmarked Boolean       @default(false)
+  reaction     ReactionType?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, videoId])
+  @@index([studentId, isBookmarked])
+  @@map("lesson_interaction")
+  @@schema("learning")
+}

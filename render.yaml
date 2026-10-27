@@ -1,0 +1,93 @@
+# =============================================================================
+# Half Coders API on Render — Blueprint (Dashboard → New → Blueprint, pick this
+# repo). The web app is on Vercel (client/vercel.json); see server/README.md,
+# "Deployment", for the order things are set up in.
+#
+# The API must answer on a subdomain of the web app's domain —
+# api.half-coders.tech next to half-coders.tech — so the session cookie
+# (COOKIE_DOMAIN) is first-party to both. Add the custom domain under the
+# service's Settings → Custom Domains once it exists.
+# =============================================================================
+services:
+  - type: web
+    name: halfcoders-api
+    runtime: node
+    rootDir: server
+    # Ohio sits beside the Neon database (aws us-east-2). Can't be changed
+    # after creation — move the database first if it ever moves.
+    region: ohio
+    # Not free: Render's free web services block outbound SMTP (ports 25, 465
+    # and 587), so no sign-up or password-reset email would ever leave. Free
+    # also sleeps after 15 idle minutes — a ~1 minute first request, and the
+    # release scheduler doesn't run while asleep.
+    plan: starter
+    # NODE_ENV=production makes pnpm skip devDependencies, and the build
+    # needs TypeScript — hence --prod=false. The Prisma client is generated
+    # before tsc: the whole codebase imports its types.
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm generate && pnpm build
+    # Migrations run before the API starts (booting against an out-of-date
+    # schema is worse than failing to boot); they're a no-op when nothing is
+    # pending. `exec` hands the process to node, so Render's SIGTERM reaches
+    # the graceful shutdown in server.ts. Super admin, categories and courses
+    # are seeded by the server itself on boot.
+    startCommand: pnpm migrate:prod && exec node dist/src/server.js
+    # 503 until the database answers, so a deploy only goes live once it can serve.
+    healthCheckPath: /readiness
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Render sets PORT itself.
+
+      # ---- URLs
+      - key: FRONTEND_URL
+        value: https://half-coders.tech
+      - key: BACKEND_URL
+        value: https://api.half-coders.tech
+      - key: COOKIE_DOMAIN
+        value: half-coders.tech
+      # Proxies in front of the app. Check after the first deploy: sign in,
+      # open "My devices" and compare its IP with yours (e.g. whatismyip.com).
+      # A Render/Cloudflare address there means raise this by one.
+      - key: TRUST_PROXY
+        value: "1"
+
+      # ---- Database (Neon) — must end with ?schema=learning
+      - key: DATABASE_URL
+        sync: false
+
+      # ---- Accounts
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: SUPER_ADMIN_NAME
+        value: Half Coders Admin
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+      # ---- Email (SMTP)
+      - key: EMAIL_SENDER_SMTP_USER
+        sync: false
+      - key: EMAIL_SENDER_SMTP_PASS
+        sync: false
+      - key: EMAIL_SENDER_SMTP_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_SENDER_SMTP_PORT
+        value: "465"
+      - key: EMAIL_SENDER_SMTP_FROM
+        sync: false
+
+      # ---- Cloudinary (uploads)
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # ---- Optional: with Redis, rate limits and sockets work across instances.
+      # - key: REDIS_URL
+      #   sync: false

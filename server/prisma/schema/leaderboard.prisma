@@ -1,0 +1,56 @@
+/// Append-only XP ledger (plan §31). Every award writes a row here and bumps
+/// the matching CourseXp aggregate, so the leaderboard is a cheap indexed read
+/// while the ledger stays auditable and replayable.
+model XpTransaction {
+  id        String   @id @default(uuid(7))
+  studentId String
+  courseId  String?
+  source    XpSource
+  points    Int
+  /// Id of the entity that triggered the award (video, submission, …). Paired
+  /// with `source` it makes each award idempotent — the service refuses to
+  /// grant XP twice for the same event.
+  refId     String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, source, refId])
+  @@index([studentId, courseId])
+  @@index([courseId, createdAt])
+  @@map("xp_transaction")
+  @@schema("learning")
+}
+
+/// Denormalised per-student, per-course XP total that backs the leaderboard.
+model CourseXp {
+  id        String   @id @default(uuid(7))
+  studentId String
+  courseId  String
+  totalXp   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([courseId, totalXp(sort: Desc)])
+  @@map("course_xp")
+  @@schema("learning")
+}
+
+/// Key/value store for tunables the plan explicitly calls out as
+/// configurable — XP rules (§31), support slot length (§25), certificate
+/// number prefix (§29). Editing a setting must never require a migration.
+model PlatformSetting {
+  id          String   @id @default(uuid(7))
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("platform_setting")
+  @@schema("learning")
+}

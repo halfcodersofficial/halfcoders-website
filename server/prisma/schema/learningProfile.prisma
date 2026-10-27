@@ -1,0 +1,59 @@
+/// An account's membership of the learning platform — one row per person who
+/// has ever used it, created with the account (or on first sign-in).
+///
+/// This is where Half Coders keeps per-person data that isn't identity or a
+/// learning record (enrollment, progress, …): learning-only moderation, the
+/// student id, WhatsApp, bio, preferences. Name, email, phone and photo live
+/// on `User`.
+model LearningProfile {
+  id           String         @id @default(uuid(7))
+  userId       String         @unique
+  /// Learning-only moderation. Blocking here removes access to learning
+  /// without touching the account itself; account-wide locks are `User.status`.
+  status       LearningStatus @default(ACTIVE)
+  /// Student-facing display id (e.g. "HC-000123"), lazily assigned the first
+  /// time a student's profile overview is fetched — see `ensureStudentId`.
+  /// Null for mentors/admins.
+  studentId    String?        @unique
+  whatsapp     String?
+  bio          String?
+  address      String?
+  /// Learning preferences (health-caution reminders, email opt-in). Absent
+  /// keys mean "use the default" — the client fills in defaults for a null
+  /// column so a brand-new profile reads as fully opted-in.
+  preferences  Json?
+  deletedAt    DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("learning_profiles")
+  @@schema("learning")
+}
+
+/// Public-facing mentor details. Created alongside the MENTOR role
+/// (plan §20) and shown on course pages and the mentors section of the
+/// marketing site.
+model MentorProfile {
+  id          String   @id @default(uuid(7))
+  userId      String   @unique
+  designation String?
+  expertise   String[] @default([])
+  experience  String?
+  facebookUrl String?
+  linkedinUrl String?
+  githubUrl   String?
+  websiteUrl  String?
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isFeatured])
+  @@map("mentor_profile")
+  @@schema("learning")
+}

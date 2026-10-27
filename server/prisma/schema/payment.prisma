@@ -1,0 +1,66 @@
+/// A purchase intent. The enrollment is created only once this reaches PAID
+/// (plan §33) — no gateway callback, no course access.
+model Order {
+  id              String      @id @default(uuid(7))
+  /// Human-facing reference shown on invoices, e.g. "HC-2026-000124".
+  orderNumber     String      @unique
+  studentId       String
+  courseId        String
+  /// All amounts in whole BDT; `total` = `amount` - `discount`.
+  amount          Int
+  discount        Int         @default(0)
+  total           Int
+  currency        String      @default("BDT")
+  couponCode      String?
+  /// The coupon's share of `discount` (the rest is the course's own sale price).
+  couponDiscount  Int         @default(0)
+  /// When the coupon went on this unpaid order. For a limited code, a recent
+  /// one holds a use while the student pays, so a crowd can't overrun it.
+  couponAppliedAt DateTime?
+  status          OrderStatus @default(PENDING)
+  /// Set when this order is one course's share of a paid bundle checkout.
+  bundleOrderId   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  /// Restrict: financial / credential record — an account that still
+  /// owns one can't be removed (accounts are only ever soft-deleted).
+  student        User            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  bundleOrder    BundleOrder?    @relation(fields: [bundleOrderId], references: [id], onDelete: SetNull)
+  payment        Payment?
+  enrollment     Enrollment?
+  refundRequests RefundRequest[]
+  grants         CourseGrant[]
+
+  @@index([studentId, status])
+  @@index([bundleOrderId])
+  @@index([courseId, status])
+  @@index([status, createdAt])
+  @@index([couponCode, status])
+  @@map("order")
+  @@schema("learning")
+}
+
+model Payment {
+  id            String         @id @default(uuid(7))
+  orderId       String         @unique
+  gateway       PaymentGateway
+  /// Gateway-side transaction id (the bKash TrxID the student sent in, …).
+  transactionId String?        @unique
+  amount        Int
+  status        OrderStatus    @default(PENDING)
+  /// Raw gateway callback payload, kept verbatim for dispute resolution.
+  gatewayData   Json?
+  paidAt        DateTime?
+  failureReason String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([gateway, status])
+  @@map("payment")
+  @@schema("learning")
+}

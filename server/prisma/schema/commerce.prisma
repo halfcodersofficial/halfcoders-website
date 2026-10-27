@@ -1,0 +1,80 @@
+// =============================================================================
+// Commerce extras — coupons at checkout, and students' refund requests.
+// =============================================================================
+
+/// A discount code. An order keeps the code it was bought with
+/// (`Order.couponCode`) and the money it took off (`Order.discount`).
+model Coupon {
+  id              String     @id @default(uuid(7))
+  /// Upper-case, as typed at checkout (matched case-insensitively).
+  code            String     @unique
+  /// Shown to students beside the code, e.g. "Eden Mohila College programme".
+  label           String?
+  /// For admins only — where the code was handed out, and why.
+  description     String?
+  kind            CouponKind
+  /// A percentage (1–100) for PERCENT; taka off for FIXED.
+  value           Int
+  /// PERCENT only: the most it takes off one order, in taka; null for no cap.
+  maxDiscount     Int?
+  /// The course's sale price must be at least this much; null for any price.
+  minAmount       Int?
+  /// Every course, or only those in `courses`.
+  allCourses      Boolean    @default(true)
+  /// Paid orders it can be used on in all; null for no limit.
+  maxRedemptions  Int?
+  /// Paid orders one student can use it on; null for no limit.
+  perStudentLimit Int?       @default(1)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  isActive        Boolean    @default(true)
+  createdById     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  courses   CouponCourse[]
+  createdBy User?          @relation("CouponCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isActive])
+  @@map("coupon")
+  @@schema("learning")
+}
+
+/// A course a coupon is limited to, when it isn't for every course.
+model CouponCourse {
+  couponId String
+  courseId String
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, courseId])
+  @@index([courseId])
+  @@map("coupon_course")
+  @@schema("learning")
+}
+
+/// A student asking for their money back on a paid order. Approving it
+/// refunds the order (access ends); declining says why.
+model RefundRequest {
+  id          String              @id @default(uuid(7))
+  orderId     String
+  studentId   String
+  reason      String
+  status      RefundRequestStatus @default(PENDING)
+  /// What the admin told the student, either way.
+  adminNote   String?
+  decidedById String?
+  decidedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  student   User  @relation("RefundRequester", fields: [studentId], references: [id], onDelete: Cascade)
+  decidedBy User? @relation("RefundDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@map("refund_request")
+  @@schema("learning")
+}

@@ -1,0 +1,32 @@
+/// Student testimonials for the homepage (plan §7).
+///
+/// Deliberately not tied to a User row: the most useful quotes often come from
+/// graduates whose accounts have since gone quiet, and marketing copy needs to
+/// survive a student deleting their account. `studentId` is an optional link
+/// for provenance only.
+model Testimonial {
+  id          String   @id @default(uuid(7))
+  studentId   String?
+  /// Snapshotted so the quote never changes under a profile rename.
+  name        String
+  designation String?
+  avatar      String?
+  /// A YouTube link, when this testimonial is a video rather than a quote
+  /// card. The course page splits `testimonials` on this field.
+  videoUrl    String?
+  quote       String
+  /// 1–5. Rendered as stars; not an average of anything.
+  rating      Int      @default(5)
+  courseId    String?
+  isPublished Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student User?   @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([isPublished, order])
+  @@map("testimonial")
+  @@schema("learning")
+}

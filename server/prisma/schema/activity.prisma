@@ -1,0 +1,32 @@
+/// What a staff member (mentor or admin) changed in Half Coders: one row per
+/// successful change they made — a lesson added, a module edited, a
+/// submission reviewed, a support session run. Written by the `trackActivity`
+/// route middleware (lib/staffActivity.ts), read by the admin's mentor detail
+/// page. History starts when this table did; nothing before it is recorded.
+model StaffActivity {
+  id         String   @id @default(uuid(7))
+  actorId    String
+  /// Catalogue key, e.g. "video.update" — see lib/staffActivity.ts.
+  action     String
+  /// The sentence shown in the history, e.g. `Edited lesson “Pointers”`.
+  summary    String
+  /// The course it happened in, when there is one. Kept if the course is
+  /// deleted later, so the history still reads.
+  courseId   String?
+  entityType String?
+  entityId   String?
+  /// Extra context: the field *names* a change touched (never their values),
+  /// a count for bulk actions, a new status.
+  detail     Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor  User    @relation("StaffActivityActor", fields: [actorId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([courseId, createdAt])
+  @@map("staff_activity")
+  @@schema("learning")
+}

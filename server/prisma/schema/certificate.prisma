@@ -1,0 +1,39 @@
+/// Issued once a course reaches 100% with its required assignments accepted
+/// (plan §28). `certificateNo` is the public identifier printed on the PDF and
+/// resolvable at /certificate/:certificateNo without authentication (plan §29).
+model Certificate {
+  id               String            @id @default(uuid(7))
+  certificateNo    String            @unique
+  studentId        String
+  courseId         String
+  enrollmentId     String            @unique
+  /// Names are snapshotted at issue time so a later profile rename or course
+  /// re-title never contradicts an already-printed certificate.
+  studentName      String
+  courseName       String
+  /// The course's duration text and whether it had graded work (assignments
+  /// or quizzes: "Passed", else "Completed"), snapshotted for the same reason.
+  trainingDuration String?
+  assessed         Boolean           @default(false)
+  /// Which design the PDF is drawn in, fixed at issue so a certificate always
+  /// prints as it first did: 1 the original, 2 the October 2026 one.
+  layout           Int               @default(1)
+  completionDate   DateTime
+  issuedAt         DateTime          @default(now())
+  status           CertificateStatus @default(ISSUED)
+  pdfUrl           String?
+  revokedAt        DateTime?
+  revokeReason     String?
+
+  /// Restrict: financial / credential record — an account that still
+  /// owns one can't be removed (accounts are only ever soft-deleted).
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
+  @@map("certificate")
+  @@schema("learning")
+}

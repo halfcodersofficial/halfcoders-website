@@ -1,0 +1,208 @@
+/// Everything behind Half Coders' multi-section student "View Profile" module:
+/// additional info, address, education, important links + project cards,
+/// skills, job profile/experience, hired records and course requests. All of
+/// it hangs off `User` and is reached only through `checkAuth(Role.STUDENT)`
+/// routes — nothing here enforces that at the schema level.
+///
+/// Singletons (one row per student) use `userId String @unique` + cascade
+/// delete and are upserted in place. Repeatable sections (skills, job
+/// experience, hired records, project links, course requests) use a plain
+/// `userId` + an `order` column for stable display order and get their own
+/// CRUD routes.
+
+model StudentAdditionalInfo {
+  id                String   @id @default(uuid(7))
+  userId            String   @unique
+  gender            Gender?
+  ageRange          String?
+  primaryDeviceType String?
+  internetType      String?
+  yearsOfExperience String?
+  employmentRole    String?
+  areaType          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_additional_info")
+  @@schema("learning")
+}
+
+model StudentAddress {
+  id                     String   @id @default(uuid(7))
+  userId                 String   @unique
+  presentCountry         String?
+  presentDistrict        String?
+  presentStreetAddress   String?
+  permanentCountry       String?
+  permanentDistrict      String?
+  permanentStreetAddress String?
+  /// When true, the service copies present -> permanent on every write, so
+  /// this stays the source of truth rather than a client-side convenience.
+  sameAsPresent          Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_address")
+  @@schema("learning")
+}
+
+model StudentEducation {
+  id                  String   @id @default(uuid(7))
+  userId              String   @unique
+  level               String?
+  examTitle           String?
+  institutionName     String?
+  passingYear         Int?
+  isCurrentlyStudying Boolean  @default(false)
+  currentYear         String?
+  /// Null = unanswered, distinct from "No".
+  isCseStudent        Boolean?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_education")
+  @@schema("learning")
+}
+
+/// The five singleton link fields ("Open CV Link", "Open Github Profile",
+/// etc). Repeatable portfolio project cards are `StudentProject`, below.
+model StudentLinks {
+  id              String   @id @default(uuid(7))
+  userId          String   @unique
+  cvUrl           String?
+  githubUrl       String?
+  portfolioUrl    String?
+  linkedinUrl     String?
+  /// "Good professional Profile image link" in the reference — deliberately
+  /// distinct from `User.image`, which is the actual avatar.
+  profileImageUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_links")
+  @@schema("learning")
+}
+
+model StudentJobProfile {
+  id                        String   @id @default(uuid(7))
+  userId                    String   @unique
+  wantsJob                  Boolean?
+  jobType                   String?
+  jobPreference             String?
+  wantsJobOutsideBangladesh Boolean?
+  hasJobExperience          Boolean?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_job_profile")
+  @@schema("learning")
+}
+
+/// A portfolio project card under Important Links ("Add Project Link").
+model StudentProject {
+  id          String   @id @default(uuid(7))
+  userId      String
+  title       String
+  description String?
+  url         String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("student_project")
+  @@schema("learning")
+}
+
+model StudentSkill {
+  id                String   @id @default(uuid(7))
+  userId            String
+  name              String
+  yearsOfExperience String?
+  projectLink       String?
+  order             Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("student_skill")
+  @@schema("learning")
+}
+
+model StudentJobExperience {
+  id                 String    @id @default(uuid(7))
+  userId             String
+  designation        String
+  companyName        String
+  isRelatedToIt      Boolean?
+  description        String?
+  isCurrentlyWorking Boolean   @default(false)
+  startDate          DateTime?
+  endDate            DateTime?
+  order              Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("student_job_experience")
+  @@schema("learning")
+}
+
+model StudentHiredRecord {
+  id                   String    @id @default(uuid(7))
+  userId               String
+  companyName          String
+  position             String
+  jobType              String?
+  howGotJob            String?
+  description          String?
+  companyCountry       String?
+  companyCity          String?
+  isCurrentlyWorking   Boolean   @default(false)
+  startDate            DateTime?
+  endDate              DateTime?
+  /// "How did Half Coders help you build your career?" free text.
+  careerImpactNote     String?
+  appointmentLetterUrl String?
+  order                Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("student_hired_record")
+  @@schema("learning")
+}
+
+model StudentCourseRequest {
+  id         String              @id @default(uuid(7))
+  userId     String
+  courseName String
+  category   String?
+  status     CourseRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("student_course_request")
+  @@schema("learning")
+}
