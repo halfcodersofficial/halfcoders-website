@@ -1,7 +1,7 @@
 import ejs from "ejs";
 import nodemailer from "nodemailer";
 import path from "path";
-import { envVars } from "../config/env";
+import { envVars, frontendIsLocal } from "../config/env";
 import { logger } from "./logger";
 
 export interface ISendEmailOptions {
@@ -81,6 +81,19 @@ const transporter = !brevoApiKey && smtpConfigured
     : null;
 
 /**
+ * Real mail with localhost links: whoever gets it can't open them. Only
+ * reachable in development — production refuses to boot that way (config/env).
+ */
+const warnIfLinksAreLocal = () => {
+    if (frontendIsLocal) {
+        logger.warn(
+            `Emails will link to ${envVars.FRONTEND_URL}, which opens only on this computer. ` +
+            "When real people get this mail, set FRONTEND_URL to the live site (https://half-coders.tech) — the local site keeps working.",
+        );
+    }
+};
+
+/**
  * Checks the mail setup once, at boot — Brevo's API key, or the SMTP login —
  * so a setup that can't send shows in the logs straight away instead of as
  * codes that never arrive.
@@ -90,6 +103,7 @@ export const checkEmailTransport = async () => {
         try {
             await callBrevo("/account");
             logger.info("Email ready", { via: "brevo", from });
+            warnIfLinksAreLocal();
         } catch (error) {
             const hint =
                 (error as { status?: number }).status === 401
@@ -103,6 +117,7 @@ export const checkEmailTransport = async () => {
     try {
         await transporter.verify();
         logger.info("Email ready", { via: "smtp", host: envVars.EMAIL_SENDER.SMTP_HOST, port: envVars.EMAIL_SENDER.SMTP_PORT });
+        warnIfLinksAreLocal();
     } catch (error) {
         const hint =
             (error as { code?: string }).code === "EAUTH"
