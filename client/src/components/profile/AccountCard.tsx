@@ -41,7 +41,7 @@ export function AccountCard({ email, phone }: AccountCardProps) {
                 <DevicesLink />
 
                 <div>
-                    <h3 className="mb-3 text-sm font-semibold">Change password</h3>
+                    <h3 className="mb-3 text-sm font-semibold">Password</h3>
                     <ChangePasswordForm />
                 </div>
             </div>

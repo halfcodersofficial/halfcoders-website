@@ -4,12 +4,13 @@ import { AccountStatus, AuthCodePurpose, LearningStatus } from "../../../generat
 import { deleteFileFromCloudinary, isOwnCloudinaryAsset, uploadFileToCloudinary } from "../../config/cloudinary.config";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
-import { consumeAuthCode, issueAuthCode } from "../../lib/authCodes";
+import { consumeAuthCode, issueAuthCode, withdrawAuthCode } from "../../lib/authCodes";
+import { exchangeGoogleCode, GoogleIdentity, verifyGoogleCredential } from "../../lib/google";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
 import { endAllSessions, endSession, liveDevices, makeRoomForDevice, MAX_DEVICES } from "../../lib/session";
-import { sendEmailAsync } from "../../utils/email";
+import { sendEmail } from "../../utils/email";
 import { logger } from "../../utils/logger";
 import { assertRealEmail } from "../../utils/realEmail";
 
@@ -35,14 +36,23 @@ const CODE_EMAIL = {
     },
 } as const;
 
-/** Mails a fresh one-time code (lib/authCodes.ts) for `purpose`. */
+/**
+ * Mails a fresh one-time code (lib/authCodes.ts) for `purpose`, and waits for
+ * the mail to go: if it can't, the code is taken back and the person told
+ * (503), rather than left waiting for an email that isn't coming.
+ */
 const sendAuthCode = async (user: { id: string; email: string }, purpose: AuthCodePurpose) => {
     const code = await issueAuthCode(user.id, purpose);
     const copy = CODE_EMAIL[purpose];
-    sendEmailAsync(
-        { to: user.email, subject: copy.subject, templateName: "code", templateData: { title: copy.title, message: copy.message, code } },
-        `${purpose.toLowerCase()} code`,
-    );
+    try {
+        await sendEmail({ to: user.email, subject: copy.subject, templateName: "code", templateData: { title: copy.title, message: copy.message, code } });
+    } catch (error) {
+        logger.error(`Email send failed (${purpose.toLowerCase()} code)`, error);
+        await withdrawAuthCode(user.id, purpose);
+        throw new AppError(status.SERVICE_UNAVAILABLE, "We couldn't send the email just now. Please try again in a minute.").setData({
+            code: "EMAIL_NOT_SENT",
+        });
+    }
 };
 
 /** The same, for flows that answer the same way whatever happens: a too-soon resend is just skipped. */
@@ -54,19 +64,19 @@ const sendAuthCodeQuietly = async (user: { id: string; email: string }, purpose:
     }
 };
 
-const findByEmail = (email: string) =>
-    prisma.user.findUnique({
-        where: { email },
-        select: {
-            id: true,
-            email: true,
-            passwordHash: true,
-            emailVerified: true,
-            status: true,
-            isDeleted: true,
-            learningProfile: { select: { status: true } },
-        },
-    });
+const ACCOUNT_SELECT = {
+    id: true,
+    email: true,
+    passwordHash: true,
+    googleId: true,
+    image: true,
+    emailVerified: true,
+    status: true,
+    isDeleted: true,
+    learningProfile: { select: { status: true } },
+} satisfies Prisma.UserSelect;
+
+const findByEmail = (email: string) => prisma.user.findUnique({ where: { email }, select: ACCOUNT_SELECT });
 
 /** Refuses an account that may not sign in, with the same codes checkAuth uses. */
 const assertCanSignIn = (account: NonNullable<Awaited<ReturnType<typeof findByEmail>>>) => {
@@ -122,14 +132,18 @@ const register = async ({ name, email, phone, password }: RegisterPayload) => {
     return { email: user.email };
 };
 
-/** Verifies the email with its code. Returns the account to sign in. */
+/**
+ * Verifies the email with its code. Returns the account to sign in. An email
+ * already verified has no code left to check, so it's refused like a wrong
+ * code — answering it with a session would sign anyone in who knew the address.
+ */
 const verifyEmail = async ({ email, code }: { email: string; code: string }) => {
     const account = await findByEmail(email);
-    if (!account) throw new AppError(status.BAD_REQUEST, "That code is wrong or has expired.").setData({ code: "INVALID_CODE" });
-    if (!account.emailVerified) {
-        await consumeAuthCode(account.id, AuthCodePurpose.VERIFY_EMAIL, code);
-        await prisma.user.update({ where: { id: account.id }, data: { emailVerified: true } });
+    if (!account || account.emailVerified) {
+        throw new AppError(status.BAD_REQUEST, "That code is wrong or has expired.").setData({ code: "INVALID_CODE" });
     }
+    await consumeAuthCode(account.id, AuthCodePurpose.VERIFY_EMAIL, code);
+    await prisma.user.update({ where: { id: account.id }, data: { emailVerified: true } });
     assertCanSignIn(account);
     return account.id;
 };
@@ -170,6 +184,85 @@ const login = async ({ email, password, signOutAllDevices }: { email: string; pa
 };
 
 // ---------------------------------------------------------------------------
+// Signing in with Google
+// ---------------------------------------------------------------------------
+
+/**
+ * Signs in with Google (lib/google.ts): the code from Google's sign-in popup,
+ * or an ID token. The account is the one already linked to that Google
+ * account; else the one with its email, which gets linked; else a new student
+ * account — its email needs no code, Google has verified it. Returns the
+ * account to sign in and whether it was just made.
+ *
+ * The device limit works as for a password sign-in: a 409, then the same
+ * sign-in again with `signOutAllDevices`. A code works only once, so its 409
+ * carries the ID token (`credential`) to come back with.
+ */
+const googleSignIn = async ({ code, credential, signOutAllDevices }: { code?: string; credential?: string; signOutAllDevices?: boolean }) => {
+    let google: GoogleIdentity;
+    let idToken: string | undefined;
+    if (code) {
+        ({ identity: google, idToken } = await exchangeGoogleCode(code));
+    } else {
+        google = await verifyGoogleCredential(credential as string);
+    }
+
+    const account =
+        (await prisma.user.findUnique({ where: { googleId: google.sub }, select: ACCOUNT_SELECT })) ?? (await findByEmail(google.email));
+
+    if (!account) {
+        await assertRealEmail(google.email);
+        const user = await prisma.user.create({
+            data: {
+                name: google.name,
+                email: google.email,
+                emailVerified: true,
+                image: google.picture,
+                googleId: google.sub,
+                role: Role.STUDENT,
+                learningProfile: { create: {} },
+            },
+            select: { id: true },
+        });
+        logger.create("Account created with Google", { userId: user.id });
+        return { userId: user.id, isNewAccount: true };
+    }
+
+    if (account.googleId && account.googleId !== google.sub) {
+        throw new AppError(
+            status.CONFLICT,
+            "This email's account is linked to a different Google account. Sign in with that one, or with your email and password.",
+        ).setData({ code: "GOOGLE_ACCOUNT_MISMATCH" });
+    }
+    assertCanSignIn(account);
+
+    if (!account.googleId || !account.emailVerified) {
+        await prisma.user.update({
+            where: { id: account.id },
+            data: {
+                googleId: google.sub,
+                // Nobody had proved this inbox yet, so the password was chosen by
+                // whoever typed the address at sign-up — maybe not its owner.
+                // Google has proved it now; that password mustn't open the account.
+                ...(!account.emailVerified && { emailVerified: true, passwordHash: null }),
+                ...(!account.image && google.picture && { image: google.picture }),
+            },
+        });
+        logger.update("Google account linked", { userId: account.id });
+    }
+
+    try {
+        await makeRoomForDevice(account.id, signOutAllDevices);
+    } catch (error) {
+        if (idToken && error instanceof AppError && error.statusCode === status.CONFLICT) {
+            error.setData({ ...(error.data as object), credential: idToken });
+        }
+        throw error;
+    }
+    return { userId: account.id, isNewAccount: false };
+};
+
+// ---------------------------------------------------------------------------
 // The devices the account is signed in on
 // ---------------------------------------------------------------------------
 
@@ -205,7 +298,10 @@ const signOutOtherDevices = async (user: IRequestUser) => {
 const forgotPassword = async ({ email }: { email: string }) => {
     const account = await findByEmail(email);
     if (account && !account.isDeleted && account.status === AccountStatus.ACTIVE) {
-        await sendAuthCodeQuietly(account, AuthCodePurpose.RESET_PASSWORD);
+        // A mail failure is only logged here: a 503 would tell that the email is on file.
+        await sendAuthCodeQuietly(account, AuthCodePurpose.RESET_PASSWORD).catch((error) => {
+            if (!(error instanceof AppError && error.statusCode === status.SERVICE_UNAVAILABLE)) throw error;
+        });
     }
 };
 
@@ -231,6 +327,11 @@ const resetPassword = async ({ email, code, password }: { email: string; code: s
 /** Changes the password from inside the account; every other session ends. */
 const changePassword = async (user: IRequestUser, { currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
     const account = await prisma.user.findUniqueOrThrow({ where: { id: user.userId }, select: { passwordHash: true } });
+    if (!account.passwordHash) {
+        throw new AppError(status.BAD_REQUEST, "Your account has no password yet. Set one with a code sent to your email.").setData({
+            code: "NO_PASSWORD",
+        });
+    }
     if (!(await verifyPassword(currentPassword, account.passwordHash))) {
         throw new AppError(status.BAD_REQUEST, "Your current password is wrong.").setData({ code: "INVALID_CREDENTIALS" });
     }
@@ -296,6 +397,8 @@ const loadMe = (userId: string) =>
             emailVerified: true,
             phoneVerified: true,
             needPasswordChange: true,
+            // Only to say whether there is one; never sent.
+            passwordHash: true,
             createdAt: true,
             role: true,
             learningProfile: {
@@ -326,7 +429,7 @@ const getMe = async (user: IRequestUser) => {
         throw new AppError(status.NOT_FOUND, "Account not found.");
     }
 
-    const { learningProfile, ...account } = record;
+    const { learningProfile, passwordHash, ...account } = record;
     let studentId = learningProfile.studentId;
 
     if (!studentId && account.role === Role.STUDENT) {
@@ -335,6 +438,8 @@ const getMe = async (user: IRequestUser) => {
 
     return {
         ...account,
+        /** False for an account made with Google that hasn't set a password. */
+        hasPassword: passwordHash !== null,
         status: learningProfile.status,
         studentId,
         whatsapp: learningProfile.whatsapp,
@@ -472,6 +577,7 @@ export const AuthService = {
     verifyEmail,
     resendVerification,
     login,
+    googleSignIn,
     listDevices,
     signOutDevice,
     signOutOtherDevices,

@@ -17,8 +17,9 @@ const AFTER = [
  * devices those are, the free spot this one needs, and the way through — sign
  * out of them all and continue here — or back to the form.
  *
- * The form keeps the email and password in memory and sends them again with
- * `signOutAllDevices`; nothing is written to storage on the way.
+ * The form keeps what it signed in with — the email and password, or Google's
+ * token — in memory and sends it again with `signOutAllDevices`; nothing is
+ * written to storage on the way.
  */
 export default function DeviceLimitStep({
     limit,

@@ -16,10 +16,11 @@ services:
     # Ohio sits beside the Neon database (aws us-east-2). Can't be changed
     # after creation — move the database first if it ever moves.
     region: ohio
-    # Not free: Render's free web services block outbound SMTP (ports 25, 465
-    # and 587), so no sign-up or password-reset email would ever leave. Free
-    # also sleeps after 15 idle minutes — a ~1 minute first request, and the
-    # release scheduler doesn't run while asleep.
+    # Free works if mail goes by Brevo (EMAIL_SENDER_BREVO_API_KEY below):
+    # Render's free web services block outbound SMTP (ports 25, 465 and 587),
+    # so Gmail SMTP sends nothing there. Free also sleeps after 15 idle
+    # minutes — a ~1 minute first request, and the release scheduler doesn't
+    # run while asleep.
     plan: starter
     # NODE_ENV=production makes pnpm skip devDependencies, and the build
     # needs TypeScript — hence --prod=false. The Prisma client is generated
@@ -69,6 +70,12 @@ services:
       # ---- Accounts
       - key: AUTH_SECRET
         generateValue: true
+      # Sign in with Google: the same client id as the web app's
+      # NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel. Unset, it's off.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: SUPER_ADMIN_NAME
         value: Half Coders Admin
       - key: SUPER_ADMIN_EMAIL
@@ -76,7 +83,11 @@ services:
       - key: SUPER_ADMIN_PASSWORD
         sync: false
 
-      # ---- Email (SMTP)
+      # ---- Email. With a Brevo API key mail goes over HTTPS and the SMTP
+      # login (USER, PASS, HOST, PORT) isn't needed; FROM is the From address
+      # either way — with Brevo, one on the domain authenticated there.
+      - key: EMAIL_SENDER_BREVO_API_KEY
+        sync: false
       - key: EMAIL_SENDER_SMTP_USER
         sync: false
       - key: EMAIL_SENDER_SMTP_PASS

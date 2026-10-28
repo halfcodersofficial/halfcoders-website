@@ -46,6 +46,11 @@ export const issueAuthCode = async (userId: string, purpose: AuthCodePurpose) =>
     return code;
 };
 
+/** Takes back the code just issued — its email never went — so another can be asked for at once. */
+export const withdrawAuthCode = async (userId: string, purpose: AuthCodePurpose) => {
+    await prisma.authCode.deleteMany({ where: { userId, purpose, consumedAt: null } });
+};
+
 const INVALID = "That code is wrong or has expired. Check the latest email, or ask for a new code.";
 
 /** Checks a code and uses it up. Throws 400 on a wrong, used, expired or worn-out code. */

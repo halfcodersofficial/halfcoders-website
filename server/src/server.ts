@@ -6,6 +6,7 @@ import { prisma } from "./app/lib/prisma";
 import { closeRealtime, initRealtime } from "./app/lib/realtime";
 import { closeRedis } from "./app/lib/redis";
 import { startScheduler, stopScheduler } from "./app/lib/scheduler";
+import { checkEmailTransport } from "./app/utils/email";
 import { seedOnBoot } from "./app/utils/seed";
 
 let server: Server;
@@ -55,6 +56,7 @@ const bootstrap = async () => {
         // and courses — alongside the listen, never in its way: seeding is
         // convenience data, and each step logs its own failure.
         void seedOnBoot();
+        void checkEmailTransport();
 
         server = app.listen(Number(envVars.PORT), () => {
             console.log(`Half Coders API running on http://localhost:${envVars.PORT}`);

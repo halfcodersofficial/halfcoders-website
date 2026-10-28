@@ -8,12 +8,12 @@ import { ensureLearningProfile } from "../../lib/learningProfile";
 import { clearSessionCookie, endSession, resolveRequestSession, startSession } from "../../lib/session";
 import { AuthService } from "./auth.service";
 
-/** Signs `userId` in on this browser and answers with their profile. */
-const signIn = async (req: Request, res: Response, userId: string, message: string) => {
+/** Signs `userId` in on this browser and answers with their profile (plus `extra`). */
+const signIn = async (req: Request, res: Response, userId: string, message: string, extra?: Record<string, unknown>) => {
     await ensureLearningProfile(userId);
     const sessionId = await startSession(res, req, userId);
     const me = await AuthService.getMe({ userId, sessionId } as IRequestUser);
-    sendResponse(res, { httpStatusCode: status.OK, success: true, message, data: me });
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message, data: { ...me, ...extra } });
 };
 
 const register = catchAsync(async (req: Request, res: Response) => {
@@ -39,6 +39,12 @@ const resendVerification = catchAsync(async (req: Request, res: Response) => {
 const login = catchAsync(async (req: Request, res: Response) => {
     const userId = await AuthService.login(req.body);
     await signIn(req, res, userId, "Signed in.");
+});
+
+/** `isNewAccount` tells the web app whether to greet a new member or a returning one. */
+const googleSignIn = catchAsync(async (req: Request, res: Response) => {
+    const { userId, isNewAccount } = await AuthService.googleSignIn(req.body);
+    await signIn(req, res, userId, isNewAccount ? "Account created — you're signed in." : "Signed in.", { isNewAccount });
 });
 
 /** Ends this browser's session, if it has one, and clears the cookie either way. */
@@ -142,6 +148,7 @@ export const AuthController = {
     verifyEmail,
     resendVerification,
     login,
+    googleSignIn,
     logout,
     listDevices,
     signOutDevice,

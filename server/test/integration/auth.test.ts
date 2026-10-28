@@ -6,7 +6,11 @@ import { api, createAccount, learningProfileOf, owner, sessionCookie } from "../
 const sent = vi.hoisted(() => [] as { to: string; subject: string; templateName: string; templateData: Record<string, unknown> }[]);
 vi.mock("../../src/app/utils/email", async (importOriginal) => {
     const original = await importOriginal<typeof import("../../src/app/utils/email")>();
-    return { ...original, sendEmailAsync: vi.fn((email: (typeof sent)[number]) => sent.push(email)) };
+    return {
+        ...original,
+        sendEmail: vi.fn(async (email: (typeof sent)[number]) => void sent.push(email)),
+        sendEmailAsync: vi.fn((email: (typeof sent)[number]) => sent.push(email)),
+    };
 });
 
 /**
@@ -106,6 +110,17 @@ describe("signing up", () => {
         expect((await api().post("/api/v1/auth/resend-verification").send({ email })).status).toBe(200);
         const fresh = await api().post("/api/v1/auth/verify-email").send({ email, code: lastCodeFor(email) });
         expect(fresh.status).toBe(200);
+    });
+
+    it("won't sign anyone in through the verify step once the email is verified", async () => {
+        const email = newEmail();
+        await signUp(email);
+        expect((await api().post("/api/v1/auth/verify-email").send({ email, code: lastCodeFor(email) })).status).toBe(200);
+
+        const again = await api().post("/api/v1/auth/verify-email").send({ email, code: "000000" });
+        expect(again.status).toBe(400);
+        expect(code(again)).toBe("INVALID_CODE");
+        expect(sessionFrom(again)).toBeUndefined();
     });
 
     it("lets someone who never verified sign up again, with a new code", async () => {

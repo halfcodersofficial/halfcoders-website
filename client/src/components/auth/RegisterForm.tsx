@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
+import ContinueWithGoogle from "@/components/auth/ContinueWithGoogle";
+import DeviceLimitStep from "@/components/auth/DeviceLimitStep";
 import { AuthField } from "@/components/shared/AuthField";
 import { Button } from "@/components/ui/button";
+import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { useZodForm } from "@/hooks/useZodForm";
 import { realEmailField } from "@/lib/disposableEmail";
 import { getApiErrorMessage } from "@/lib/httpClient";
@@ -22,14 +25,16 @@ const schema = z.object({
 });
 
 /**
- * Sign-up: name, a real email (it's where every code and receipt goes), a
- * mobile number, and a password. A code is mailed straight away and the
- * verify step follows.
+ * Sign-up: with Google in one step, or name, a real email (it's where every
+ * code and receipt goes), a mobile number, and a password — then a code is
+ * mailed straight away and the verify step follows. Google on someone who
+ * already has an account just signs them in.
  */
 export default function RegisterForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const next = searchParams.get("next");
+    const google = useGoogleSignIn();
 
     const register = useMutation({
         mutationFn: (values: z.output<typeof schema>) => authService.register(values),
@@ -47,12 +52,30 @@ export default function RegisterForm() {
         onSubmit: (values) => register.mutate(values),
     });
 
+    if (google.deviceLimit) {
+        return (
+            <DeviceLimitStep
+                limit={google.deviceLimit}
+                isContinuing={google.isPending}
+                onContinue={google.continueHere}
+                onBack={google.dismissDeviceLimit}
+            />
+        );
+    }
+
     return (
         <div className="space-y-6">
             <header className="text-center">
                 <h1 className="text-3xl font-bold tracking-tight">Start your coding journey</h1>
                 <p className="mt-2 text-sm text-muted-foreground">One free account for every Half Coders course.</p>
             </header>
+
+            <ContinueWithGoogle
+                label="Sign up with Google"
+                onCode={google.signIn}
+                busy={google.isPending}
+                dividerLabel="or sign up with email"
+            />
 
             <form className="space-y-4" noValidate onSubmit={form.handleSubmit}>
                 <AuthField form={form} name="name" label="Full name" icon={UserRound} autoComplete="name" placeholder="Your name" autoFocus />

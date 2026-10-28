@@ -28,6 +28,7 @@ const env: Record<string, string> = {
     FRONTEND_URL: "http://localhost:3098",
     BACKEND_URL: "http://localhost:5098",
     AUTH_SECRET: TEST_AUTH_SECRET,
+    EMAIL_SENDER_BREVO_API_KEY: "",
     EMAIL_SENDER_SMTP_USER: "test",
     EMAIL_SENDER_SMTP_PASS: "test",
     EMAIL_SENDER_SMTP_HOST: "127.0.0.1",

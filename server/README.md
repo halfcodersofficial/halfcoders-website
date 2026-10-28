@@ -8,7 +8,8 @@ shared with any other site.
 
 - **Its own accounts.** Email + password, with the email verified by a
   six-digit code before first sign-in, and password resets by the same kind of
-  code (`module/auth`, `lib/password.ts`, `lib/session.ts`, `lib/authCodes.ts`).
+  code — or a Google account (`module/auth`, `lib/password.ts`,
+  `lib/session.ts`, `lib/authCodes.ts`, `lib/google.ts`).
 - **Its own database.** Every table — accounts and sessions, learning
   profiles, courses, enrolments, progress, certificates, orders… — lives in the
   `learning` schema of Half Coders' own PostgreSQL database.
@@ -96,9 +97,14 @@ curl http://localhost:5001/api/v1      # list of mounted endpoints
   stays on the pooled URL.
 - **`AUTH_SECRET`** (at least 32 characters) keys the one-time email codes.
   Changing it invalidates any code already sent, nothing else.
-- **SMTP is required** — sign-up can't be finished without the verification
-  email. Without SMTP configured in development, emails are logged instead of
-  sent.
+- **Email is required** — sign-up can't be finished without the verification
+  email. It goes by Brevo's HTTPS API when `EMAIL_SENDER_BREVO_API_KEY` is set
+  (hosts that block SMTP ports, such as Render's and Railway's free plans), by
+  SMTP otherwise. With neither configured in development, emails are logged
+  instead of sent. On boot the API checks the setup once and logs `Email
+  ready`, or why it can't send. A code email that fails is reported to the
+  person (`EMAIL_NOT_SENT`, 503) and the code taken back, so they can ask
+  again.
 - **Cloudinary** uploads are namespaced under `CLOUDINARY_FOLDER` (default
   `halfcoders`), and Half Coders only ever deletes files under it.
 - **`FRONTEND_URL`** is the site's address, used in links (emails, certificates,
@@ -130,6 +136,7 @@ Each account has one role — `STUDENT`, `MENTOR`, `ADMIN` or `SUPER_ADMIN`
 | `POST /verify-email` | the code → verified, and signed in |
 | `POST /resend-verification` | a fresh code (at most once a minute) |
 | `POST /login` | email + password → session cookie. An unverified account gets a fresh code and `EMAIL_NOT_VERIFIED` |
+| `POST /google` | the code from Google's sign-in popup (or, past the device limit, an ID token) → session cookie, and `isNewAccount` (see below) |
 | `POST /logout` | ends this session |
 | `POST /forgot-password` → `POST /reset-password` | a code by email, then a new password; every session of the account ends |
 | `POST /change-password` | from inside the account; every *other* session ends |
@@ -139,6 +146,18 @@ Each account has one role — `STUDENT`, `MENTOR`, `ADMIN` or `SUPER_ADMIN`
   only as an HMAC (`lib/authCodes.ts`).
 - Passwords are hashed with scrypt (`lib/password.ts`). A wrong email and a
   wrong password take the same time and give the same answer.
+- **Google** (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; off when unset).
+  The web app's own button opens Google's popup; the code it hands back is
+  traded here for an ID token, which is checked against Google's keys and this
+  client id (`lib/google.ts`), and Google must have verified the email. A code
+  works once, so a device-limit 409 carries the ID token (`credential`) to
+  sign in again with. The account is the one linked to that Google
+  account (`User.googleId`), else the one with its email — linked then — else
+  a new student account, verified and without a password (`hasPassword: false`
+  on `me`; one is set through the reset flow). Linking to an account whose
+  email was never verified drops its password: whoever chose it hadn't proved
+  the inbox. An email already linked to another Google account is refused
+  (`GOOGLE_ACCOUNT_MISMATCH`), and the device limit applies as for a password.
 - The session is a random token in the httpOnly cookie
   `halfcoders.session_token` (`SameSite=Lax`, `Secure` in production, on
   `COOKIE_DOMAIN` when set), valid 30 days and extended while in use. The database keeps only its SHA-256 hash.

@@ -2,8 +2,9 @@
 /// IDENTITY — Half Coders' own accounts
 /// ============================================================================
 ///
-/// Who someone is and how they sign in: email + password, a verified email,
-/// and the sessions their browsers hold. Half Coders owns all of it — sign-up,
+/// Who someone is and how they sign in: email + password or their Google
+/// account, a verified email, and the sessions their browsers hold. Half
+/// Coders owns all of it — sign-up,
 /// sign-in, password resets and sessions live in `module/auth` and
 /// `lib/session.ts`.
 ///
@@ -23,8 +24,12 @@ model User {
   phone              String?       @unique
   phoneVerified      Boolean       @default(false)
   /// scrypt hash (lib/password.ts). Null only for an account that has never
-  /// set one.
+  /// set one — one made with Google, say.
   passwordHash       String?
+  /// The Google account that signs in here (its `sub`, lib/google.ts). Set the
+  /// first time someone signs in with Google; the email alone isn't a lasting
+  /// link, as a Google account's address can change.
+  googleId           String?       @unique
   /// Account-wide status: BLOCKED/DELETED signs the person out everywhere.
   /// Learning-only moderation uses `LearningProfile.status` instead.
   status             AccountStatus @default(ACTIVE)
