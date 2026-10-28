@@ -7,15 +7,13 @@
  * PHOTOS: the gallery's and the timeline's are real (Cloudinary), but for the
  * timeline's last, still-ahead stop. Every `unsplash(…)` image is still a
  * stand-in (free to use), there until more real photos arrive. Swap the URL for a path under `public/` (or a Cloudinary link) and
- * nothing else needs to change. Team members have no photo yet
- * (`photo: null`), which shows a placeholder figure; give them one the same way.
+ * nothing else needs to change. The team's portraits are real (Cloudinary),
+ * square, in the Half Coders frame; a member with `photo: null` shows their
+ * initials instead.
  */
 
 /** An Unsplash photo at a sensible size; the id is the part after `photo-` in its URL. */
 const unsplash = (id: string, width = 1200) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${width}&q=75`;
-
-/** The same, as a square portrait cropped around the face — for the team's round photos. */
-const unsplashFace = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=facearea&facepad=3&w=400&h=400&q=75`;
 
 export const HERO = {
     title: "Half Coders",
@@ -268,13 +266,12 @@ export interface TeamMember {
 export const TEAM = {
     title: "যাঁরা Half Coders চালাচ্ছেন",
     description: "পর্দার পেছনের মানুষগুলো। কোর্স বানানো থেকে শুরু করে আপনার ইমেইলের উত্তর দেওয়া পর্যন্ত, সবকিছুর পেছনে এঁরাই।",
-    // Stand-in portraits from Unsplash until each person's real photo replaces the link.
     members: [
-        { name: "Tariq M Nasim", role: "Chief Executive Officer", short: "CEO", mentor: true, photo: unsplashFace("1629425733761-caae3b5f2e50") },
-        { name: "Md Habibur Rahman", role: "Chief Product Officer", short: "CPO", mentor: true, photo: unsplashFace("1507003211169-0a1dd7228f2d") },
-        { name: "Md Yusuf", role: "Chief Operating Officer", short: "COO", mentor: true, photo: unsplashFace("1500648767791-00dcc994a43e") },
-        { name: "Antick Mahmud", role: "Chief Marketing Officer", short: "CMO", mentor: true, photo: unsplashFace("1633332755192-727a05c4013d") },
-        { name: "Imran Pasha", role: "Chief Technology Officer", short: "CTO", mentor: true, photo: unsplashFace("1557862921-37829c790f19") },
+        { name: "Tariq M Nasim", role: "Chief Executive Officer", short: "CEO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Tariq_M_Nasim.png" },
+        { name: "Md Habibur Rahman", role: "Chief Product Officer", short: "CPO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171972/Habibur_Rahman.jpg" },
+        { name: "Mohammad Yusuf", role: "Chief Operating Officer", short: "COO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Mohammad_Yusuf.jpg" },
+        { name: "Antick Chandra Kuri", role: "Chief Marketing Officer", short: "CMO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Antick_Chandra_Kuri.png" },
+        { name: "Imran Pasha", role: "Chief Technology Officer", short: "CTO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171972/Imran_Pasha.jpg" },
     ] satisfies TeamMember[] as TeamMember[],
 };
 
