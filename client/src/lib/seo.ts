@@ -44,6 +44,24 @@ export const pageMetadata = ({
     };
 };
 
+/**
+ * Free text cut to a search snippet's length at a word break, with an
+ * ellipsis, never mid-word. For text admins write (a course's description
+ * standing in for a missing subtitle), which runs long.
+ */
+export const snippet = (text: string, max = 160): string => {
+    const flat = text.replace(/\s+/g, " ").trim();
+    if (flat.length <= max) return flat;
+    const cut = flat.slice(0, max - 1);
+    const lastSpace = cut.lastIndexOf(" ");
+    // One very long "word" (a URL) is cut where it falls.
+    return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:।—–-]+$/, "")}…`;
+};
+
+/** A course's `language` as admins write it ("Bangla", the default) → the BCP 47 code structured data expects. */
+const LANGUAGE_CODES: Record<string, string> = { bangla: "bn", bengali: "bn", "বাংলা": "bn", english: "en" };
+export const languageCode = (language: string) => LANGUAGE_CODES[language.trim().toLowerCase()] ?? language;
+
 /** The organization's node in the structured data; a course's `provider` points here. */
 export const ORGANIZATION_ID = `${envConfig.siteUrl}/#organization`;
 

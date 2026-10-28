@@ -1,44 +1,13 @@
 import type { MetadataRoute } from "next";
 import envConfig from "@/lib/envConfig";
-import type { ApiResponse } from "@/types/api.types";
+import { getPublicJson, listedCourses, type Listed } from "@/lib/listedCourses";
 
 /** Rebuilt at most hourly: a newly published course shows up within the hour. */
 export const revalidate = 3600;
 
-/** The API's page-size cap for the public catalogue. */
-const PAGE_SIZE = 48;
-
-type Listed = { slug: string; updatedAt?: string };
-
-const getJson = async <T,>(path: string): Promise<ApiResponse<T> | null> => {
-    try {
-        const res = await fetch(`${envConfig.apiBaseUrl}${path}`, { next: { revalidate } });
-        return res.ok ? ((await res.json()) as ApiResponse<T>) : null;
-    } catch {
-        return null;
-    }
-};
-
-/**
- * Every course listed in the catalogue (the API leaves out drafts and the
- * batches hidden from /courses, which are noindex). An unreachable API (the
- * first Docker build, before the site is up) gives the static pages only,
- * until the hourly regeneration.
- */
-const listedCourses = async (): Promise<Listed[]> => {
-    const courses: Listed[] = [];
-    for (let page = 1; ; page++) {
-        const body = await getJson<Listed[]>(`/courses?page=${page}&limit=${PAGE_SIZE}`);
-        if (!body) break;
-        courses.push(...body.data);
-        if (page >= (body.meta?.totalPages ?? 1)) break;
-    }
-    return courses;
-};
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const url = (path: string) => `${envConfig.siteUrl}${path}`;
-    const [courses, bundles] = await Promise.all([listedCourses(), getJson<Listed[]>("/bundles")]);
+    const [courses, bundles] = await Promise.all([listedCourses(), getPublicJson<Listed[]>("/bundles")]);
 
     return [
         { url: url("/courses"), changeFrequency: "daily", priority: 1 },

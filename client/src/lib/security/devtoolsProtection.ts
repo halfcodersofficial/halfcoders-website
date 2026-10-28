@@ -44,6 +44,22 @@ function isMobileDevice() {
     return isTouch && isMobileUA;
 }
 
+// ─── Crawler Detection ──────────────────────────────────────────────────────
+
+// Search engines render pages in headless Chrome driven over the DevTools
+// protocol, which the probes below can mistake for open DevTools. The warning
+// would then cover the page, and Google would index "Developer Tools
+// Detected" in place of the content. A crawler has nothing to hide from, so
+// none of this runs for one. Named one by one: a loose /bot/ also matches
+// visitors' phones (Cubot). Link-preview bots (Facebook, WhatsApp) run no
+// script, so they needn't be listed.
+const CRAWLER_UA =
+    /Googlebot|Google-InspectionTool|AdsBot-Google|Storebot-Google|Chrome-Lighthouse|bingbot|BingPreview|Applebot|YandexBot|DuckDuckBot|Baiduspider|HeadlessChrome/i;
+
+function isCrawler() {
+    return typeof navigator !== "undefined" && CRAWLER_UA.test(navigator.userAgent);
+}
+
 // ─── DevTools Detection ─────────────────────────────────────────────────────
 
 function createWarningOverlay() {
@@ -298,8 +314,8 @@ function blockDragStart(e: DragEvent) {
 let cleanupFn: (() => void) | null = null;
 
 export function initDevToolsProtection() {
-    // Only run when protection is explicitly enabled
-    if (!envConfig.devtoolsProtection) return;
+    // Only run when protection is explicitly enabled, and never for a crawler
+    if (!envConfig.devtoolsProtection || isCrawler()) return;
 
     // Prevent double-init
     if (cleanupFn) return;

@@ -36,7 +36,7 @@ import { courseImagesOf } from "@/lib/courseImages";
 import { COURSE_PAGE_TAG } from "@/lib/coursePageCache";
 import envConfig from "@/lib/envConfig";
 import { emphasiseLatin } from "@/lib/scriptEmphasis";
-import { ORGANIZATION_ID, pageMetadata } from "@/lib/seo";
+import { languageCode, ORGANIZATION_ID, pageMetadata, snippet } from "@/lib/seo";
 import { cn, discountPercent, effectivePrice } from "@/lib/utils";
 import type { ApiResponse } from "@/types/api.types";
 import type { CourseDetail, PublicCourseReview, RatingSummary } from "@/types/domain.types";
@@ -81,7 +81,7 @@ export async function generateMetadata(
     return {
         ...pageMetadata({
             title: course.title,
-            description: course.subtitle ?? course.description.slice(0, 160),
+            description: course.subtitle ?? snippet(course.description),
             path: `/courses/${course.slug}`,
             image: course.thumbnail ?? DEFAULT_SOCIAL_IMAGE,
         }),
@@ -147,7 +147,7 @@ export default async function CourseDetailPage(
         "@context": "https://schema.org",
         "@type": "Course",
         name: course.title,
-        description: course.subtitle ?? course.description.slice(0, 300),
+        description: course.subtitle ?? snippet(course.description, 300),
         url: courseUrl,
         provider: {
             "@type": "EducationalOrganization",
@@ -156,7 +156,7 @@ export default async function CourseDetailPage(
             url: envConfig.siteUrl,
         },
         image: course.thumbnail ?? `${envConfig.siteUrl}${DEFAULT_SOCIAL_IMAGE.url}`,
-        inLanguage: course.language,
+        inLanguage: languageCode(course.language),
         offers: {
             "@type": "Offer",
             price,

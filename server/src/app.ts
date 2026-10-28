@@ -59,6 +59,10 @@ const PERMISSIONS_POLICY = [
 app.use((_req, res, next) => {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", PERMISSIONS_POLICY);
+    // Keeps the API's JSON out of search results; people should find the
+    // site. A header, not a robots.txt Disallow: Google still has to fetch
+    // the API to render the site's client-side pages (the catalogue).
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.removeHeader("X-Powered-By");
     next();
 });
