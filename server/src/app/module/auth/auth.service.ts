@@ -78,6 +78,16 @@ const ACCOUNT_SELECT = {
 
 const findByEmail = (email: string) => prisma.user.findUnique({ where: { email }, select: ACCOUNT_SELECT });
 
+/**
+ * An account made with Google: linked to a Google account and without a
+ * password. It signs in with Google only — a password can't be set, changed
+ * or reset on it. (An email account later linked to Google keeps its password.)
+ */
+const isGoogleOnly = (account: { googleId: string | null; passwordHash: string | null }) =>
+    account.googleId !== null && account.passwordHash === null;
+
+const GOOGLE_ONLY_MESSAGE = "This account signs in with Google and doesn't use a password.";
+
 /** Refuses an account that may not sign in, with the same codes checkAuth uses. */
 const assertCanSignIn = (account: NonNullable<Awaited<ReturnType<typeof findByEmail>>>) => {
     if (account.isDeleted || account.status !== AccountStatus.ACTIVE) {
@@ -167,7 +177,9 @@ const resendVerification = async ({ email }: { email: string }) => {
  */
 const login = async ({ email, password, signOutAllDevices }: { email: string; password: string; signOutAllDevices?: boolean }) => {
     const account = await findByEmail(email);
-    if (!account) {
+    // An account without a password (made with Google) takes as long to
+    // refuse as an unknown email, and answers the same.
+    if (!account?.passwordHash) {
         await burnPasswordCheck(password);
         throw new AppError(status.UNAUTHORIZED, "Wrong email or password.").setData({ code: "INVALID_CREDENTIALS" });
     }
@@ -294,10 +306,14 @@ const signOutOtherDevices = async (user: IRequestUser) => {
 // Passwords
 // ---------------------------------------------------------------------------
 
-/** Mails a reset code. Answers the same way whether or not the email is on file. */
+/**
+ * Mails a reset code. Answers the same way whether or not the email is on
+ * file — and for an account made with Google, which gets no code (it has no
+ * password to reset).
+ */
 const forgotPassword = async ({ email }: { email: string }) => {
     const account = await findByEmail(email);
-    if (account && !account.isDeleted && account.status === AccountStatus.ACTIVE) {
+    if (account && !account.isDeleted && account.status === AccountStatus.ACTIVE && !isGoogleOnly(account)) {
         // A mail failure is only logged here: a 503 would tell that the email is on file.
         await sendAuthCodeQuietly(account, AuthCodePurpose.RESET_PASSWORD).catch((error) => {
             if (!(error instanceof AppError && error.statusCode === status.SERVICE_UNAVAILABLE)) throw error;
@@ -312,7 +328,10 @@ const forgotPassword = async ({ email }: { email: string }) => {
  */
 const resetPassword = async ({ email, code, password }: { email: string; code: string; password: string }) => {
     const account = await findByEmail(email);
-    if (!account) throw new AppError(status.BAD_REQUEST, "That code is wrong or has expired.").setData({ code: "INVALID_CODE" });
+    // An account made with Google is never sent a code, so any code for it is refused like a wrong one.
+    if (!account || isGoogleOnly(account)) {
+        throw new AppError(status.BAD_REQUEST, "That code is wrong or has expired.").setData({ code: "INVALID_CODE" });
+    }
     await consumeAuthCode(account.id, AuthCodePurpose.RESET_PASSWORD, code);
     await prisma.user.update({
         where: { id: account.id },
@@ -326,7 +345,10 @@ const resetPassword = async ({ email, code, password }: { email: string; code: s
 
 /** Changes the password from inside the account; every other session ends. */
 const changePassword = async (user: IRequestUser, { currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
-    const account = await prisma.user.findUniqueOrThrow({ where: { id: user.userId }, select: { passwordHash: true } });
+    const account = await prisma.user.findUniqueOrThrow({ where: { id: user.userId }, select: { passwordHash: true, googleId: true } });
+    if (isGoogleOnly(account)) {
+        throw new AppError(status.BAD_REQUEST, GOOGLE_ONLY_MESSAGE).setData({ code: "GOOGLE_ACCOUNT" });
+    }
     if (!account.passwordHash) {
         throw new AppError(status.BAD_REQUEST, "Your account has no password yet. Set one with a code sent to your email.").setData({
             code: "NO_PASSWORD",
@@ -344,9 +366,19 @@ const changePassword = async (user: IRequestUser, { currentPassword, newPassword
 
 /**
  * An admin asking for someone's password to be reset: they're mailed a reset
- * code, and set the new password themselves. Nobody else ever sees it.
+ * code, and set the new password themselves. Nobody else ever sees it. An
+ * account made with Google has no password to reset.
  */
-export const sendPasswordResetFor = async (account: { id: string; email: string }) => sendAuthCode(account, AuthCodePurpose.RESET_PASSWORD);
+export const sendPasswordResetFor = async (account: { id: string; email: string }) => {
+    const { googleId, passwordHash } = await prisma.user.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { googleId: true, passwordHash: true },
+    });
+    if (isGoogleOnly({ googleId, passwordHash })) {
+        throw new AppError(status.BAD_REQUEST, `${GOOGLE_ONLY_MESSAGE} There's no password to reset.`).setData({ code: "GOOGLE_ACCOUNT" });
+    }
+    return sendAuthCode(account, AuthCodePurpose.RESET_PASSWORD);
+};
 
 // ---------------------------------------------------------------------------
 // The signed-in person's own profile
@@ -399,6 +431,7 @@ const loadMe = (userId: string) =>
             needPasswordChange: true,
             // Only to say whether there is one; never sent.
             passwordHash: true,
+            googleId: true,
             createdAt: true,
             role: true,
             learningProfile: {
@@ -429,7 +462,7 @@ const getMe = async (user: IRequestUser) => {
         throw new AppError(status.NOT_FOUND, "Account not found.");
     }
 
-    const { learningProfile, passwordHash, ...account } = record;
+    const { learningProfile, passwordHash, googleId, ...account } = record;
     let studentId = learningProfile.studentId;
 
     if (!studentId && account.role === Role.STUDENT) {
@@ -438,8 +471,10 @@ const getMe = async (user: IRequestUser) => {
 
     return {
         ...account,
-        /** False for an account made with Google that hasn't set a password. */
+        /** False for an account made with Google, which never has one. */
         hasPassword: passwordHash !== null,
+        /** Linked to a Google account. With no password, Google is the only way in. */
+        signsInWithGoogle: googleId !== null,
         status: learningProfile.status,
         studentId,
         whatsapp: learningProfile.whatsapp,

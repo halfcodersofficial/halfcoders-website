@@ -86,6 +86,7 @@ describe("signing up with Google", () => {
             role: "STUDENT",
             emailVerified: true,
             hasPassword: false,
+            signsInWithGoogle: true,
             isNewAccount: true,
             image: google.picture,
         });
@@ -151,11 +152,16 @@ describe("Google and an account that already has the email", () => {
         const google = googleAccount(email);
         const res = await withGoogle(google.credential);
         expect(res.status).toBe(200);
-        expect(res.body.data).toMatchObject({ id: before.id, isNewAccount: false, hasPassword: true });
+        expect(res.body.data).toMatchObject({ id: before.id, isNewAccount: false, hasPassword: true, signsInWithGoogle: true });
         expect(await accountRow(email)).toMatchObject({ googleId: google.sub, passwordHash: before.passwordHash, image: google.picture });
 
         // A third device (verifying and Google each signed one in).
         expect((await api().post("/api/v1/auth/login").send({ email, password: "Learner#123", signOutAllDevices: true })).status).toBe(200);
+
+        // It isn't an account made with Google: its password can still be reset.
+        sent.length = 0;
+        expect((await api().post("/api/v1/auth/forgot-password").send({ email })).status).toBe(200);
+        expect(lastCodeFor(email)).toBeDefined();
     });
 
     it("verifies an account nobody had verified, and drops the password whoever signed up chose", async () => {
@@ -190,8 +196,8 @@ describe("Google and an account that already has the email", () => {
     });
 });
 
-describe("a Google account's password and devices", () => {
-    it("has no password to change, and is told how to set one", async () => {
+describe("an account made with Google never has a password", () => {
+    it("can't change one", async () => {
         const google = googleAccount();
         const cookie = sessionFrom(await withGoogle(google.credential))!;
         const res = await api()
@@ -199,8 +205,49 @@ describe("a Google account's password and devices", () => {
             .set("Cookie", cookie)
             .send({ currentPassword: "anything", newPassword: "Learner#456" });
         expect(res.status).toBe(400);
-        expect(code(res)).toBe("NO_PASSWORD");
+        expect(code(res)).toBe("GOOGLE_ACCOUNT");
     });
+
+    it("gets no reset code — though the answer is the same as for anyone — and no code resets it", async () => {
+        const google = googleAccount();
+        await withGoogle(google.credential);
+
+        const forgot = await api().post("/api/v1/auth/forgot-password").send({ email: google.email });
+        const unknown = await api().post("/api/v1/auth/forgot-password").send({ email: newEmail() });
+        expect(forgot.status).toBe(200);
+        expect(forgot.body.message).toBe(unknown.body.message);
+        expect(sent).toHaveLength(0);
+
+        const reset = await api().post("/api/v1/auth/reset-password").send({ email: google.email, code: "123456", password: "Learner#456" });
+        expect(reset.status).toBe(400);
+        expect(code(reset)).toBe("INVALID_CODE");
+        expect(await accountRow(google.email)).toMatchObject({ passwordHash: null });
+    });
+
+    it("can't be signed into with a password, and is refused just like an unknown email", async () => {
+        const google = googleAccount();
+        await withGoogle(google.credential);
+
+        const res = await api().post("/api/v1/auth/login").send({ email: google.email, password: "Learner#123" });
+        const unknown = await api().post("/api/v1/auth/login").send({ email: newEmail(), password: "Learner#123" });
+        expect(res.status).toBe(401);
+        expect(res.body.message).toBe(unknown.body.message);
+    });
+
+    it("can't be sent a password reset by an admin", async () => {
+        const admin = await createAccount("ADMIN");
+        await api().get("/api/v1/auth/me").set("Cookie", admin.cookie);
+        const google = googleAccount();
+        const { id } = (await withGoogle(google.credential)).body.data;
+
+        const res = await api().patch(`/api/v1/users/${id}/reset-password`).set("Cookie", admin.cookie);
+        expect(res.status).toBe(400);
+        expect(code(res)).toBe("GOOGLE_ACCOUNT");
+        expect(sent).toHaveLength(0);
+    });
+});
+
+describe("a Google account's devices", () => {
 
     it("holds Google sign-ins to two devices too, and signs the others out when the person agrees", async () => {
         const google = googleAccount();

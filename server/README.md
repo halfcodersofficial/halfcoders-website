@@ -153,8 +153,11 @@ Each account has one role — `STUDENT`, `MENTOR`, `ADMIN` or `SUPER_ADMIN`
   works once, so a device-limit 409 carries the ID token (`credential`) to
   sign in again with. The account is the one linked to that Google
   account (`User.googleId`), else the one with its email — linked then — else
-  a new student account, verified and without a password (`hasPassword: false`
-  on `me`; one is set through the reset flow). Linking to an account whose
+  a new student account, verified and without a password. An account made
+  with Google never has one (`hasPassword: false`, `signsInWithGoogle: true`
+  on `me`): changing one is refused (`GOOGLE_ACCOUNT`), so is an admin's reset,
+  and a forgot-password request answers as usual but mails no code. An email
+  account later linked to Google keeps its password. Linking to an account whose
   email was never verified drops its password: whoever chose it hadn't proved
   the inbox. An email already linked to another Google account is refused
   (`GOOGLE_ACCOUNT_MISMATCH`), and the device limit applies as for a password.

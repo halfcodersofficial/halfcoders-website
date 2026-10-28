@@ -26,8 +26,10 @@ export default function ChangePasswordScreen() {
     if (isLoading || !user) return <Skeleton className="h-80" />;
 
     const temporary = user.needPasswordChange;
-    // An account made with Google: the form offers to set one instead.
+    // No password: an account made with Google never has one (the form says
+    // so); any other is offered to set one.
     const noPassword = !temporary && user.hasPassword === false;
+    const googleOnly = noPassword && user.signsInWithGoogle;
     return (
         <div className="space-y-6">
             <header className="text-center">
@@ -35,7 +37,13 @@ export default function ChangePasswordScreen() {
                     <ShieldCheck className="size-6" />
                 </span>
                 <h1 className="text-2xl font-bold">
-                    {temporary ? "Choose your own password" : noPassword ? "Set a password" : "Change your password"}
+                    {temporary
+                        ? "Choose your own password"
+                        : googleOnly
+                          ? "No password needed"
+                          : noPassword
+                            ? "Set a password"
+                            : "Change your password"}
                 </h1>
                 {!noPassword && (
                     <p className="mt-1 text-sm text-muted-foreground">
