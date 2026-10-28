@@ -108,6 +108,9 @@ export const metadata: Metadata = {
         follow: true,
         googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
     },
+    // Proves ownership to Google Search Console. Keep it: removing the tag
+    // un-verifies the site.
+    verification: { google: "bITo3Vo7BrXpu1iwjmfhlOP7PwF-0HbQQqH0bdnVcAw" },
     // No `url`: a page without its own card (lib/seo.ts) would otherwise
     // share as the site's front page.
     openGraph: {

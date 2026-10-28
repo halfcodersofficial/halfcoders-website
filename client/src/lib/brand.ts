@@ -19,11 +19,13 @@ export const SITE_DOMAIN = "half-coders.tech";
 
 /**
  * The picture a shared link shows (Facebook, LinkedIn, WhatsApp) when the page
- * has none of its own: the lockup on deep violet with a one-line Bangla tagline.
- * Relative, resolved against the root layout's `metadataBase`.
+ * has none of its own: the lockup on deep violet with a one-line Bangla tagline
+ * and the site's domain. Relative, resolved against the root layout's
+ * `metadataBase`. Facebook, WhatsApp and LinkedIn cache the picture by its
+ * address, so a changed picture gets a new file name, never the old one.
  */
 export const DEFAULT_SOCIAL_IMAGE = {
-    url: "/brand/social/og-default.png",
+    url: "/brand/social/og-image.png",
     width: 1200,
     height: 630,
     alt: BRAND_NAME,
