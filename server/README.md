@@ -101,6 +101,9 @@ curl http://localhost:5001/api/v1      # list of mounted endpoints
   sent.
 - **Cloudinary** uploads are namespaced under `CLOUDINARY_FOLDER` (default
   `halfcoders`), and Half Coders only ever deletes files under it.
+- **`FRONTEND_URL`** is the site's address, used in links (emails, certificates,
+  invoices). CORS and sockets accept it *and* its www/bare twin, so the site
+  works whichever of `half-coders.tech` / `www.half-coders.tech` is primary.
 - **`COOKIE_DOMAIN`** (production, optional) — the parent domain when the web
   app and the API are sibling subdomains, so the session cookie reaches both.
   A bare host: `half-coders.tech`.

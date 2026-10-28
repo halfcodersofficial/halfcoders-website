@@ -8,6 +8,13 @@ interface EnvConfig {
     DATABASE_URL: string;
     REDIS_URL?: string;
     FRONTEND_URL: string;
+    /**
+     * Who may call the API with the session cookie (CORS, sockets):
+     * FRONTEND_URL's origin and its www/bare twin, so the site works from
+     * either address — `half-coders.tech` or `www.half-coders.tech`, whichever
+     * the host makes primary. FRONTEND_URL stays the one used in links.
+     */
+    FRONTEND_ORIGINS: string[];
     BACKEND_URL: string;
     /**
      * Shares the session cookie with sibling subdomains: `half-coders.tech`
@@ -94,6 +101,22 @@ const loadEnvVariables = (): EnvConfig => {
 
     const stripTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
+    const frontendUrl = stripTrailingSlash(process.env.FRONTEND_URL as string);
+    const frontendOrigins = ((): string[] => {
+        let url: URL;
+        try {
+            url = new URL(frontendUrl);
+        } catch {
+            throw new Error("FRONTEND_URL must be a full URL such as `https://half-coders.tech`.");
+        }
+        // localhost and IP addresses have no www twin.
+        const { hostname } = url;
+        if (!hostname.includes(".") || /^[\d.]+$/.test(hostname)) return [url.origin];
+        const twin = new URL(url.origin);
+        twin.hostname = hostname.startsWith("www.") ? hostname.slice(4) : `www.${hostname}`;
+        return [url.origin, twin.origin];
+    })();
+
     // A bare host: `half-coders.tech`, not a URL, and no leading dot (the
     // browser treats both alike, Express doesn't need it).
     const cookieDomain = process.env.COOKIE_DOMAIN?.trim().replace(/^\./, "") || undefined;
@@ -112,7 +135,8 @@ const loadEnvVariables = (): EnvConfig => {
         PORT: process.env.PORT as string,
         DATABASE_URL: databaseUrl,
         REDIS_URL: process.env.REDIS_URL,
-        FRONTEND_URL: stripTrailingSlash(process.env.FRONTEND_URL as string),
+        FRONTEND_URL: frontendUrl,
+        FRONTEND_ORIGINS: frontendOrigins,
         BACKEND_URL: stripTrailingSlash(process.env.BACKEND_URL as string),
         COOKIE_DOMAIN: cookieDomain,
         TRUST_PROXY: trustProxy,

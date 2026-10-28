@@ -69,10 +69,10 @@ app.set("query parser", (str: string) => qs.parse(str));
 app.set("view engine", "ejs");
 app.set("views", path.resolve(process.cwd(), "src/app/templates"));
 
-// CORS — only the Half Coders frontend, with credentials, so its fetches carry
-// the session cookie.
+// CORS — only the Half Coders frontend (from its bare or www address), with
+// credentials, so its fetches carry the session cookie.
 const allowedOrigins = [
-    envVars.FRONTEND_URL,
+    ...envVars.FRONTEND_ORIGINS,
     ...(envVars.NODE_ENV === "development"
         ? ["http://localhost:3001", "http://localhost:5001"]
         : []),

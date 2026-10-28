@@ -35,7 +35,7 @@ export const initRealtime = (httpServer: HttpServer) => {
         // session cookie, so it needs the same restriction.
         cors: {
             origin: [
-                envVars.FRONTEND_URL,
+                ...envVars.FRONTEND_ORIGINS,
                 ...(envVars.NODE_ENV === "development" ? ["http://localhost:3001"] : []),
             ],
             credentials: true,
