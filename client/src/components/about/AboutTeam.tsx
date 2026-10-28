@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap } from "lucide-react";
+import { Compass, GraduationCap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import Section from "@/components/site/Section";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -49,7 +49,8 @@ const LEVEL_OPACITY = [1, 0.35, 0.55, 0.8, 1];
  * The people who run Half Coders, each as a card dressed like an editor pane:
  * a tab with their title's short form, a round portrait on graph paper (their photo, or
  * their initials in the card's own colour), the name, the full title — never
- * cut short — and a Mentor badge for those who also teach. A strip of
+ * cut short — and a Mentor badge for those who also teach (Advisor for those
+ * who advise). A strip of
  * squares at the foot stands in for a contribution graph; it's decoration,
  * not a record of anything.
  *
@@ -158,21 +159,27 @@ function Member({ member, tone, still }: { member: TeamMember; tone: (typeof TON
 
                     {/* Kept in place when empty, so every card's name sits at the same height. */}
                     <div className="mt-3 flex min-h-6 flex-wrap justify-center gap-1.5">
-                        {member.mentor && (
-                            <span
-                                lang="en"
-                                className="inline-flex items-center gap-1 rounded-full border border-(--tone-line) bg-(--tone-wash) px-2.5 py-0.5 text-xs font-medium text-(--tone)"
-                            >
-                                <GraduationCap className="size-3.5" aria-hidden />
-                                Mentor
-                            </span>
-                        )}
+                        {member.mentor && <RoleBadge icon={GraduationCap} label="Mentor" />}
+                        {member.advisor && <RoleBadge icon={Compass} label="Advisor" />}
                     </div>
                 </div>
 
                 <Activity name={member.name} />
             </article>
         </li>
+    );
+}
+
+/** A pill under the title in the card's colour: Mentor, Advisor. */
+function RoleBadge({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+    return (
+        <span
+            lang="en"
+            className="inline-flex items-center gap-1 rounded-full border border-(--tone-line) bg-(--tone-wash) px-2.5 py-0.5 text-xs font-medium text-(--tone)"
+        >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+        </span>
     );
 }
 
