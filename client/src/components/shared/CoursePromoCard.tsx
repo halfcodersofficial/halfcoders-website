@@ -137,72 +137,80 @@ export default function CoursePromoCard({
 
     return (
         <div
-            className="relative aspect-video bg-secondary"
             role="region"
             aria-roledescription="carousel"
             aria-label={t(`${title} — images and video`, `${title} — ছবি ও ভিডিও`)}
         >
-            <div
-                ref={trackRef}
-                onScroll={(event) => {
-                    const track = event.currentTarget;
-                    const next = Math.round(track.scrollLeft / track.clientWidth);
-                    setIndex(next);
-                    if (slides[next]?.kind !== "video") setPlaying(false);
-                }}
-                className="no-scrollbar flex size-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
-            >
-                {slides.map((slide, position) => (
-                    <div
-                        key={slide.kind === "video" ? "video" : slide.src}
-                        role="group"
-                        aria-roledescription="slide"
-                        aria-label={t(`${position + 1} of ${count}`, `${bnDigits(count)}টির মধ্যে ${bnDigits(position + 1)}`)}
-                        className="relative size-full shrink-0 snap-center"
-                    >
-                        {renderSlide(slide, position)}
-                    </div>
-                ))}
+            <div className="relative aspect-video bg-secondary">
+                <div
+                    ref={trackRef}
+                    onScroll={(event) => {
+                        const track = event.currentTarget;
+                        const next = Math.round(track.scrollLeft / track.clientWidth);
+                        setIndex(next);
+                        if (slides[next]?.kind !== "video") setPlaying(false);
+                    }}
+                    className="no-scrollbar flex size-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+                >
+                    {slides.map((slide, position) => (
+                        <div
+                            key={slide.kind === "video" ? "video" : slide.src}
+                            role="group"
+                            aria-roledescription="slide"
+                            aria-label={t(`${position + 1} of ${count}`, `${bnDigits(count)}টির মধ্যে ${bnDigits(position + 1)}`)}
+                            className="relative size-full shrink-0 snap-center"
+                        >
+                            {renderSlide(slide, position)}
+                        </div>
+                    ))}
+                </div>
             </div>
 
-            <SlideArrow side="left" label={t("Previous", "আগেরটি")} onClick={() => goTo(current - 1)} />
-            <SlideArrow side="right" label={t("Next", "পরেরটি")} onClick={() => goTo(current + 1)} />
-
-            {/* Bottom-right, level with the video slide's "Watch the introduction". */}
-            <div className="absolute bottom-3 right-3 flex h-6 items-center gap-1.5 rounded-sm bg-editor/60 px-2">
-                {slides.map((slide, position) => {
-                    const active = position === current;
-                    return slide.kind === "video" ? (
-                        <button
-                            key="video"
-                            type="button"
-                            onClick={() => goTo(position)}
-                            aria-label={t("Show the introduction video", "পরিচিতি ভিডিও দেখান")}
-                            aria-current={active ? "true" : undefined}
-                            className={cn(
-                                "grid place-items-center rounded-full drop-shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                                active ? "text-white" : "text-white/60 hover:text-white/80",
-                            )}
-                        >
-                            <Play className="size-2.5 fill-current" />
-                        </button>
-                    ) : (
-                        <button
-                            key={slide.src}
-                            type="button"
-                            onClick={() => goTo(position)}
-                            aria-label={t(
-                                `Show image ${slide.number} of ${images.length}`,
-                                `${bnDigits(images.length)}টির মধ্যে ${bnDigits(slide.number)} নম্বর ছবি দেখান`,
-                            )}
-                            aria-current={active ? "true" : undefined}
-                            className={cn(
-                                "h-1.5 rounded-[1px] shadow transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                                active ? "w-4 bg-white" : "w-1.5 bg-white/60 hover:bg-white/80",
-                            )}
-                        />
-                    );
-                })}
+            {/* The controls sit in a strip under the picture, like a player's
+                control bar, so they never cover the banner's own words. */}
+            <div className="editor flex items-center gap-2 border-t border-editor-line px-1.5 py-1">
+                <SlideArrow side="left" label={t("Previous", "আগেরটি")} onClick={() => goTo(current - 1)} />
+                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-0.5">
+                    {slides.map((slide, position) => {
+                        const active = position === current;
+                        return slide.kind === "video" ? (
+                            <button
+                                key="video"
+                                type="button"
+                                onClick={() => goTo(position)}
+                                aria-label={t("Show the introduction video", "পরিচিতি ভিডিও দেখান")}
+                                aria-current={active ? "true" : undefined}
+                                className={cn(
+                                    "grid h-7 place-items-center rounded-sm px-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                                    active ? "text-editor-fg" : "text-editor-muted hover:text-editor-fg",
+                                )}
+                            >
+                                <Play className="size-3 fill-current" />
+                            </button>
+                        ) : (
+                            // A small bar in a touch-sized button.
+                            <button
+                                key={slide.src}
+                                type="button"
+                                onClick={() => goTo(position)}
+                                aria-label={t(
+                                    `Show image ${slide.number} of ${images.length}`,
+                                    `${bnDigits(images.length)}টির মধ্যে ${bnDigits(slide.number)} নম্বর ছবি দেখান`,
+                                )}
+                                aria-current={active ? "true" : undefined}
+                                className="group/dot grid h-7 place-items-center rounded-sm px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                                <span
+                                    className={cn(
+                                        "block h-1.5 rounded-[1px] transition-all",
+                                        active ? "w-5 bg-primary" : "w-1.5 bg-editor-muted/50 group-hover/dot:bg-editor-muted",
+                                    )}
+                                />
+                            </button>
+                        );
+                    })}
+                </div>
+                <SlideArrow side="right" label={t("Next", "পরেরটি")} onClick={() => goTo(current + 1)} />
             </div>
         </div>
     );
@@ -215,10 +223,7 @@ function SlideArrow({ side, label, onClick }: { side: "left" | "right"; label: s
             type="button"
             onClick={onClick}
             aria-label={label}
-            className={cn(
-                "absolute top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md bg-editor/60 text-white shadow transition-colors hover:bg-editor/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                side === "left" ? "left-2" : "right-2",
-            )}
+            className="grid size-8 shrink-0 place-items-center rounded-md text-editor-muted transition-colors hover:bg-editor-raised hover:text-editor-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
             <Icon className="size-5" />
         </button>

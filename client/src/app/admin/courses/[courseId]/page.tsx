@@ -722,8 +722,12 @@ function CourseEditor() {
                         </div>
 
                         {/* The pane's scrolling part. Clipped sideways so a page
-                            sliding in doesn't flash a scrollbar. */}
-                        <div ref={bodyRef} className="overflow-x-clip p-6 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+                            sliding in doesn't flash a scrollbar. Positioned, so
+                            the form's visually hidden (absolute) labels and
+                            radios scroll inside it — without, they escape to the
+                            window and stretch the whole page, leaving a blank
+                            band under the console once it scrolls. */}
+                        <div ref={bodyRef} className="relative overflow-x-clip p-6 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
                             <div key={pageId} className={cn(direction && `step-enter-${direction}`)}>
                                 <header className="mb-6 space-y-1">
                                     {/* The step row already names the page and where it

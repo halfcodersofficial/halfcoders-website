@@ -62,7 +62,9 @@ export default function PreviewPanel({ title, description, fill = false, childre
                 </CardHeader>
 
                 {open && (
-                    <CardContent className={cn(fill && "xl:min-h-0 xl:flex-1 xl:overflow-y-auto")}>
+                    // Positioned for the same reason as the editor's body: an
+                    // absolute element inside must scroll here, not stretch the page.
+                    <CardContent className={cn(fill && "xl:relative xl:min-h-0 xl:flex-1 xl:overflow-y-auto")}>
                         {children}
                     </CardContent>
                 )}
