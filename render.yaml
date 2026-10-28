@@ -74,6 +74,8 @@ services:
       # NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel. Unset, it's off.
       - key: GOOGLE_CLIENT_ID
         sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: SUPER_ADMIN_NAME
         value: Half Coders Admin
       - key: SUPER_ADMIN_EMAIL

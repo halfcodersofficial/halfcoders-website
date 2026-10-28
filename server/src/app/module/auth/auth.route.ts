@@ -27,7 +27,7 @@ router.post("/register", authRateLimiter, validateRequest(registerZodSchema), Au
 router.post("/verify-email", authRateLimiter, validateRequest(verifyEmailZodSchema), AuthController.verifyEmail);
 router.post("/resend-verification", authRateLimiter, validateRequest(emailOnlyZodSchema), AuthController.resendVerification);
 router.post("/login", authRateLimiter, validateRequest(loginZodSchema), AuthController.login);
-// Signs in — or signs up — with the ID token from Google's button (lib/google.ts).
+// Signs in — or signs up — with the code from Google's sign-in popup (lib/google.ts).
 router.post("/google", authRateLimiter, validateRequest(googleSignInZodSchema), AuthController.googleSignIn);
 router.post("/logout", AuthController.logout);
 router.post("/forgot-password", authRateLimiter, validateRequest(emailOnlyZodSchema), AuthController.forgotPassword);

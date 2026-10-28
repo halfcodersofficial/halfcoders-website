@@ -3,19 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, createAccount, learningProfileOf, owner } from "../helpers/fixtures";
 import type { GoogleIdentity } from "../../src/app/lib/google";
 
-// Google is outside the test: a credential here names one of these made-up
-// Google accounts, and anything else is refused as a bad token.
+// Google is outside the test: a credential — or a popup code — here names one
+// of these made-up Google accounts, and anything else is refused. A code is
+// traded for an ID token of the same name.
 const googleAccounts = vi.hoisted(() => new Map<string, GoogleIdentity>());
 vi.mock("../../src/app/lib/google", async () => {
     const { default: AppError } = await import("../../src/app/errorHelpers/AppError");
+    const verifyGoogleCredential = vi.fn(async (credential: string) => {
+        const account = googleAccounts.get(credential);
+        if (!account) {
+            throw new AppError(401, "Signing in with Google didn't go through. Please try again.").setData({ code: "GOOGLE_INVALID" });
+        }
+        return account;
+    });
     return {
-        verifyGoogleCredential: vi.fn(async (credential: string) => {
-            const account = googleAccounts.get(credential);
-            if (!account) {
-                throw new AppError(401, "Signing in with Google didn't go through. Please try again.").setData({ code: "GOOGLE_INVALID" });
-            }
-            return account;
-        }),
+        verifyGoogleCredential,
+        exchangeGoogleCode: vi.fn(async (code: string) => ({ identity: await verifyGoogleCredential(code), idToken: code })),
     };
 });
 
@@ -58,6 +61,8 @@ const googleAccount = (email = newEmail(), sub = `google-${randomUUID()}`) => {
 
 const withGoogle = (credential: string, extra: { signOutAllDevices?: boolean } = {}) =>
     api().post("/api/v1/auth/google").send({ credential, ...extra });
+/** What the web app sends: the code from Google's popup. */
+const withGoogleCode = (code: string) => api().post("/api/v1/auth/google").send({ code });
 
 const accountRow = async (email: string) =>
     (await owner.query(`SELECT id, role, "emailVerified", "googleId", "passwordHash", image FROM learning."user" WHERE email = $1`, [email]))
@@ -111,6 +116,17 @@ describe("signing up with Google", () => {
         expect(afterRename.status).toBe(200);
         expect(afterRename.body.data).toMatchObject({ id: first.body.data.id, email: google.email, isNewAccount: false });
         expect(await accountRow(renamed.email)).toBeUndefined();
+    });
+
+    it("signs up with the code from Google's popup, and wants exactly one of a code or a token", async () => {
+        const google = googleAccount();
+        const res = await withGoogleCode(google.credential);
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({ email: google.email, isNewAccount: true });
+        expect(sessionFrom(res)).toBeDefined();
+
+        expect((await api().post("/api/v1/auth/google").send({})).status).toBe(400);
+        expect((await api().post("/api/v1/auth/google").send({ code: google.credential, credential: google.credential })).status).toBe(400);
     });
 
     it("refuses a bad token, and a disposable email", async () => {
@@ -201,5 +217,19 @@ describe("a Google account's password and devices", () => {
         expect((await api().get("/api/v1/auth/me").set("Cookie", first)).status).toBe(401);
         expect((await api().get("/api/v1/auth/me").set("Cookie", second)).status).toBe(401);
         expect((await api().get("/api/v1/auth/me").set("Cookie", sessionFrom(agreed)!)).status).toBe(200);
+    });
+
+    it("hands a popup code's sign-in the ID token to continue with past the device limit, as a code works once", async () => {
+        const google = googleAccount();
+        await withGoogleCode(google.credential);
+        await withGoogleCode(google.credential);
+
+        const third = await withGoogleCode(google.credential);
+        expect(third.status).toBe(409);
+        expect(third.body.data).toMatchObject({ code: "DEVICE_LIMIT_EXCEEDED", credential: google.credential });
+
+        const agreed = await withGoogle(third.body.data.credential, { signOutAllDevices: true });
+        expect(agreed.status).toBe(200);
+        expect(sessionFrom(agreed)).toBeDefined();
     });
 });

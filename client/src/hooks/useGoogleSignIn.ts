@@ -12,11 +12,13 @@ import { authService } from "@/services";
 import type { DeviceLimitError } from "@/types/domain.types";
 
 /**
- * Signing in — or up — with Google, for the sign-in and sign-up screens. It
- * lands the way an email sign-in does, greeting a new account as a sign-up.
- * An account already on every device it may use gets `deviceLimit` for the
- * screen to show the device-limit step; `continueHere` sends Google's token
- * again (it's good for an hour) once the person agrees to sign the others out.
+ * Signing in — or up — with Google, for the sign-in and sign-up screens: the
+ * code from Google's popup goes to the API. It lands the way an email sign-in
+ * does, greeting a new account as a sign-up. An account already on every
+ * device it may use gets `deviceLimit` for the screen to show the
+ * device-limit step. A code works only once, so that answer carries Google's
+ * ID token (good for an hour), which `continueHere` sends once the person
+ * agrees to sign the others out.
  */
 export function useGoogleSignIn() {
     const router = useRouter();
@@ -26,7 +28,7 @@ export function useGoogleSignIn() {
     const [deviceLimit, setDeviceLimit] = useState<{ limit: DeviceLimitError; credential: string } | null>(null);
 
     const signIn = useMutation({
-        mutationFn: (values: { credential: string; signOutAllDevices?: boolean }) => authService.googleSignIn(values),
+        mutationFn: (values: { code?: string; credential?: string; signOutAllDevices?: boolean }) => authService.googleSignIn(values),
         onSuccess: ({ isNewAccount, ...user }) => {
             queryClient.setQueryData(SESSION_QUERY_KEY, user);
             const landing = resolveLandingPath(next, user.role);
@@ -38,9 +40,10 @@ export function useGoogleSignIn() {
             router.replace(redirectingPath(landing, isNewAccount ? "signup" : "signin"));
         },
         onError: (error, values) => {
-            const data = getApiErrorData<{ code?: string }>(error);
-            if (data?.code === "DEVICE_LIMIT_EXCEEDED") {
-                setDeviceLimit({ limit: data as DeviceLimitError, credential: values.credential });
+            const data = getApiErrorData<{ code?: string; credential?: string }>(error);
+            const credential = data?.credential ?? values.credential;
+            if (data?.code === "DEVICE_LIMIT_EXCEEDED" && credential) {
+                setDeviceLimit({ limit: data as DeviceLimitError, credential });
                 return;
             }
             // Back to the form, where Google's button can be pressed again.
@@ -50,7 +53,7 @@ export function useGoogleSignIn() {
     });
 
     return {
-        signIn: (credential: string) => signIn.mutate({ credential }),
+        signIn: (code: string) => signIn.mutate({ code }),
         isPending: signIn.isPending,
         deviceLimit: deviceLimit?.limit ?? null,
         continueHere: () => {

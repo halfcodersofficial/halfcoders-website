@@ -1,131 +1,98 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { useTheme } from "next-themes";
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import envConfig from "@/lib/envConfig";
 
-/** The parts of Google Identity Services (accounts.google.com/gsi/client) used here. */
-interface GoogleIdentityServices {
-    initialize(config: {
-        client_id: string;
-        callback: (response: { credential?: string }) => void;
-        ux_mode?: "popup" | "redirect";
-        auto_select?: boolean;
-        context?: "signin" | "signup" | "use";
-        itp_support?: boolean;
-    }): void;
-    renderButton(
-        parent: HTMLElement,
-        options: {
-            type?: "standard" | "icon";
-            theme?: "outline" | "filled_blue" | "filled_black";
-            size?: "large" | "medium" | "small";
-            text?: "signin_with" | "signup_with" | "continue_with" | "signin";
-            shape?: "rectangular" | "pill" | "circle" | "square";
-            logo_alignment?: "left" | "center";
-            width?: number;
-            locale?: string;
-        },
-    ): void;
+/** The part of Google Identity Services (accounts.google.com/gsi/client) used here. */
+interface GoogleCodeClient {
+    requestCode(): void;
 }
 
 declare global {
     interface Window {
-        google?: { accounts: { id: GoogleIdentityServices } };
+        google?: {
+            accounts: {
+                oauth2: {
+                    initCodeClient(config: {
+                        client_id: string;
+                        scope: string;
+                        ux_mode: "popup";
+                        select_account?: boolean;
+                        callback: (response: { code?: string; error?: string }) => void;
+                        error_callback?: (error: { type: "popup_failed_to_open" | "popup_closed" | "unknown" }) => void;
+                    }): GoogleCodeClient;
+                };
+            };
+        };
     }
 }
 
-/** Google draws its button between these widths. */
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 400;
-
-// Google's script is set up once per page load; whichever button is on screen
-// receives the credential.
-let initialised = false;
-let deliver: ((credential: string) => void) | null = null;
-
-const initialise = (gis: GoogleIdentityServices) => {
-    if (initialised) return;
-    gis.initialize({
-        client_id: envConfig.googleClientId,
-        callback: ({ credential }) => {
-            if (credential) deliver?.(credential);
-        },
-        ux_mode: "popup",
-        auto_select: false,
-        context: "use",
-        itp_support: true,
-    });
-    initialised = true;
-};
+/** Google's "G" in its own colours, as Google's branding asks of a custom sign-in button. */
+function GoogleLogo() {
+    return (
+        <svg viewBox="0 0 48 48" className="size-5 shrink-0" aria-hidden>
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+        </svg>
+    );
+}
 
 /**
- * "Continue with Google" — Google's own button (it has to be: the ID token
- * only comes from it), sized to the form and matched to the light or dark
- * theme, with a line under it leading on to the email form. Picking an
- * account hands `onCredential` the ID token for the API to check. Nothing at
- * all shows when no Google client is configured.
+ * "Sign in with Google" — the site's own button, set like the form's. It
+ * opens Google's popup to pick an account; Google hands back a one-time code,
+ * and `onCode` passes it on for the API to trade for the account. A line
+ * under it leads on to the email form. Nothing shows when no Google client is
+ * configured.
  */
 export default function ContinueWithGoogle({
-    onCredential,
+    label,
+    onCode,
     busy = false,
     dividerLabel,
 }: {
-    onCredential: (credential: string) => void;
-    /** While the API is signing them in: the button is covered so it can't be pressed twice. */
+    /** "Sign in with Google" or "Sign up with Google". */
+    label: string;
+    onCode: (code: string) => void;
+    /** While the API is signing them in. */
     busy?: boolean;
     /** The line between this and the email form, e.g. "or sign in with email". */
     dividerLabel: string;
 }) {
-    const { resolvedTheme } = useTheme();
-    const frame = useRef<HTMLDivElement>(null);
-    const slot = useRef<HTMLDivElement>(null);
-    const handler = useRef(onCredential);
+    const codeClient = useRef<GoogleCodeClient | null>(null);
+    const handler = useRef(onCode);
     const [scriptReady, setScriptReady] = useState(false);
     const [scriptFailed, setScriptFailed] = useState(false);
-    const [width, setWidth] = useState(0);
 
     useEffect(() => {
-        handler.current = onCredential;
-    }, [onCredential]);
+        handler.current = onCode;
+    }, [onCode]);
 
     useEffect(() => {
-        const receive = (credential: string) => handler.current(credential);
-        deliver = receive;
-        return () => {
-            if (deliver === receive) deliver = null;
-        };
-    }, []);
-
-    // Google's button has a fixed width, so it's redrawn when the form's changes.
-    useEffect(() => {
-        const element = frame.current;
-        if (!element) return;
-        const observer = new ResizeObserver(([entry]) => {
-            const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.floor(entry.contentRect.width)));
-            setWidth((current) => (Math.abs(current - next) >= 8 ? next : current));
+        const oauth2 = window.google?.accounts.oauth2;
+        if (!scriptReady || !oauth2) return;
+        codeClient.current = oauth2.initCodeClient({
+            client_id: envConfig.googleClientId,
+            scope: "openid email profile",
+            ux_mode: "popup",
+            // Always ask which account, so a shared computer doesn't pick the last person's.
+            select_account: true,
+            callback: ({ code, error }) => {
+                if (code) handler.current(code);
+                // access_denied: they closed Google's screen themselves.
+                else if (error && error !== "access_denied") toast.error("Google didn't sign you in. Please try again.");
+            },
+            error_callback: ({ type }) => {
+                if (type === "popup_failed_to_open") {
+                    toast.error("Your browser blocked Google's sign-in window. Allow pop-ups for this site, then try again.");
+                }
+            },
         });
-        observer.observe(element);
-        return () => observer.disconnect();
-    }, []);
-
-    useEffect(() => {
-        const gis = window.google?.accounts.id;
-        if (!scriptReady || !gis || !slot.current || width === 0) return;
-        initialise(gis);
-        gis.renderButton(slot.current, {
-            type: "standard",
-            theme: resolvedTheme === "dark" ? "filled_black" : "outline",
-            size: "large",
-            text: "continue_with",
-            shape: "rectangular",
-            logo_alignment: "center",
-            width,
-            locale: "en",
-        });
-    }, [scriptReady, resolvedTheme, width]);
+    }, [scriptReady]);
 
     if (!envConfig.googleClientId) return null;
 
@@ -138,27 +105,25 @@ export default function ContinueWithGoogle({
                 onError={() => setScriptFailed(true)}
             />
 
-            {scriptFailed ? (
-                <p className="rounded-md border border-border bg-secondary/40 px-4 py-3 text-center text-sm text-muted-foreground">
-                    The Google button couldn&apos;t load. Check your connection or any ad blocker, then reload — or use your email below.
-                </p>
-            ) : (
-                <div ref={frame} className="relative min-h-10" aria-busy={busy}>
-                    {/* Holds the place until Google's button draws over it. */}
-                    <div
-                        aria-hidden
-                        className="absolute inset-y-0 left-1/2 -translate-x-1/2 animate-pulse rounded-sm bg-secondary"
-                        style={{ width: width || "100%" }}
-                    />
-                    <div ref={slot} className="relative flex min-h-10 justify-center" />
-                    {busy && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-sm bg-background/85 text-sm font-medium">
-                            <Loader2 className="size-4 animate-spin" aria-hidden />
-                            Signing you in…
-                        </div>
-                    )}
-                </div>
-            )}
+            <div className="space-y-2">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="cmd h-13 w-full gap-3 border-border-strong bg-card text-base font-semibold"
+                    disabled={!scriptReady}
+                    isLoading={busy}
+                    onClick={() => codeClient.current?.requestCode()}
+                >
+                    {!busy && <GoogleLogo />}
+                    {busy ? "Signing you in…" : label}
+                </Button>
+                {scriptFailed && (
+                    <p className="text-center text-xs text-muted-foreground">
+                        Google sign-in couldn&apos;t load. Check your connection or ad blocker and reload — or use your email below.
+                    </p>
+                )}
+            </div>
 
             <div className="flex items-center gap-3">
                 <span aria-hidden className="h-px flex-1 bg-border" />

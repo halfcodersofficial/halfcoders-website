@@ -39,12 +39,16 @@ export const loginZodSchema = z.object({
     signOutAllDevices: z.boolean().optional(),
 });
 
-export const googleSignInZodSchema = z.object({
-    /** The ID token Google's sign-in button handed the browser. */
-    credential: z.string().trim().min(1, "Google sign-in didn't send a credential").max(4096),
-    /** As for `loginZodSchema`: sent again with this once the person agrees on the device-limit step. */
-    signOutAllDevices: z.boolean().optional(),
-});
+export const googleSignInZodSchema = z
+    .object({
+        /** The one-time code from Google's sign-in popup. */
+        code: z.string().trim().min(1).max(2048).optional(),
+        /** Or a Google ID token — what the device-limit step comes back with. */
+        credential: z.string().trim().min(1).max(4096).optional(),
+        /** As for `loginZodSchema`: sent once the person agrees on the device-limit step. */
+        signOutAllDevices: z.boolean().optional(),
+    })
+    .refine((body) => Boolean(body.code) !== Boolean(body.credential), "Google sign-in didn't send its code. Please try again.");
 
 export const resetPasswordZodSchema = z.object({ email, code, password: newPassword });
 

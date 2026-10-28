@@ -32,6 +32,8 @@ interface EnvConfig {
      * Google is off.
      */
     GOOGLE_CLIENT_ID?: string;
+    /** That client's secret: trades the code from Google's sign-in popup for the account's ID token. */
+    GOOGLE_CLIENT_SECRET?: string;
     EMAIL_SENDER: {
         /**
          * Set, mail goes by Brevo's HTTPS API and the SMTP login isn't needed —
@@ -154,6 +156,7 @@ const loadEnvVariables = (): EnvConfig => {
         TRUST_PROXY: trustProxy,
         AUTH_SECRET: process.env.AUTH_SECRET as string,
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID?.trim() || undefined,
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET?.trim() || undefined,
         EMAIL_SENDER: {
             BREVO_API_KEY: process.env.EMAIL_SENDER_BREVO_API_KEY?.trim() || undefined,
             SMTP_USER: process.env.EMAIL_SENDER_SMTP_USER,

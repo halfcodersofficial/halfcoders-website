@@ -105,7 +105,12 @@ export default function LoginForm() {
                 <p className="mt-2 text-sm text-muted-foreground">Sign in and pick up right where you stopped.</p>
             </header>
 
-            <ContinueWithGoogle onCredential={google.signIn} busy={google.isPending} dividerLabel="or sign in with email" />
+            <ContinueWithGoogle
+                label="Sign in with Google"
+                onCode={google.signIn}
+                busy={google.isPending}
+                dividerLabel="or sign in with email"
+            />
 
             <form className="space-y-4" noValidate onSubmit={form.handleSubmit}>
                 <AuthField

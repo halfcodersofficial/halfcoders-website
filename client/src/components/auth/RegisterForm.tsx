@@ -70,7 +70,12 @@ export default function RegisterForm() {
                 <p className="mt-2 text-sm text-muted-foreground">One free account for every Half Coders course.</p>
             </header>
 
-            <ContinueWithGoogle onCredential={google.signIn} busy={google.isPending} dividerLabel="or sign up with email" />
+            <ContinueWithGoogle
+                label="Sign up with Google"
+                onCode={google.signIn}
+                busy={google.isPending}
+                dividerLabel="or sign up with email"
+            />
 
             <form className="space-y-4" noValidate onSubmit={form.handleSubmit}>
                 <AuthField form={form} name="name" label="Full name" icon={UserRound} autoComplete="name" placeholder="Your name" autoFocus />

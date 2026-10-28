@@ -5,7 +5,7 @@ import { deleteFileFromCloudinary, isOwnCloudinaryAsset, uploadFileToCloudinary 
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { consumeAuthCode, issueAuthCode, withdrawAuthCode } from "../../lib/authCodes";
-import { verifyGoogleCredential } from "../../lib/google";
+import { exchangeGoogleCode, GoogleIdentity, verifyGoogleCredential } from "../../lib/google";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
@@ -188,16 +188,24 @@ const login = async ({ email, password, signOutAllDevices }: { email: string; pa
 // ---------------------------------------------------------------------------
 
 /**
- * Signs in with the ID token Google's button gave the browser (checked in
- * lib/google.ts). The account is the one already linked to that Google
+ * Signs in with Google (lib/google.ts): the code from Google's sign-in popup,
+ * or an ID token. The account is the one already linked to that Google
  * account; else the one with its email, which gets linked; else a new student
  * account — its email needs no code, Google has verified it. Returns the
- * account to sign in and whether it was just made. The device limit works as
- * for a password sign-in: a 409, then the same token again with
- * `signOutAllDevices`.
+ * account to sign in and whether it was just made.
+ *
+ * The device limit works as for a password sign-in: a 409, then the same
+ * sign-in again with `signOutAllDevices`. A code works only once, so its 409
+ * carries the ID token (`credential`) to come back with.
  */
-const googleSignIn = async ({ credential, signOutAllDevices }: { credential: string; signOutAllDevices?: boolean }) => {
-    const google = await verifyGoogleCredential(credential);
+const googleSignIn = async ({ code, credential, signOutAllDevices }: { code?: string; credential?: string; signOutAllDevices?: boolean }) => {
+    let google: GoogleIdentity;
+    let idToken: string | undefined;
+    if (code) {
+        ({ identity: google, idToken } = await exchangeGoogleCode(code));
+    } else {
+        google = await verifyGoogleCredential(credential as string);
+    }
 
     const account =
         (await prisma.user.findUnique({ where: { googleId: google.sub }, select: ACCOUNT_SELECT })) ?? (await findByEmail(google.email));
@@ -243,7 +251,14 @@ const googleSignIn = async ({ credential, signOutAllDevices }: { credential: str
         logger.update("Google account linked", { userId: account.id });
     }
 
-    await makeRoomForDevice(account.id, signOutAllDevices);
+    try {
+        await makeRoomForDevice(account.id, signOutAllDevices);
+    } catch (error) {
+        if (idToken && error instanceof AppError && error.statusCode === status.CONFLICT) {
+            error.setData({ ...(error.data as object), credential: idToken });
+        }
+        throw error;
+    }
     return { userId: account.id, isNewAccount: false };
 };
 
