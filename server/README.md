@@ -89,6 +89,11 @@ curl http://localhost:5001/api/v1      # list of mounted endpoints
 
 - **`DATABASE_URL` ends with `?schema=learning`.** Every table and the
   migration history live in that schema; boot fails without it.
+- **Migrations use a direct connection** (`prisma.config.ts`): `DIRECT_DATABASE_URL`,
+  or else `DATABASE_URL` with a Neon `-pooler` host made direct. Through a
+  pooler, Prisma's migration lock can stay held by a pooled connection and
+  time out every later deploy (`P1002 … pg_advisory_lock`). The app itself
+  stays on the pooled URL.
 - **`AUTH_SECRET`** (at least 32 characters) keys the one-time email codes.
   Changing it invalidates any code already sent, nothing else.
 - **SMTP is required** — sign-up can't be finished without the verification

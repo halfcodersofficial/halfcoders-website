@@ -54,9 +54,17 @@ services:
       - key: TRUST_PROXY
         value: "1"
 
-      # ---- Database (Neon) — must end with ?schema=learning
+      # ---- Database (Neon) — must end with ?schema=learning. Use
+      # sslmode=verify-full (not Neon's default `require`): it's what pg does
+      # anyway, said outright, so the SSL-mode warning stays out of the logs.
       - key: DATABASE_URL
         sync: false
+      # Migrations connect directly, not through Neon's pooler — the host
+      # without `-pooler` is used automatically (server/prisma.config.ts).
+      # Set DIRECT_DATABASE_URL only for a database that isn't Neon.
+
+      # LOG_LEVEL: leave unset in production (info). `debug` logs every
+      # create/update with its data.
 
       # ---- Accounts
       - key: AUTH_SECRET
