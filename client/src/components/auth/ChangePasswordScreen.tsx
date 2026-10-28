@@ -26,18 +26,24 @@ export default function ChangePasswordScreen() {
     if (isLoading || !user) return <Skeleton className="h-80" />;
 
     const temporary = user.needPasswordChange;
+    // An account made with Google: the form offers to set one instead.
+    const noPassword = !temporary && user.hasPassword === false;
     return (
         <div className="space-y-6">
             <header className="text-center">
                 <span className="mx-auto mb-4 grid size-12 place-items-center rounded-md border border-primary/30 bg-primary/5 text-primary">
                     <ShieldCheck className="size-6" />
                 </span>
-                <h1 className="text-2xl font-bold">{temporary ? "Choose your own password" : "Change your password"}</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    {temporary
-                        ? "Your account was set up with a temporary password. Replace it with one only you know to carry on."
-                        : "Enter your current password, then the new one."}
-                </p>
+                <h1 className="text-2xl font-bold">
+                    {temporary ? "Choose your own password" : noPassword ? "Set a password" : "Change your password"}
+                </h1>
+                {!noPassword && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {temporary
+                            ? "Your account was set up with a temporary password. Replace it with one only you know to carry on."
+                            : "Enter your current password, then the new one."}
+                    </p>
+                )}
             </header>
             <ChangePasswordForm
                 submitLabel={temporary ? "Save and continue" : "Change password"}

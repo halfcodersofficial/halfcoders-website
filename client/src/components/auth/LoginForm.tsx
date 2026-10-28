@@ -7,9 +7,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import ContinueWithGoogle from "@/components/auth/ContinueWithGoogle";
 import DeviceLimitStep from "@/components/auth/DeviceLimitStep";
 import { AuthField } from "@/components/shared/AuthField";
 import { Button } from "@/components/ui/button";
+import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { useZodForm } from "@/hooks/useZodForm";
 import { SESSION_QUERY_KEY } from "@/hooks/useSession";
 import { resolveLandingPath } from "@/lib/access";
@@ -26,10 +28,10 @@ const schema = z.object({ email: emailField, password: currentPasswordField });
 type Credentials = z.output<typeof schema>;
 
 /**
- * Email + password. An unverified email is sent on to the verify step with a
- * fresh code; an account already on every device it may use gets the
- * device-limit step, which signs in again with the same details once the
- * person agrees to sign the others out.
+ * Google, or email + password. An unverified email is sent on to the verify
+ * step with a fresh code; an account already on every device it may use gets
+ * the device-limit step, which signs in again the same way once the person
+ * agrees to sign the others out.
  */
 export default function LoginForm() {
     const router = useRouter();
@@ -37,6 +39,7 @@ export default function LoginForm() {
     const queryClient = useQueryClient();
     const next = searchParams.get("next");
     const [deviceLimit, setDeviceLimit] = useState<{ limit: DeviceLimitError; credentials: Credentials } | null>(null);
+    const google = useGoogleSignIn();
 
     const login = useMutation({
         mutationFn: (values: Credentials & { signOutAllDevices?: boolean }) => authService.login(values),
@@ -84,6 +87,16 @@ export default function LoginForm() {
             />
         );
     }
+    if (google.deviceLimit) {
+        return (
+            <DeviceLimitStep
+                limit={google.deviceLimit}
+                isContinuing={google.isPending}
+                onContinue={google.continueHere}
+                onBack={google.dismissDeviceLimit}
+            />
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -91,6 +104,8 @@ export default function LoginForm() {
                 <h1 className="text-3xl font-bold tracking-tight">Good to see you again</h1>
                 <p className="mt-2 text-sm text-muted-foreground">Sign in and pick up right where you stopped.</p>
             </header>
+
+            <ContinueWithGoogle onCredential={google.signIn} busy={google.isPending} dividerLabel="or sign in with email" />
 
             <form className="space-y-4" noValidate onSubmit={form.handleSubmit}>
                 <AuthField

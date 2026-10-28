@@ -26,11 +26,23 @@ interface EnvConfig {
     TRUST_PROXY: number;
     /** Keys the one-time codes mailed for email verification and password resets. */
     AUTH_SECRET: string;
+    /**
+     * The Google OAuth client the sign-in button belongs to — the same one as
+     * the web app's NEXT_PUBLIC_GOOGLE_CLIENT_ID. Unset, signing in with
+     * Google is off.
+     */
+    GOOGLE_CLIENT_ID?: string;
     EMAIL_SENDER: {
-        SMTP_USER: string;
-        SMTP_PASS: string;
-        SMTP_HOST: string;
-        SMTP_PORT: string;
+        /**
+         * Set, mail goes by Brevo's HTTPS API and the SMTP login isn't needed —
+         * for hosts that block the SMTP ports (Render's and Railway's free plans).
+         */
+        BREVO_API_KEY?: string;
+        SMTP_USER?: string;
+        SMTP_PASS?: string;
+        SMTP_HOST?: string;
+        SMTP_PORT?: string;
+        /** The From address either way, e.g. `Half Coders <no-reply@half-coders.tech>`. */
         SMTP_FROM: string;
     };
     CLOUDINARY: {
@@ -58,10 +70,10 @@ const loadEnvVariables = (): EnvConfig => {
         "FRONTEND_URL",
         "BACKEND_URL",
         "AUTH_SECRET",
-        "EMAIL_SENDER_SMTP_USER",
-        "EMAIL_SENDER_SMTP_PASS",
-        "EMAIL_SENDER_SMTP_HOST",
-        "EMAIL_SENDER_SMTP_PORT",
+        // The SMTP login only when Brevo isn't the one sending.
+        ...(process.env.EMAIL_SENDER_BREVO_API_KEY?.trim()
+            ? []
+            : ["EMAIL_SENDER_SMTP_USER", "EMAIL_SENDER_SMTP_PASS", "EMAIL_SENDER_SMTP_HOST", "EMAIL_SENDER_SMTP_PORT"]),
         "EMAIL_SENDER_SMTP_FROM",
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
@@ -141,11 +153,13 @@ const loadEnvVariables = (): EnvConfig => {
         COOKIE_DOMAIN: cookieDomain,
         TRUST_PROXY: trustProxy,
         AUTH_SECRET: process.env.AUTH_SECRET as string,
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID?.trim() || undefined,
         EMAIL_SENDER: {
-            SMTP_USER: process.env.EMAIL_SENDER_SMTP_USER as string,
-            SMTP_PASS: process.env.EMAIL_SENDER_SMTP_PASS as string,
-            SMTP_HOST: process.env.EMAIL_SENDER_SMTP_HOST as string,
-            SMTP_PORT: process.env.EMAIL_SENDER_SMTP_PORT as string,
+            BREVO_API_KEY: process.env.EMAIL_SENDER_BREVO_API_KEY?.trim() || undefined,
+            SMTP_USER: process.env.EMAIL_SENDER_SMTP_USER,
+            SMTP_PASS: process.env.EMAIL_SENDER_SMTP_PASS,
+            SMTP_HOST: process.env.EMAIL_SENDER_SMTP_HOST,
+            SMTP_PORT: process.env.EMAIL_SENDER_SMTP_PORT,
             SMTP_FROM: process.env.EMAIL_SENDER_SMTP_FROM as string,
         },
         CLOUDINARY: {

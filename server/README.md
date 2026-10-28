@@ -96,9 +96,14 @@ curl http://localhost:5001/api/v1      # list of mounted endpoints
   stays on the pooled URL.
 - **`AUTH_SECRET`** (at least 32 characters) keys the one-time email codes.
   Changing it invalidates any code already sent, nothing else.
-- **SMTP is required** — sign-up can't be finished without the verification
-  email. Without SMTP configured in development, emails are logged instead of
-  sent.
+- **Email is required** — sign-up can't be finished without the verification
+  email. It goes by Brevo's HTTPS API when `EMAIL_SENDER_BREVO_API_KEY` is set
+  (hosts that block SMTP ports, such as Render's and Railway's free plans), by
+  SMTP otherwise. With neither configured in development, emails are logged
+  instead of sent. On boot the API checks the setup once and logs `Email
+  ready`, or why it can't send. A code email that fails is reported to the
+  person (`EMAIL_NOT_SENT`, 503) and the code taken back, so they can ask
+  again.
 - **Cloudinary** uploads are namespaced under `CLOUDINARY_FOLDER` (default
   `halfcoders`), and Half Coders only ever deletes files under it.
 - **`FRONTEND_URL`** is the site's address, used in links (emails, certificates,

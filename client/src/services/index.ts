@@ -104,6 +104,16 @@ export const authService = {
     login: (payload: { email: string; password: string; signOutAllDevices?: boolean }) =>
         httpClient.post<ApiResponse<CurrentUser>>("/auth/login", payload, { _silent: true }).then(unwrap),
 
+    /**
+     * Signs in — or signs up — with the ID token from Google's button.
+     * `isNewAccount` is true when this made the account. `_silent` and
+     * `signOutAllDevices` as for `login`.
+     */
+    googleSignIn: (payload: { credential: string; signOutAllDevices?: boolean }) =>
+        httpClient
+            .post<ApiResponse<CurrentUser & { isNewAccount: boolean }>>("/auth/google", payload, { _silent: true })
+            .then(unwrap),
+
     logout: () => httpClient.post<ApiResponse<null>>("/auth/logout", undefined, { _silent: true }).then(unwrap),
 
     /** Every device this account is signed in on, this one marked `current`, and how many it may use. */

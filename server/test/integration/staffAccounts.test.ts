@@ -6,7 +6,11 @@ import { api, createAccount, owner, type TestAccount } from "../helpers/fixtures
 const sent = vi.hoisted(() => [] as { to: string; templateName: string; templateData: Record<string, unknown> }[]);
 vi.mock("../../src/app/utils/email", async (importOriginal) => {
     const original = await importOriginal<typeof import("../../src/app/utils/email")>();
-    return { ...original, sendEmailAsync: vi.fn((email: (typeof sent)[number]) => sent.push(email)) };
+    return {
+        ...original,
+        sendEmail: vi.fn(async (email: (typeof sent)[number]) => void sent.push(email)),
+        sendEmailAsync: vi.fn((email: (typeof sent)[number]) => sent.push(email)),
+    };
 });
 
 /**
