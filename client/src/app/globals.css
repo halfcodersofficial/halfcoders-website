@@ -382,10 +382,17 @@
      Tailwind utility site-wide — text, icons, spacing — so the whole app
      reads a bit bigger without rewriting every text-sm/text-xs by hand.
      Media-query breakpoints are unaffected (they resolve rem against the
-     browser default, not this). */
+     browser default, not this). Phones keep the browser's own size: there
+     the extra 10% only crowds a narrow screen and pushes cards past its edge. */
   html {
     font-family: var(--font-sans);
-    font-size: 110.00%;
+    font-size: 100%;
+  }
+
+  @media (width >= 40rem) {
+    html {
+      font-size: 110%;
+    }
   }
 
   h1, h2, h3, h4, h5, h6 {

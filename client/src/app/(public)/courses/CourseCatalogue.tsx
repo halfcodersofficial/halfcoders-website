@@ -934,14 +934,15 @@ function Pagination({ page, meta, onPage }: { page: number; meta: ApiMeta | unde
     if (!meta || meta.totalPages <= 1) return null;
 
     return (
-        <nav className="mt-12 flex items-center justify-center gap-1.5" aria-label="Pagination">
-            <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
+        // Smaller on a phone, where nine full-size buttons would run past the edge.
+        <nav className="mt-12 flex flex-wrap items-center justify-center gap-1 sm:gap-1.5" aria-label="Pagination">
+            <Button variant="outline" size="icon" className="size-8 sm:size-10" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
                 <ChevronLeft />
             </Button>
 
             {paginationRange(meta.page, meta.totalPages).map((entry, index) =>
                 entry === "…" ? (
-                    <span key={`dots-${index}`} className="grid size-10 place-items-center text-sm text-muted-foreground">
+                    <span key={`dots-${index}`} className="grid size-8 sm:size-10 place-items-center text-sm text-muted-foreground">
                         …
                     </span>
                 ) : (
@@ -951,7 +952,7 @@ function Pagination({ page, meta, onPage }: { page: number; meta: ApiMeta | unde
                         aria-current={entry === meta.page ? "page" : undefined}
                         onClick={() => onPage(entry)}
                         className={cn(
-                            "grid size-10 place-items-center rounded-md border font-mono text-sm tabular-nums transition-colors",
+                            "grid size-8 sm:size-10 place-items-center rounded-md border font-mono text-sm tabular-nums transition-colors",
                             entry === meta.page
                                 ? "border-primary bg-primary text-primary-foreground"
                                 : "border-border hover:border-primary/40 hover:bg-secondary",
@@ -962,7 +963,7 @@ function Pagination({ page, meta, onPage }: { page: number; meta: ApiMeta | unde
                 ),
             )}
 
-            <Button variant="outline" size="icon" disabled={page >= meta.totalPages} onClick={() => onPage(page + 1)} aria-label="Next page">
+            <Button variant="outline" size="icon" className="size-8 sm:size-10" disabled={page >= meta.totalPages} onClick={() => onPage(page + 1)} aria-label="Next page">
                 <ChevronRight />
             </Button>
         </nav>

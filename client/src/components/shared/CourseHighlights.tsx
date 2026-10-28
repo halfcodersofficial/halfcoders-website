@@ -28,6 +28,13 @@ export default function CourseHighlights({
     const items = features.map((feature, index) => ({ feature, key: `${index}-${feature.title}`, ...splitLeadingCount(feature.title) }));
     const counted = items.filter((item) => item.count);
     const others = items.filter((item) => !item.count);
+    // The last counted cell takes the rest of its row, at two columns and at
+    // three, so a count that doesn't divide evenly never leaves a grey hole.
+    const n = counted.length;
+    const lastSpan = cn(
+        n > 1 && n % 2 === 1 && "@lg:col-span-2",
+        n > 2 && (n % 3 === 1 ? "@3xl:col-span-3" : n % 3 === 2 ? "@3xl:col-span-2" : "@3xl:col-span-1"),
+    );
 
     const panel = (
         <div className="@container">
@@ -43,8 +50,8 @@ export default function CourseHighlights({
                             counted.length > 2 && "@3xl:grid-cols-3",
                         )}
                     >
-                        {counted.map(({ feature, key, count, rest }) => (
-                            <li key={key} className="min-w-0 bg-card p-5 sm:p-6">
+                        {counted.map(({ feature, key, count, rest }, index) => (
+                            <li key={key} className={cn("min-w-0 bg-card p-5 sm:p-6", index === n - 1 && lastSpan)}>
                                 <span aria-hidden data-hl-marker className="inline-block">
                                     <span data-hl-count className="font-mono text-4xl font-semibold leading-none tracking-tight text-syn-number tabular-nums">
                                         {count}

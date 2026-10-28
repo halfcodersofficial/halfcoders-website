@@ -423,7 +423,7 @@ function CourseRoute({ plan, milestoneLabel, progress }: { plan: UpNextPlan; mil
 
 function NothingToResume({ hasCourses, prompt }: { hasCourses: boolean; prompt: string }) {
     return (
-        <section className="editor relative isolate overflow-hidden rounded-panel border border-editor-line p-8 shadow-panel sm:p-10">
+        <section className="editor relative isolate overflow-hidden rounded-panel border border-editor-line p-6 shadow-panel sm:p-10">
             <span aria-hidden className="bg-grid pointer-events-none absolute inset-0 -z-10 opacity-70" />
             <p className="text-xs font-semibold uppercase tracking-wider text-syn-func">{hasCourses ? "All caught up" : "Start learning"}</p>
             <h2 className="mt-2 max-w-xl text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">

@@ -518,7 +518,7 @@ export default function LearnPage() {
                         {data.enrollment && <ProgressRing value={data.enrollment.progress} size={38} />}
                         <div className="min-w-0">
                             <h1 className="truncate font-semibold leading-tight">{data.course.title}</h1>
-                            <p className="text-xs tabular-nums text-muted-foreground">
+                            <p className="truncate text-xs tabular-nums text-muted-foreground">
                                 {/* An upcoming course has no modules until its classes start. */}
                                 {allVideos.length === 0
                                     ? data.course.phase === "UPCOMING"
@@ -580,21 +580,23 @@ export default function LearnPage() {
                 </div>
             </header>
 
-            <div className="grid gap-8 p-4 sm:p-6 lg:grid-cols-[1fr_400px]">
+            {/* `minmax(0, …)` and `min-w-0`, so a long code line or link in a lesson
+                scrolls inside its own box instead of widening the page on a phone. */}
+            <div className="grid grid-cols-1 gap-6 p-4 sm:gap-8 sm:p-6 lg:grid-cols-[minmax(0,1fr)_400px]">
                 {/* Player */}
-                <div className="space-y-4">
+                <div className="min-w-0 space-y-4">
                     {activeAssignmentId ? (
                         <AssignmentPane slug={slug} assignmentId={activeAssignmentId} />
                     ) : activeQuizId ? (
                         <QuizPane quizId={activeQuizId} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "TEXT" && activeVideo.content ? (
-                        <article className="mx-auto w-full max-w-6xl rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+                        <article className="mx-auto w-full max-w-6xl rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
                             <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 <FileText className="size-4" aria-hidden /> Reading ·{" "}
                                 {Math.max(1, Math.round(activeVideo.content.trim().split(/\s+/).length / 200))} min
                             </p>
                             <div
-                                className="max-w-3xl text-[15px] leading-relaxed"
+                                className="max-w-3xl text-[15px] leading-relaxed wrap-break-word"
                                 // Escaped and link-restricted by renderLightMarkdown.
                                 dangerouslySetInnerHTML={{ __html: renderLightMarkdown(activeVideo.content) }}
                             />
@@ -642,20 +644,20 @@ export default function LearnPage() {
                                     onClick={() => setVideoStarted(true)}
                                     onContextMenu={(e) => e.preventDefault()}
                                     aria-label={`Play ${activeVideo.title}`}
-                                    className="group absolute inset-0 flex flex-col items-center justify-center gap-5 overflow-hidden bg-black px-6 text-center text-white"
+                                    className="group absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-6 text-center text-white sm:gap-5"
                                 >
                                     {/* A soft brand glow behind the button — the cover stays opaque. */}
                                     <span
                                         aria-hidden
                                         className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
                                     />
-                                    <span className="relative grid size-20 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105">
-                                        <svg viewBox="0 0 24 24" className="ml-1 size-8 fill-white" aria-hidden>
+                                    <span className="relative grid size-14 shrink-0 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105 sm:size-20">
+                                        <svg viewBox="0 0 24 24" className="ml-1 size-6 fill-white sm:size-8" aria-hidden>
                                             <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
                                         </svg>
                                     </span>
                                     <span className="relative max-w-xl space-y-1.5">
-                                        <span className="block text-lg font-semibold leading-snug sm:text-xl">{activeVideo.title}</span>
+                                        <span className="line-clamp-2 text-base font-semibold leading-snug sm:text-xl">{activeVideo.title}</span>
                                         <span className="block text-sm tabular-nums text-white/60">
                                             Lesson {activeLessonNumber} of {allVideos.length}
                                             {activeVideo.durationLabel && ` · ${activeVideo.durationLabel}`}

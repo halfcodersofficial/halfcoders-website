@@ -86,14 +86,14 @@ function CourseRow({ summary }: { summary: ConceptualCourseSummary }) {
     return (
         <Link
             href={href}
-            className="group grid gap-5 rounded-card border border-border bg-card p-3 transition-colors hover:border-primary/50 sm:grid-cols-[16rem_1fr_auto] sm:items-center sm:gap-6 sm:pr-6"
+            className="group grid gap-5 rounded-card border border-border bg-card p-3 transition-colors hover:border-primary/50 md:grid-cols-[16rem_1fr_auto] md:items-center md:gap-6 md:pr-6"
         >
             <div className="relative aspect-video overflow-hidden rounded-md bg-secondary">
                 <SafeImage
                     src={course.thumbnail}
                     alt=""
                     fill
-                    sizes="(max-width: 640px) 100vw, 256px"
+                    sizes="(max-width: 768px) 100vw, 256px"
                     className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                     fallback={<Clapperboard className="size-8 text-muted-foreground" />}
                 />
@@ -103,7 +103,7 @@ function CourseRow({ summary }: { summary: ConceptualCourseSummary }) {
                 </span>
             </div>
 
-            <div className="min-w-0 px-2 pb-1 sm:px-0 sm:pb-0">
+            <div className="min-w-0 px-2 pb-1 md:px-0 md:pb-0">
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted-foreground">
                     <span>{plural(summary.topics, "topic")}</span>
                     {summary.totalDuration > 0 && (
@@ -136,8 +136,8 @@ function CourseRow({ summary }: { summary: ConceptualCourseSummary }) {
                 </p>
             </div>
 
-            <div className="flex items-center justify-between gap-4 border-t border-border px-2 pb-1 pt-4 sm:flex-col sm:justify-center sm:border-0 sm:p-0">
-                <span className="flex items-center gap-3 sm:flex-col sm:gap-1.5">
+            <div className="flex items-center justify-between gap-4 border-t border-border px-2 pb-1 pt-4 md:flex-col md:justify-center md:border-0 md:p-0">
+                <span className="flex items-center gap-3 md:flex-col md:gap-1.5">
                     <ProgressRing value={share} size={56} stroke={5} fillIn>
                         <span className="text-xs font-bold tabular-nums">
                             {summary.watched}/{summary.recordings}
@@ -145,7 +145,7 @@ function CourseRow({ summary }: { summary: ConceptualCourseSummary }) {
                     </ProgressRing>
                     <span className="text-xs text-muted-foreground">watched</span>
                 </span>
-                <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary sm:hidden">
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary md:hidden">
                     {next ? "Watch" : "Rewatch"} <ArrowRight className="size-4" />
                 </span>
             </div>
