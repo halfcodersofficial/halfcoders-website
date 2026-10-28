@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -48,7 +49,12 @@ export function useGoogleSignIn() {
             }
             // Back to the form, where Google's button can be pressed again.
             setDeviceLimit(null);
-            toast.error(getApiErrorMessage(error, "Couldn't sign you in with Google."));
+            // 404: an API that doesn't know Google yet (deployed behind this page).
+            toast.error(
+                axios.isAxiosError(error) && error.response?.status === 404
+                    ? "Signing in with Google isn't available right now. Please use your email for now."
+                    : getApiErrorMessage(error, "Couldn't sign you in with Google."),
+            );
         },
     });
 

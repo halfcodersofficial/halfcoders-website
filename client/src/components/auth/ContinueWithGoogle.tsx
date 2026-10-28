@@ -113,6 +113,9 @@ export default function ContinueWithGoogle({
                     className="cmd h-13 w-full gap-3 border-border-strong bg-card text-base font-semibold"
                     disabled={!scriptReady}
                     isLoading={busy}
+                    // Keeps focus in the form: blurring its first box would flag
+                    // it as skipped ("Full name is required") under Google's popup.
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => codeClient.current?.requestCode()}
                 >
                     {!busy && <GoogleLogo />}
