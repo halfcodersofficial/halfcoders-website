@@ -174,8 +174,8 @@ function AtAGlance({ data, now, dated }: { data: CourseOutline; now: number; dat
                 )}
             >
                 {stats.map((stat) => (
-                    <div key={stat.label} className="flex flex-col justify-center px-5 py-4">
-                        <dd className="text-2xl font-bold leading-tight tracking-tight tabular-nums">{stat.value}</dd>
+                    <div key={stat.label} className="flex min-w-0 flex-col justify-center px-3 py-3 sm:px-5 sm:py-4">
+                        <dd className="text-xl font-bold leading-tight tracking-tight tabular-nums sm:text-2xl">{stat.value}</dd>
                         <dt className="mt-0.5 truncate text-xs text-muted-foreground">{stat.label}</dt>
                     </div>
                 ))}

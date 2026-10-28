@@ -72,7 +72,9 @@ export default function CourseHeroFacts({
                         "flex items-center",
                         compact
                             ? cn("gap-1.5 rounded-sm border px-2 py-1 text-xs", onDark ? "border-editor-line text-editor-fg" : "border-border")
-                            : cn(RISE, "gap-3 px-4 py-3 text-sm", onDark ? "bg-editor-panel text-editor-fg" : "bg-card"),
+                            // An odd one out takes the whole last row, rather than
+                            // leaving an empty cell beside it.
+                            : cn(RISE, "gap-3 px-4 py-3 text-sm sm:last:odd:col-span-2", onDark ? "bg-editor-panel text-editor-fg" : "bg-card"),
                     )}
                     style={compact ? undefined : ({ animationDelay: `${delayMs + FIRST_DELAY_MS + index * STAGGER_MS}ms` } as CSSProperties)}
                 >
