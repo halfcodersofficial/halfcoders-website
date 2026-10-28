@@ -70,6 +70,10 @@ services:
       # ---- Accounts
       - key: AUTH_SECRET
         generateValue: true
+      # Sign in with Google: the same client id as the web app's
+      # NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel. Unset, it's off.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: SUPER_ADMIN_NAME
         value: Half Coders Admin
       - key: SUPER_ADMIN_EMAIL
