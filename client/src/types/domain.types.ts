@@ -78,8 +78,10 @@ export interface CurrentUser {
     status: UserStatus;
     emailVerified: boolean;
     needPasswordChange: boolean;
-    /** False for an account made with Google that hasn't set a password yet. */
+    /** False for an account made with Google, which never has one. */
     hasPassword: boolean;
+    /** Linked to a Google account. With no password, Google is the only way in. */
+    signsInWithGoogle: boolean;
     /** When the account was created. */
     createdAt: string;
     /** When this account first used Half Coders. */

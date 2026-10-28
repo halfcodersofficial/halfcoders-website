@@ -6,16 +6,22 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
+import { GoogleLogo } from "@/components/auth/ContinueWithGoogle";
 import { AuthField } from "@/components/shared/AuthField";
 import { Button } from "@/components/ui/button";
 import { useZodForm } from "@/hooks/useZodForm";
+import envConfig from "@/lib/envConfig";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { emailField } from "@/lib/validation";
 import { authService } from "@/services";
 
 const schema = z.object({ email: emailField });
 
-/** Asks for a reset code by email, then moves on to entering it. */
+/**
+ * Asks for a reset code by email, then moves on to entering it. An account
+ * made with Google gets no code — it has no password — so the screen says so
+ * up front, the same for everyone.
+ */
 export default function ForgotPasswordForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -63,6 +69,21 @@ export default function ForgotPasswordForm() {
                     Send reset code
                 </Button>
             </form>
+
+            {envConfig.googleClientId && (
+                <div className="flex items-start gap-3 rounded-md border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    <span className="mt-0.5">
+                        <GoogleLogo />
+                    </span>
+                    <p>
+                        Made your account with Google? It doesn&apos;t use a password, so no code will come.{" "}
+                        <Link href="/login" className="font-semibold text-primary hover:underline">
+                            Sign in with Google
+                        </Link>{" "}
+                        instead.
+                    </p>
+                </div>
+            )}
 
             <p className="text-center text-sm text-muted-foreground">
                 Remembered it?{" "}

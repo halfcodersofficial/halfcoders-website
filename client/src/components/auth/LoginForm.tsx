@@ -16,6 +16,7 @@ import { useZodForm } from "@/hooks/useZodForm";
 import { SESSION_QUERY_KEY } from "@/hooks/useSession";
 import { resolveLandingPath } from "@/lib/access";
 import { redirectingPath } from "@/lib/auth";
+import envConfig from "@/lib/envConfig";
 import { getApiErrorData, getApiErrorMessage } from "@/lib/httpClient";
 import { currentPasswordField, emailField } from "@/lib/validation";
 import { authService } from "@/services";
@@ -67,7 +68,13 @@ export default function LoginForm() {
                 setDeviceLimit({ limit: data as DeviceLimitError, credentials: { email: values.email, password: values.password } });
                 return;
             }
-            toast.error(getApiErrorMessage(error, "Couldn't sign you in."));
+            // Said to everyone with a wrong password, so it gives nothing away
+            // about which accounts were made with Google.
+            const googleHint =
+                data?.code === "INVALID_CREDENTIALS" && envConfig.googleClientId
+                    ? { description: "Made your account with Google? Use “Sign in with Google” instead — it has no password." }
+                    : undefined;
+            toast.error(getApiErrorMessage(error, "Couldn't sign you in."), googleHint);
         },
     });
 
