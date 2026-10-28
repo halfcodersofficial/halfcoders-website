@@ -8,7 +8,8 @@ shared with any other site.
 
 - **Its own accounts.** Email + password, with the email verified by a
   six-digit code before first sign-in, and password resets by the same kind of
-  code (`module/auth`, `lib/password.ts`, `lib/session.ts`, `lib/authCodes.ts`).
+  code — or a Google account (`module/auth`, `lib/password.ts`,
+  `lib/session.ts`, `lib/authCodes.ts`, `lib/google.ts`).
 - **Its own database.** Every table — accounts and sessions, learning
   profiles, courses, enrolments, progress, certificates, orders… — lives in the
   `learning` schema of Half Coders' own PostgreSQL database.
@@ -135,6 +136,7 @@ Each account has one role — `STUDENT`, `MENTOR`, `ADMIN` or `SUPER_ADMIN`
 | `POST /verify-email` | the code → verified, and signed in |
 | `POST /resend-verification` | a fresh code (at most once a minute) |
 | `POST /login` | email + password → session cookie. An unverified account gets a fresh code and `EMAIL_NOT_VERIFIED` |
+| `POST /google` | the ID token from Google's button → session cookie, and `isNewAccount` (see below) |
 | `POST /logout` | ends this session |
 | `POST /forgot-password` → `POST /reset-password` | a code by email, then a new password; every session of the account ends |
 | `POST /change-password` | from inside the account; every *other* session ends |
@@ -144,6 +146,15 @@ Each account has one role — `STUDENT`, `MENTOR`, `ADMIN` or `SUPER_ADMIN`
   only as an HMAC (`lib/authCodes.ts`).
 - Passwords are hashed with scrypt (`lib/password.ts`). A wrong email and a
   wrong password take the same time and give the same answer.
+- **Google** (`GOOGLE_CLIENT_ID`; off when unset). The token is checked
+  against Google's keys and this client id (`lib/google.ts`), and Google must
+  have verified the email. The account is the one linked to that Google
+  account (`User.googleId`), else the one with its email — linked then — else
+  a new student account, verified and without a password (`hasPassword: false`
+  on `me`; one is set through the reset flow). Linking to an account whose
+  email was never verified drops its password: whoever chose it hadn't proved
+  the inbox. An email already linked to another Google account is refused
+  (`GOOGLE_ACCOUNT_MISMATCH`), and the device limit applies as for a password.
 - The session is a random token in the httpOnly cookie
   `halfcoders.session_token` (`SameSite=Lax`, `Secure` in production, on
   `COOKIE_DOMAIN` when set), valid 30 days and extended while in use. The database keeps only its SHA-256 hash.
