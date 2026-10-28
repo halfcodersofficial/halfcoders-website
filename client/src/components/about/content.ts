@@ -264,7 +264,7 @@ export interface TeamMember {
 }
 
 export const TEAM = {
-    title: "যাঁরা Half Coders চালাচ্ছেন",
+    title: "Half Coders-এ যাঁরা",
     description: "পর্দার পেছনের মানুষগুলো। কোর্স বানানো থেকে শুরু করে আপনার ইমেইলের উত্তর দেওয়া পর্যন্ত, সবকিছুর পেছনে এঁরাই।",
     members: [
         { name: "Tariq M Nasim", role: "Chief Executive Officer", short: "CEO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Tariq_M_Nasim.png" },
