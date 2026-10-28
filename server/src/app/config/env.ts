@@ -59,6 +59,10 @@ interface EnvConfig {
 /** Minimum entropy for shared secrets — anything shorter is a config mistake. */
 const MIN_SECRET_LENGTH = 32;
 
+/** This computer: `localhost`, `127.x.x.x`, `[::1]`. */
+const isLocalHostname = (hostname: string) =>
+    hostname === "localhost" || hostname.endsWith(".localhost") || hostname.startsWith("127.") || hostname === "[::1]" || hostname === "0.0.0.0";
+
 /**
  * Fails fast at import time if a required variable is missing. Deliberately a
  * plain `Error` rather than AppError: this runs before the express error
@@ -123,8 +127,13 @@ const loadEnvVariables = (): EnvConfig => {
         } catch {
             throw new Error("FRONTEND_URL must be a full URL such as `https://half-coders.tech`.");
         }
-        // localhost and IP addresses have no www twin.
         const { hostname } = url;
+        // Every link in an email, certificate or invoice points here; from a
+        // live server, a localhost link opens nothing for whoever gets it.
+        if (process.env.NODE_ENV === "production" && isLocalHostname(hostname)) {
+            throw new Error("FRONTEND_URL points at localhost — in production it must be the live site, e.g. `https://half-coders.tech`.");
+        }
+        // localhost and IP addresses have no www twin.
         if (!hostname.includes(".") || /^[\d.]+$/.test(hostname)) return [url.origin];
         const twin = new URL(url.origin);
         twin.hostname = hostname.startsWith("www.") ? hostname.slice(4) : `www.${hostname}`;
@@ -178,3 +187,6 @@ export const envVars = loadEnvVariables();
 
 export const isDevelopment = envVars.NODE_ENV === "development";
 export const isProduction = envVars.NODE_ENV === "production";
+
+/** FRONTEND_URL is this computer, so links in emails and PDFs open only here. */
+export const frontendIsLocal = isLocalHostname(new URL(envVars.FRONTEND_URL).hostname);
