@@ -16,6 +16,9 @@ import type { CourseCard as CourseCardType } from "@/types/domain.types";
  * lines of what it's about, who teaches it) on the left, the price and
  * "বিস্তারিত →" in a column on the right. On a phone it stacks like the grid's
  * card. The whole row is one link.
+ *
+ * The thumbnail keeps its 16:9 at every width, inset in the row: a banner is
+ * mostly words, and stretched to the row's height it lost them off both sides.
  */
 export default function CourseListRow({ course }: { course: CourseCardType }) {
     const summary = course.subtitle ?? course.description;
@@ -25,16 +28,18 @@ export default function CourseListRow({ course }: { course: CourseCardType }) {
             href={`/courses/${course.slug}`}
             className="group flex min-w-0 flex-col overflow-hidden rounded-card border border-border bg-card transition-[border-color,box-shadow] duration-200 hover:border-primary/50 hover:shadow-card-hover motion-reduce:transition-none md:flex-row"
         >
-            <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-secondary md:aspect-auto md:w-64">
-                <SafeImage
-                    src={course.thumbnail}
-                    alt=""
-                    fill
-                    sizes="(max-width: 768px) 100vw, 256px"
-                    className="object-cover transition-transform duration-700 group-hover:scale-[1.03] motion-reduce:transition-none"
-                    fallback={<BookOpen className="size-10 text-muted-foreground" />}
-                />
-                <CourseCardBatch course={course} className="absolute bottom-2 left-2" />
+            <div className="shrink-0 md:w-60 md:self-center md:py-3 md:pl-3 lg:w-72 xl:w-80">
+                <div className="relative aspect-video overflow-hidden bg-secondary md:rounded-md">
+                    <SafeImage
+                        src={course.thumbnail}
+                        alt=""
+                        fill
+                        sizes="(max-width: 768px) 100vw, 308px"
+                        className="object-cover transition-transform duration-700 group-hover:scale-[1.03] motion-reduce:transition-none"
+                        fallback={<BookOpen className="size-10 text-muted-foreground" />}
+                    />
+                    <CourseCardBatch course={course} className="absolute bottom-2 left-2" />
+                </div>
             </div>
 
             <div className="min-w-0 flex-1 px-4 py-4 md:px-5">
@@ -73,7 +78,9 @@ export default function CourseListRow({ course }: { course: CourseCardType }) {
 export function CourseListRowSkeleton() {
     return (
         <div aria-hidden className="flex flex-col overflow-hidden rounded-card border border-border bg-card md:flex-row">
-            <Skeleton className="aspect-video w-full rounded-none md:aspect-auto md:h-auto md:w-64" />
+            <div className="shrink-0 md:w-60 md:self-center md:py-3 md:pl-3 lg:w-72 xl:w-80">
+                <Skeleton className="aspect-video w-full rounded-none md:rounded-md" />
+            </div>
             <div className="flex-1 space-y-3 px-4 py-4 md:px-5">
                 <Skeleton className="h-2.5 w-32" />
                 <Skeleton className="h-2.5 w-40" />

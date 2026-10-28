@@ -137,7 +137,8 @@ const typingIn = (target: EventTarget | null) =>
  * Under that one toolbar that sticks under the bar: a Courses / Bundles
  * switch first (Bundles shows the bundles on sale instead, the course filters
  * hidden), then Category, Level, Status,
- * Price, Format and Mode as "Name: choice" dropdowns, and Sort and grid/list at
+ * Price, Format and Mode as dropdowns named for what they filter, or for the
+ * choice once one is picked, and Sort and grid/list at
  * the end. There's one search, the header's; "/" anywhere jumps into it, back
  * up the page if it's scrolled away.
  *
@@ -358,55 +359,59 @@ function CoursesBrowser() {
                 </div>
             </section>
 
-            {/* The toolbar — one row, sticky under the bar, so a long scroll never strands a student without the filters. */}
+            {/* The toolbar, sticky under the bar, so a long scroll never strands a student without the filters. */}
             <div data-filter-rail className="sticky top-16 z-30 border-b border-border bg-background/95 backdrop-blur-md">
-                {/* Phones: one row you swipe along, so the sticky bar stays one line tall. */}
+                {/* Phones: one row you swipe along, so the sticky bar stays one line tall.
+                    Tablets: Courses/Bundles and Sort/layout across the top, the filters
+                    wrapping under them. Wide screens: one row, the filters between. */}
                 <div className="container-page no-scrollbar flex items-center gap-2 overflow-x-auto py-3 sm:flex-wrap sm:overflow-visible">
                     <TypeSwitch bundles={showBundles} onChange={(next) => setParam("type", next ? "bundles" : "")} />
                     {!showBundles && (
                         <>
-                            <FilterMenu
-                                label="Category"
-                                icon={Shapes}
-                                options={categoryOptions}
-                                value={categoryId || ALL}
-                                onChange={(value) => setParam("categoryId", value === ALL ? "" : value)}
-                            />
-                            <FilterMenu
-                                label="Level"
-                                icon={Gauge}
-                                options={levelOptions}
-                                value={level || ALL}
-                                onChange={(value) => setParam("level", value === ALL ? "" : value)}
-                            />
-                            <FilterMenu
-                                label="Status"
-                                icon={CalendarClock}
-                                options={phaseOptions}
-                                value={phase ?? ALL}
-                                onChange={(value) => setParam("phase", value === ALL ? "" : value)}
-                            />
-                            <FilterMenu
-                                label="Price"
-                                icon={Tag}
-                                options={pricingOptions}
-                                value={pricing ?? ALL}
-                                onChange={(value) => setParam("pricing", value === ALL ? "" : value)}
-                            />
-                            <FilterMenu
-                                label="Format"
-                                icon={MonitorPlay}
-                                options={deliveryOptions}
-                                value={delivery ?? ALL}
-                                onChange={(value) => setParam("delivery", value === ALL ? "" : value)}
-                            />
-                            <FilterMenu
-                                label="Mode"
-                                icon={MapPin}
-                                options={modeOptions}
-                                value={mode ?? ALL}
-                                onChange={(value) => setParam("mode", value === ALL ? "" : value)}
-                            />
+                            <div className="flex shrink-0 items-center gap-2 sm:order-last sm:basis-full sm:flex-wrap xl:order-0 xl:min-w-0 xl:flex-1 xl:basis-0">
+                                <FilterMenu
+                                    label="Category"
+                                    icon={Shapes}
+                                    options={categoryOptions}
+                                    value={categoryId || ALL}
+                                    onChange={(value) => setParam("categoryId", value === ALL ? "" : value)}
+                                />
+                                <FilterMenu
+                                    label="Level"
+                                    icon={Gauge}
+                                    options={levelOptions}
+                                    value={level || ALL}
+                                    onChange={(value) => setParam("level", value === ALL ? "" : value)}
+                                />
+                                <FilterMenu
+                                    label="Status"
+                                    icon={CalendarClock}
+                                    options={phaseOptions}
+                                    value={phase ?? ALL}
+                                    onChange={(value) => setParam("phase", value === ALL ? "" : value)}
+                                />
+                                <FilterMenu
+                                    label="Price"
+                                    icon={Tag}
+                                    options={pricingOptions}
+                                    value={pricing ?? ALL}
+                                    onChange={(value) => setParam("pricing", value === ALL ? "" : value)}
+                                />
+                                <FilterMenu
+                                    label="Format"
+                                    icon={MonitorPlay}
+                                    options={deliveryOptions}
+                                    value={delivery ?? ALL}
+                                    onChange={(value) => setParam("delivery", value === ALL ? "" : value)}
+                                />
+                                <FilterMenu
+                                    label="Mode"
+                                    icon={MapPin}
+                                    options={modeOptions}
+                                    value={mode ?? ALL}
+                                    onChange={(value) => setParam("mode", value === ALL ? "" : value)}
+                                />
+                            </div>
 
                             <div className="ml-auto flex shrink-0 items-center gap-2">
                                 <FilterMenu
@@ -633,8 +638,8 @@ interface MenuOption {
 /**
  * One of the toolbar's dropdowns: a pill naming what it filters ("Status")
  * until something other than its first choice ("Any …") is picked, then
- * naming the choice ("Upcoming"), tinted — short either way, so five filters
- * and the sort stay one row. The menu lists the choices with a tick on the
+ * naming the choice ("Upcoming"), tinted — short either way, so on a wide
+ * screen the filters and the sort stay one row. The menu lists the choices with a tick on the
  * current one. Opening it doesn't lock the page, so nothing shifts.
  * `quiet`: the sort's, which always shows its choice and never reads as a
  * filter in force.
@@ -664,17 +669,20 @@ function FilterMenu({
             <DropdownMenu.Trigger
                 aria-label={`${label}: ${current?.label}`}
                 className={cn(
-                    "group inline-flex h-9 max-w-full shrink-0 items-center gap-2 rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-4 focus-visible:ring-ring/30 data-[state=open]:border-primary",
+                    "group inline-flex h-9 max-w-full shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm outline-none transition-colors focus-visible:ring-4 focus-visible:ring-ring/30 data-[state=open]:border-primary",
                     filtered ? "border-primary/50 bg-primary/5" : "border-border bg-card hover:border-primary/40",
                 )}
             >
                 <Icon className={cn("size-3.5 shrink-0", filtered ? "text-primary" : "text-muted-foreground")} aria-hidden />
-                <span className="truncate">
-                    <span className="text-muted-foreground">{label}:</span>{" "}
-                    <span className={cn("font-medium", filtered ? "text-primary" : "text-foreground")}>
-                        {quiet || filtered ? current?.label : "All"}
+                {quiet ? (
+                    <span className="truncate">
+                        <span className="text-muted-foreground">{label}:</span> <span className="font-medium text-foreground">{current?.label}</span>
                     </span>
-                </span>
+                ) : (
+                    <span className={cn("truncate font-medium", filtered ? "text-primary" : "text-foreground")}>
+                        {filtered ? current?.label : label}
+                    </span>
+                )}
                 <ChevronDown
                     className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
                     aria-hidden
@@ -744,10 +752,10 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (view: ViewM
 /** What learning here means, at a glance, beside the search. Fixed words, not figures. */
 const AT_A_GLANCE = [
     { label: "ক্লাস", value: "লাইভ, রেকর্ডেড বা দুটোই" },
-    { label: "ভাষা", value: "বাংলা" },
-    { label: "লেভেল", value: "বিগিনার থেকে অ্যাডভান্সড" },
-    { label: "আটকে গেলে", value: "মেন্টরের সাথে ১:১ সেশন" },
-    { label: "শেষে", value: "যাচাইযোগ্য সার্টিফিকেট" },
+    { label: "ভাষা", value: "বাংলা , English" },
+    { label: "লেভেল", value: "বিগিনার থেকে Advanced" },
+    { label: "আটকে গেলে", value: "মেন্টরের সাথে 1:1 সেশন" },
+    { label: "শেষে", value: "যাচাইযোগ্য Certificate" },
 ];
 
 /** A small editor panel — what every course here comes with — beside the search. */
