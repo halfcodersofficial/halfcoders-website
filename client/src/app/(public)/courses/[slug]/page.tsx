@@ -225,7 +225,7 @@ export default async function CourseDetailPage(
 
             {/* ---- The header: the course open as a file, on the dark editor surface.
                 Its path along the top, then the course's tags, title, summary and
-                facts on the left, the promo media on the right. */}
+                facts on the left, the promo media and enrolment countdown on the right. */}
             <header data-nav-tone="dark" className="editor relative overflow-hidden border-b border-editor-line">
                 <div aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0" />
                 <div className="relative border-b border-editor-line bg-editor-panel">
@@ -245,7 +245,7 @@ export default async function CourseDetailPage(
                     </nav>
                 </div>
 
-                <div className="container-page relative grid grid-cols-1 gap-10 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:items-start lg:gap-12 lg:py-14">
+                <div className="container-page relative grid grid-cols-1 gap-10 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:items-center lg:gap-12 lg:py-14">
                     <div className="min-w-0 space-y-5">
                         <CourseClassPills
                             phase={course.phase}
@@ -267,11 +267,16 @@ export default async function CourseDetailPage(
                             <p className={cn(RISE, "delay-150 line-clamp-3 max-w-2xl leading-relaxed text-editor-muted")}>{course.description}</p>
                         )}
                         <CourseHeroFacts facts={course.heroFacts} duration={course.duration} delayMs={200} onDark />
-                        <CourseCountdown schedule={schedule} renderedAt={renderedAt} onDark />
                     </div>
 
-                    <div className={cn(RISE, "delay-150 overflow-hidden rounded-panel border border-editor-line bg-editor-panel shadow-panel")}>
-                        <CoursePromoCard title={course.title} images={courseImagesOf(course)} promoVideoUrl={course.promoVideoUrl} priority />
+                    {/* The countdown sits under the media, not under the facts: the
+                        two columns then come out about the same height, where the
+                        media alone left a hole under it beside a tall left column. */}
+                    <div className={cn(RISE, "delay-150 min-w-0 space-y-4")}>
+                        <div className="overflow-hidden rounded-panel border border-editor-line bg-editor-panel shadow-panel">
+                            <CoursePromoCard title={course.title} images={courseImagesOf(course)} promoVideoUrl={course.promoVideoUrl} priority />
+                        </div>
+                        <CourseCountdown schedule={schedule} renderedAt={renderedAt} onDark />
                     </div>
                 </div>
             </header>

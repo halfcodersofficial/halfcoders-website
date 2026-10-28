@@ -15,6 +15,10 @@ import type { CourseFeature } from "@/types/domain.types";
  * each in its own cell. Under them the rest, two to a row where there's room,
  * each with its line icon in a small square tile. The counted ones come
  * first, each group in the admin's order.
+ *
+ * A lone count gets no row of its own — one cell across the whole panel is a
+ * band of empty card. It leads the list instead, its number in the tile where
+ * the others have their icon.
  */
 export default function CourseHighlights({
     features,
@@ -26,8 +30,9 @@ export default function CourseHighlights({
     animate?: boolean;
 }) {
     const items = features.map((feature, index) => ({ feature, key: `${index}-${feature.title}`, ...splitLeadingCount(feature.title) }));
-    const counted = items.filter((item) => item.count);
-    const others = items.filter((item) => !item.count);
+    const withCount = items.filter((item) => item.count);
+    const counted = withCount.length > 1 ? withCount : [];
+    const others = [...(counted.length ? [] : withCount), ...items.filter((item) => !item.count)];
     // The last counted cell takes the rest of its row, at two columns and at
     // three, so a count that doesn't divide evenly never leaves a grey hole.
     const n = counted.length;
@@ -71,19 +76,34 @@ export default function CourseHighlights({
 
                 {others.length > 0 && (
                     <ul className={cn("grid gap-x-10 gap-y-6 p-5 sm:p-6 @lg:grid-cols-2", counted.length > 0 && "border-t border-border")}>
-                        {others.map(({ feature, key }) => {
+                        {others.map(({ feature, key, count, rest }) => {
                             const Icon = featureIcon(feature.icon);
                             return (
                                 <li key={key} className="group flex min-w-0 gap-4">
                                     <span
                                         aria-hidden
                                         data-hl-marker
-                                        className="grid size-10 shrink-0 place-items-center rounded-md border border-border bg-surface text-primary transition-colors duration-200 group-hover:border-primary/50 motion-reduce:transition-none"
+                                        className="grid h-10 min-w-10 shrink-0 place-items-center rounded-md border border-border bg-surface px-1.5 text-primary transition-colors duration-200 group-hover:border-primary/50 motion-reduce:transition-none"
                                     >
-                                        <Icon className="size-5" strokeWidth={1.75} />
+                                        {count ? (
+                                            <span data-hl-count className="font-mono text-lg font-semibold leading-none tabular-nums text-syn-number">
+                                                {count}
+                                            </span>
+                                        ) : (
+                                            <Icon className="size-5" strokeWidth={1.75} />
+                                        )}
                                     </span>
                                     <div data-hl-text className="min-w-0">
-                                        <h3 className="font-semibold leading-snug">{feature.title}</h3>
+                                        <h3 className="font-semibold leading-snug">
+                                            {count ? (
+                                                <>
+                                                    <span className="sr-only">{count} </span>
+                                                    {rest}
+                                                </>
+                                            ) : (
+                                                feature.title
+                                            )}
+                                        </h3>
                                         {feature.description && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>}
                                     </div>
                                 </li>
