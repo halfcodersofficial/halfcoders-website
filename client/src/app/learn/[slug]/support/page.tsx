@@ -121,7 +121,7 @@ export default function SupportPage() {
 
             <div className="container-page max-w-5xl py-8 sm:py-10">
                 {isLoading || !courseId ? (
-                    <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
                         <div className="space-y-6">
                             <Skeleton className="h-64 rounded-3xl" />
                             <Skeleton className="h-40 rounded-2xl" />
@@ -131,7 +131,7 @@ export default function SupportPage() {
                 ) : !sessions || sessions.length === 0 ? (
                     <NoSessions previous={course?.phase === "PREVIOUS"} />
                 ) : liveSession ? (
-                    <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
+                    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
                         <div className="min-w-0 space-y-6">
                             <div className={RISE}>
                                 <NowServingBoard

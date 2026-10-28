@@ -708,7 +708,7 @@ function CourseEditor() {
             <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-2 xl:grid-rows-1 xl:items-stretch">
                 <div ref={editorRef} className="min-w-0 scroll-mt-4 xl:min-h-0">
                     <Card className="flex flex-col rounded-xl shadow-sm xl:h-full">
-                        <div className="border-b border-border px-6 pb-4 pt-5">
+                        <div className="border-b border-border px-4 pb-4 pt-5 sm:px-6">
                             <EditorSteps
                                 label="কোর্স এডিটরের ধাপ"
                                 steps={PAGES.map((entry) => ({
@@ -727,7 +727,7 @@ function CourseEditor() {
                             radios scroll inside it — without, they escape to the
                             window and stretch the whole page, leaving a blank
                             band under the console once it scrolls. */}
-                        <div ref={bodyRef} className="relative overflow-x-clip p-6 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+                        <div ref={bodyRef} className="relative overflow-x-clip p-4 sm:p-6 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
                             <div key={pageId} className={cn(direction && `step-enter-${direction}`)}>
                                 <header className="mb-6 space-y-1">
                                     {/* The step row already names the page and where it
@@ -1144,7 +1144,7 @@ function CourseEditor() {
                         {/* Outside the sliding page so it stays put: pinned to the
                             pane's foot beside the preview, and sticky when the
                             panes stack, so Save is in reach from anywhere. */}
-                        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card/95 px-6 py-3 backdrop-blur">
+                        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
                             <p className="text-xs text-muted-foreground">
                                 {form.isDirty ? "সংরক্ষণ না করা পরিবর্তন আছে।" : "সব সংরক্ষিত।"}
                             </p>

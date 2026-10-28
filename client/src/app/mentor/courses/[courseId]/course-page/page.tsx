@@ -131,11 +131,11 @@ export default function MentorCoursePageEditor() {
                     <CourseReadiness items={readiness} published={isPublished} />
 
                     <section aria-label="Course page content" className="rounded-2xl border border-border bg-card shadow-sm">
-                        <form className="space-y-6 p-6" noValidate onSubmit={form.handleSubmit}>
+                        <form className="space-y-6 p-4 sm:p-6" noValidate onSubmit={form.handleSubmit}>
                             <RequiredLegend />
                             <CoursePageContentFields form={form} courseId={courseId} courseType={course.courseType} phase={course.phase} />
 
-                            <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between gap-3 rounded-b-2xl border-t border-border bg-card/95 px-6 py-3 backdrop-blur">
+                            <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
                                 <p className="text-xs text-muted-foreground">{form.isDirty ? "Unsaved changes." : "Everything is saved."}</p>
                                 <Button type="submit" size="lg" isLoading={save.isPending} disabled={!form.isDirty}>
                                     <Save className="size-4" /> Save page

@@ -133,7 +133,7 @@ export default function ConceptualPlayerPage() {
                     )}
                     <div className="min-w-0">
                         <h1 className="truncate font-semibold leading-tight">{data.course.title}</h1>
-                        <p className="text-xs tabular-nums text-muted-foreground">
+                        <p className="truncate text-xs tabular-nums text-muted-foreground">
                             {recordings.length === 0
                                 ? "No recordings yet"
                                 : `${watched} of ${plural(recordings.length, "recording")} watched`}
@@ -142,7 +142,7 @@ export default function ConceptualPlayerPage() {
                 </div>
             </header>
 
-            <div className="grid gap-8 p-4 sm:p-6 lg:grid-cols-[1fr_400px]">
+            <div className="grid grid-cols-1 gap-6 p-4 sm:gap-8 sm:p-6 lg:grid-cols-[minmax(0,1fr)_400px]">
                 <div className="min-w-0 space-y-5">
                     <LiveClassStrip slug={slug} />
                     {active ? (
