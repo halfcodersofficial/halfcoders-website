@@ -16,7 +16,7 @@ import { logger } from "../../utils/logger";
 import { getCertificatePrefix } from "../../utils/platformSettings";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { buildCertificatePdf } from "../../utils/certificatePdf";
-import { grantCompletionReward } from "../../utils/courseGrants";
+import { grantCompletionReward, rewardMainCourse } from "../../utils/courseGrants";
 import { nextCertificateNumber, withUniqueRetry } from "../../utils/referenceNumber";
 import { createNotification } from "../notification/notification.service";
 import { collectAll, toCsv } from "../../utils/csvExport";
@@ -50,8 +50,9 @@ const checkEligibility = async (enrollmentId: string): Promise<EligibilityReport
     });
     if (!enrollment) throw new AppError(status.NOT_FOUND, "Enrolment not found.");
 
-    const [requiredAssignments, acceptedAssignments, totalMilestones, completedMilestones] =
+    const [rewardWith, requiredAssignments, acceptedAssignments, totalMilestones, completedMilestones] =
         await Promise.all([
+            rewardMainCourse(enrollment.studentId, enrollment.courseId),
             prisma.assignment.count({
                 where: { courseId: enrollment.courseId, isPublished: true },
             }),
@@ -80,6 +81,10 @@ const checkEligibility = async (enrollmentId: string): Promise<EligibilityReport
 
     const blockers: string[] = [];
 
+    // A reward course rides on its main course, and so does the certificate.
+    if (rewardWith) {
+        blockers.push(`This is a reward course with "${rewardWith.title}" — it has no certificate of its own. Your certificate is for "${rewardWith.title}".`);
+    }
     if (enrollment.status === EnrollmentStatus.CANCELLED) {
         blockers.push("Your enrolment in this course was cancelled.");
     }
@@ -408,6 +413,14 @@ const issueManually = async (
     if (!enrollment) throw new AppError(status.NOT_FOUND, "Enrolment not found.");
     if (enrollment.certificate) {
         throw new AppError(status.CONFLICT, "This enrolment already has a certificate.");
+    }
+    // Not even by hand: the certificate is the main course's.
+    const rewardWith = await rewardMainCourse(enrollment.studentId, enrollment.courseId);
+    if (rewardWith) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            `${enrollment.student.name} has "${enrollment.course.title}" as a reward course with "${rewardWith.title}", so it has no certificate of its own. Issue the certificate for "${rewardWith.title}" instead.`,
+        );
     }
 
     const prefix = await getCertificatePrefix();

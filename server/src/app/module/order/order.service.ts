@@ -23,7 +23,7 @@ import { nextOrderNumber, withUniqueRetry } from "../../utils/referenceNumber";
 import { activateEnrollment } from "../enrollment/enrollment.service";
 import { createNotification, notifyAdmins } from "../notification/notification.service";
 import { collectAll, toCsv } from "../../utils/csvExport";
-import { announceGrants, grantOfferCourses, revokeOfferGrants } from "../../utils/courseGrants";
+import { announceGrants, grantBonusCourses, grantOfferCourses, revokeBonusCourses, revokeOfferGrants } from "../../utils/courseGrants";
 import { lockCoupon, priceOrder, resolveCoupon } from "../coupon/coupon.service";
 
 type InvoiceOrder = {
@@ -180,7 +180,7 @@ const settleFreeOrder = async (
     },
     course: { title: string; slug: string },
 ) => {
-    const given = await prisma.$transaction(async (tx) => {
+    const { given, rewards } = await prisma.$transaction(async (tx) => {
         await tx.order.update({ where: { id: order.id }, data: { status: OrderStatus.PAID } });
         await tx.payment.upsert({
             where: { orderId: order.id },
@@ -189,7 +189,10 @@ const settleFreeOrder = async (
         });
         await activateEnrollment(tx, { studentId: order.studentId, courseId: order.courseId, orderId: order.id });
         // A paid course a coupon covered still counts as bought.
-        return grantOfferCourses(tx, order);
+        return {
+            given: await grantOfferCourses(tx, order),
+            rewards: await grantBonusCourses(tx, order.studentId, order.courseId),
+        };
     });
 
     await createNotification({
@@ -200,6 +203,7 @@ const settleFreeOrder = async (
         link: `/learn/${course.slug}`,
     });
     await announceGrants(order.studentId, given, `They came free with "${course.title}".`);
+    await announceGrants(order.studentId, rewards, `They come with "${course.title}".`, "reward course");
 
     await notifyAdmins({
         title: "New free enrolment",
@@ -426,7 +430,7 @@ export const markOrderPaid = async (input: {
 
     logger.update("Settling order", { orderId: order.id, gateway: input.gateway });
 
-    const given = await prisma.$transaction(async (tx) => {
+    const { given, rewards } = await prisma.$transaction(async (tx) => {
         await tx.order.update({
             where: { id: order.id },
             data: { status: OrderStatus.PAID },
@@ -459,8 +463,11 @@ export const markOrderPaid = async (input: {
             orderId: order.id,
         });
 
-        // The offer's free courses, in the same transaction: paid means given.
-        return grantOfferCourses(tx, order);
+        // The offer's free courses and the course's reward courses, in the same transaction: paid means given.
+        return {
+            given: await grantOfferCourses(tx, order),
+            rewards: await grantBonusCourses(tx, order.studentId, order.courseId),
+        };
     });
 
     await createNotification({
@@ -471,6 +478,7 @@ export const markOrderPaid = async (input: {
         link: `/learn/${order.course.slug}`,
     });
     await announceGrants(order.studentId, given, `They came free with "${order.course.title}".`);
+    await announceGrants(order.studentId, rewards, `They come with "${order.course.title}".`, "reward course");
 
     // A sale is every admin's business — except the one who just confirmed it.
     await notifyAdmins(
@@ -540,7 +548,8 @@ const markOrderFailed = async (input: { orderId: string; reason?: string }) => {
 
 /**
  * Refund — revokes access but keeps the order and learning history. The free
- * courses the order earned through an offer go with it.
+ * courses the order earned through an offer go with it, and so do the reward
+ * courses that came with the course.
  */
 const refundOrder = async (orderId: string, reason?: string) => {
     const order = await prisma.order.findUnique({
@@ -563,6 +572,7 @@ const refundOrder = async (orderId: string, reason?: string) => {
             data: { status: EnrollmentStatus.CANCELLED },
         });
         await revokeOfferGrants(tx, orderId);
+        await revokeBonusCourses(tx, order.studentId, order.courseId);
     });
 
     return prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude });

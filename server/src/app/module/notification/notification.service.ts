@@ -35,6 +35,47 @@ interface CreateNotificationInput {
     email?: { actionLabel: string };
 }
 
+const isAdmin = (role: string) => role === Role.ADMIN || role === Role.SUPER_ADMIN;
+
+/** Opens a screen in the admin console, which only admins can use. */
+const opensAdminConsole = (link?: string | null) => Boolean(link && /^\/admin(?:[/?#]|$)/.test(link));
+
+/**
+ * Whether someone in this role may be handed this notification at all.
+ * Anything that opens the admin console is for admins alone, and payments are
+ * for admins and the student who paid — never a mentor, who has no access to
+ * either.
+ */
+const mayReceive = (role: string, input: { type?: NotificationType | null; link?: string | null }) => {
+    if (isAdmin(role)) return true;
+    if (opensAdminConsole(input.link)) return false;
+    return !(role === Role.MENTOR && input.type === NotificationType.PAYMENT);
+};
+
+/**
+ * The recipients allowed this notification (see `mayReceive`). Roles are
+ * only looked up for the kinds some roles mustn't get, so an ordinary
+ * notification costs no extra query.
+ */
+const allowedRecipients = async (userIds: string[], input: { type?: NotificationType; link?: string }) => {
+    if (input.type !== NotificationType.PAYMENT && !opensAdminConsole(input.link)) return userIds;
+    const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, role: true } });
+    return users.filter((user) => mayReceive(user.role, input)).map((user) => user.id);
+};
+
+/**
+ * The notifications this account sees: its own, less any it may no longer be
+ * handed — a student made a mentor keeps their old payment notifications in
+ * the table, but not in their bell.
+ */
+const visibleTo = (user: IRequestUser): Prisma.NotificationWhereInput =>
+    isAdmin(user.role)
+        ? { userId: user.userId }
+        : {
+              userId: user.userId,
+              NOT: [{ link: { startsWith: "/admin" } }, ...(user.role === Role.MENTOR ? [{ type: NotificationType.PAYMENT }] : [])],
+          };
+
 /**
  * The email side of a notification: to each recipient who still wants
  * emails, fire-and-forget, so a slow mail server never holds up the action
@@ -81,10 +122,14 @@ const emailNotification = async (userIds: string[], input: Omit<CreateNotificati
  * the source of truth, so a client with no live connection just sees it on
  * its next poll. Deliberately never throws: notifications are a side effect
  * of some other action (an enrolment, a graded assignment), and a failure to
- * notify must not roll that action back.
+ * notify must not roll that action back. Returns null, writing nothing, for
+ * a recipient who mayn't be handed it (see `mayReceive`).
  */
 export const createNotification = async (input: CreateNotificationInput) => {
     try {
+        const [allowed] = await allowedRecipients([input.userId], input);
+        if (!allowed) return null;
+
         const notification = await prisma.notification.create({
             data: {
                 userId: input.userId,
@@ -106,14 +151,17 @@ export const createNotification = async (input: CreateNotificationInput) => {
     }
 };
 
-/** Fan-out helper — one row per recipient so read state is per-user. */
+/** Fan-out helper — one row per recipient so read state is per-user. Leaves out anyone who mayn't be handed it. */
 export const createNotificationsFor = async (
-    userIds: string[],
+    recipients: string[],
     input: Omit<CreateNotificationInput, "userId">,
 ) => {
-    if (userIds.length === 0) return 0;
+    if (recipients.length === 0) return 0;
 
     try {
+        const userIds = await allowedRecipients(recipients, input);
+        if (userIds.length === 0) return 0;
+
         const { count } = await prisma.notification.createMany({
             data: userIds.map((userId) => ({
                 userId,
@@ -235,7 +283,7 @@ const getMyNotifications = async (user: IRequestUser, query: IQueryParams) => {
         .filter()
         .sort()
         .paginate()
-        .where({ userId: user.userId })
+        .where(visibleTo(user))
         // Who sent it, where someone did — an announcement reads "From …".
         .include({ sender: { select: { name: true, image: true } } })
         .execute();
@@ -245,7 +293,7 @@ const getMyNotifications = async (user: IRequestUser, query: IQueryParams) => {
 const getUnreadCount = async (user: IRequestUser) => {
     const groups = await prisma.notification.groupBy({
         by: ["type"],
-        where: { userId: user.userId, isRead: false },
+        where: { ...visibleTo(user), isRead: false },
         _count: { _all: true },
     });
     return {
@@ -314,7 +362,7 @@ const deleteNotification = async (user: IRequestUser, notificationId: string) =>
  */
 const getLoginPopups = async (user: IRequestUser) => {
     const popups = await prisma.notification.findMany({
-        where: { userId: user.userId, showOnLogin: true, isRead: false },
+        where: { ...visibleTo(user), showOnLogin: true, isRead: false },
         orderBy: { createdAt: "asc" },
         take: 10,
         select: { id: true, title: true, message: true, link: true, type: true, repeatOnLogin: true },

@@ -76,6 +76,35 @@ model CompletionRewardItem {
   @@schema("learning")
 }
 
+/// "With this course, that one too": a course an admin gives alongside a main
+/// course a student already has — to one student, a chosen few, or everyone
+/// who has the main course (now, and whoever gets it later while
+/// `forEveryone` is on). Students and admins know it as a *reward course*.
+/// It rides on the main course: losing that (a refund, a cancelled
+/// enrolment) takes it back, getting it again gives it back, and it never
+/// earns a certificate of its own — the main course's is the one. Each
+/// student's copy is a `CourseGrant` (source BONUS); see `utils/courseGrants.ts`.
+model BonusCourse {
+  id           String   @id @default(uuid(7))
+  /// The course a student has, that this one comes with.
+  mainCourseId String
+  /// The course given.
+  courseId     String
+  /// On: everyone who has the main course gets it, including anyone who gets it later.
+  forEveryone  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mainCourse Course        @relation("BonusMainCourse", fields: [mainCourseId], references: [id], onDelete: Cascade)
+  course     Course        @relation("BonusGivenCourse", fields: [courseId], references: [id], onDelete: Cascade)
+  grants     CourseGrant[]
+
+  @@unique([mainCourseId, courseId])
+  @@index([courseId])
+  @@map("bonus_course")
+  @@schema("learning")
+}
+
 /// A course given rather than bought, and why — the record that makes each
 /// grant happen once (the unique keys) and lets a refund take an offer's
 /// courses back. Only written when it actually opened access: a student who
@@ -88,10 +117,13 @@ model CourseGrant {
   source       GrantSource
   offerId      String?
   rewardId     String?
+  /// BONUS: the main course's reward-course entry it came from.
+  bonusId      String?
   /// OFFER: the paid order for the offer's course that earned it.
   orderId      String?
   enrollmentId String?
-  /// Set when a refund took it back; cleared if it's earned again.
+  /// Set when a refund took it back (for BONUS, when the main course went);
+  /// cleared if it's earned again.
   revokedAt    DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -100,10 +132,13 @@ model CourseGrant {
   course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
   offer   CourseOffer?      @relation(fields: [offerId], references: [id], onDelete: SetNull)
   reward  CompletionReward? @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+  /// Cascade: removing a reward course takes it back from everyone first, so nothing is left to keep.
+  bonus   BonusCourse?      @relation(fields: [bonusId], references: [id], onDelete: Cascade)
   order   Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@unique([offerId, studentId, courseId])
   @@unique([rewardId, studentId, courseId])
+  @@unique([bonusId, studentId, courseId])
   @@index([studentId])
   @@index([orderId])
   @@map("course_grant")

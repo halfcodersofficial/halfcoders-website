@@ -95,6 +95,8 @@ enum RewardCondition {
 enum GrantSource {
   OFFER
   REWARD
+  /// A reward course an admin gave alongside a main course (BonusCourse).
+  BONUS
 
   @@schema("learning")
 }
