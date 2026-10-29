@@ -15,12 +15,16 @@ import { STUDENT_ROLES } from "@/lib/access";
  * marketing one) so a student can still reach Courses/My Learning/notifications
  * without leaving the player. Screens under here that render their own sticky
  * sub-header account for the Navbar's height rather than stacking under it.
+ *
+ * The page goes in its own <main> rather than sitting beside the Navbar: the
+ * route slot Next hands over carries no key, so as a bare sibling React reads
+ * the pair as a keyless list and warns.
  */
 export default function LearnLayout({ children }: { children: React.ReactNode }) {
     return (
         <RoleGuard allow={STUDENT_ROLES}>
             <Navbar />
-            {children}
+            <main>{children}</main>
         </RoleGuard>
     );
 }
