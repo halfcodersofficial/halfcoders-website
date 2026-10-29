@@ -98,36 +98,48 @@ function Board({ data, unread }: { data: AdminDashboard; unread: number }) {
                 <PeriodPanel data={data} />
             </div>
 
-            <div className={cn("grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start", RISE)} style={{ animationDelay: "180ms" }}>
+            {/* Wide screens: courses with the all-time totals under them, and the
+                activity feed down the side of both — so neither column is left with
+                a block of empty space. Narrow screens keep this order top to bottom.
+                The 1fr second row takes whatever height the feed needs beyond the courses. */}
+            <div
+                className={cn("grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:grid-rows-[auto_1fr]", RISE)}
+                style={{ animationDelay: "180ms" }}
+            >
                 <TopCourses courses={data.topCourses} />
-                <ActivityFeed data={data} />
-            </div>
+                <ActivityFeed data={data} className="xl:col-start-2 xl:row-span-2 xl:row-start-1" />
 
-            {/* All time, for reference — one quiet line, each figure opening its screen. */}
-            <section aria-labelledby="all-time-title" className={RISE} style={{ animationDelay: "240ms" }}>
-                <h2 id="all-time-title" className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                    All time
-                </h2>
-                {/* 1px gaps over the border colour draw the dividers at every column count. */}
-                <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm sm:grid-cols-3 xl:grid-cols-6">
-                    <Total href="/admin/students" label="Students" value={summary.totalStudents.toLocaleString("en-US")} />
-                    <Total href="/admin/mentors" label="Mentors" value={summary.totalMentors.toLocaleString("en-US")} />
-                    <Total
-                        href="/admin/courses"
-                        label="Courses"
-                        value={summary.publishedCourses.toLocaleString("en-US")}
-                        hint={`published, of ${summary.totalCourses}`}
-                    />
-                    <Total
-                        href="/admin/enrollments"
-                        label="Enrolments"
-                        value={summary.totalEnrollments.toLocaleString("en-US")}
-                        hint={`${summary.completedEnrollments} completed`}
-                    />
-                    <Total href="/admin/orders" label="Revenue" value={formatBDT(summary.totalRevenue)} hint="settled orders" />
-                    <Total href="/admin/certificates" label="Certificates" value={summary.certificates.toLocaleString("en-US")} hint="issued" />
-                </ul>
-            </section>
+                {/* All time, for reference — quiet, each figure opening its screen. */}
+                <section aria-labelledby="all-time-title" className="xl:col-start-1 xl:row-start-2 xl:self-start">
+                    <h2 id="all-time-title" className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        All time
+                    </h2>
+                    {/* 1px gaps over the border colour draw the dividers at every column count. */}
+                    <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm sm:grid-cols-3">
+                        <Total href="/admin/students" label="Students" value={summary.totalStudents.toLocaleString("en-US")} />
+                        <Total href="/admin/mentors" label="Mentors" value={summary.totalMentors.toLocaleString("en-US")} />
+                        <Total
+                            href="/admin/courses"
+                            label="Courses"
+                            value={summary.publishedCourses.toLocaleString("en-US")}
+                            hint={`published, of ${summary.totalCourses}`}
+                        />
+                        <Total
+                            href="/admin/enrollments"
+                            label="Enrolments"
+                            value={summary.totalEnrollments.toLocaleString("en-US")}
+                            hint={`${summary.completedEnrollments} completed`}
+                        />
+                        <Total href="/admin/orders" label="Revenue" value={formatBDT(summary.totalRevenue)} hint="settled orders" />
+                        <Total
+                            href="/admin/certificates"
+                            label="Certificates"
+                            value={summary.certificates.toLocaleString("en-US")}
+                            hint="issued"
+                        />
+                    </ul>
+                </section>
+            </div>
         </>
     );
 }
