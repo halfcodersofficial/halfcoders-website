@@ -9,6 +9,7 @@ import type {
     BundleInput,
     PromotionCourseDetail,
     PromotionCourseSummary,
+    RewardCoursesGiven,
     AdminCategory,
     AdminCertificate,
     AdminCourseDetail,
@@ -178,6 +179,18 @@ export const adminService = {
         payload: { courseIds: string[]; condition: RewardCondition; deadlineAt: string | null; withinDays: number | null; isActive: boolean },
     ) => httpClient.put(`/promotions/manage/courses/${courseId}/reward`, payload).then(() => undefined),
     deleteReward: (courseId: string) => httpClient.delete(`/promotions/manage/courses/${courseId}/reward`).then(() => undefined),
+
+    // ---- Reward courses given with a course
+    giveRewardCourses: (courseId: string, payload: { courseIds: string[]; audience: "STUDENTS" | "EVERYONE"; studentIds?: string[] }) =>
+        httpClient
+            .post<ApiResponse<RewardCoursesGiven>>(`/promotions/manage/courses/${courseId}/reward-courses`, payload)
+            .then(unwrap),
+    setRewardForEveryone: (bonusId: string, forEveryone: boolean) =>
+        httpClient.patch<ApiResponse<RewardCoursesGiven>>(`/promotions/manage/reward-courses/${bonusId}`, { forEveryone }).then(unwrap),
+    takeBackRewardCourse: (bonusId: string, studentId: string) =>
+        httpClient.delete(`/promotions/manage/reward-courses/${bonusId}/students/${studentId}`).then(() => undefined),
+    removeRewardCourse: (bonusId: string) =>
+        httpClient.delete<ApiResponse<{ takenBack: number }>>(`/promotions/manage/reward-courses/${bonusId}`).then(unwrap),
 
     // ---- Admission tickets, course by course
     admissionTicketCourses: () =>

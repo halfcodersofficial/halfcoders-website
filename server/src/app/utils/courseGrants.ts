@@ -249,11 +249,46 @@ export const grantBonusCourses = async (tx: Tx, studentId: string, mainCourseId:
 };
 
 /**
+ * Closes a reward course a student is losing with one main course — unless
+ * another main course they still have brings it too, in which case it stays
+ * open and its grant moves over to that one. The caller has already marked
+ * or removed the grant it's losing.
+ */
+export const releaseBonusCourse = async (
+    tx: Tx,
+    grant: { studentId: string; courseId: string; enrollmentId: string | null; mainCourseId: string },
+) => {
+    const { studentId, courseId, enrollmentId } = grant;
+    const elsewhere = await tx.bonusCourse.findFirst({
+        where: {
+            courseId,
+            mainCourseId: { not: grant.mainCourseId },
+            mainCourse: { enrollments: { some: { studentId, status: { in: HAS_ACCESS } } } },
+            OR: [{ forEveryone: true }, { grants: { some: { studentId } } }],
+        },
+        select: { id: true },
+    });
+    if (elsewhere) {
+        await tx.courseGrant.upsert({
+            where: { bonusId_studentId_courseId: { bonusId: elsewhere.id, studentId, courseId } },
+            create: { studentId, courseId, source: GrantSource.BONUS, bonusId: elsewhere.id, enrollmentId },
+            update: { revokedAt: null, enrollmentId },
+        });
+        return;
+    }
+    if (enrollmentId) {
+        await tx.enrollment.updateMany({
+            where: { id: enrollmentId, status: { in: HAS_ACCESS } },
+            data: { status: EnrollmentStatus.CANCELLED },
+        });
+    }
+};
+
+/**
  * Takes back the reward courses a student had with a main course they've
  * just lost (a refund, a cancelled enrolment): each enrolment is cancelled —
  * progress kept — and its grant marked, so getting the main course again
- * gives it back. One that also comes with another main course they still
- * have stays open, its grant moved over to that one.
+ * gives it back (see `releaseBonusCourse` for one another course still brings).
  */
 export const revokeBonusCourses = async (tx: Tx, studentId: string, mainCourseId: string, at = new Date()) => {
     const grants = await tx.courseGrant.findMany({
@@ -263,31 +298,7 @@ export const revokeBonusCourses = async (tx: Tx, studentId: string, mainCourseId
 
     for (const grant of grants) {
         await tx.courseGrant.update({ where: { id: grant.id }, data: { revokedAt: at } });
-
-        const elsewhere = await tx.bonusCourse.findFirst({
-            where: {
-                courseId: grant.courseId,
-                mainCourseId: { not: mainCourseId },
-                mainCourse: { enrollments: { some: { studentId, status: { in: HAS_ACCESS } } } },
-                OR: [{ forEveryone: true }, { grants: { some: { studentId } } }],
-            },
-            select: { id: true },
-        });
-        if (elsewhere) {
-            await tx.courseGrant.upsert({
-                where: { bonusId_studentId_courseId: { bonusId: elsewhere.id, studentId, courseId: grant.courseId } },
-                create: { studentId, courseId: grant.courseId, source: GrantSource.BONUS, bonusId: elsewhere.id, enrollmentId: grant.enrollmentId },
-                update: { revokedAt: null, enrollmentId: grant.enrollmentId },
-            });
-            continue;
-        }
-
-        if (grant.enrollmentId) {
-            await tx.enrollment.updateMany({
-                where: { id: grant.enrollmentId, status: { in: HAS_ACCESS } },
-                data: { status: EnrollmentStatus.CANCELLED },
-            });
-        }
+        await releaseBonusCourse(tx, { studentId, courseId: grant.courseId, enrollmentId: grant.enrollmentId, mainCourseId });
     }
     if (grants.length) logger.update("Reward courses taken back", { studentId, mainCourseId, grants: grants.length });
     return grants.length;

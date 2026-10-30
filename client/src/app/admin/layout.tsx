@@ -19,6 +19,7 @@ import {
     Send,
     Settings,
     ShieldCheck,
+    Sparkles,
     Star,
     Ticket,
     TicketPercent,
@@ -89,6 +90,7 @@ const ADMIN_CONSOLE: ConsoleConfig = {
                 { href: "/admin/bundles", label: "Bundles", icon: Layers },
                 { href: "/admin/offers", label: "Free-course offers", icon: Gift },
                 { href: "/admin/rewards", label: "Completion rewards", icon: Medal },
+                { href: "/admin/reward-courses", label: "Reward courses", icon: Sparkles },
             ],
         },
         {

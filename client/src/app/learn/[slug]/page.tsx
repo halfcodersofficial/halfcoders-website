@@ -280,7 +280,10 @@ export default function LearnPage() {
             void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
             void queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });
 
-            if (result.courseCompleted) {
+            if (result.courseCompleted && result.rewardWith) {
+                // A reward course has no certificate of its own.
+                toast.success(`Course complete! 🎉 This was a reward with "${result.rewardWith.title}" — your certificate comes from that course.`);
+            } else if (result.courseCompleted) {
                 toast.success("Course complete! Your certificate is ready to claim. 🎓");
             } else {
                 toast.success(`Progress saved — ${result.courseProgress}% done`);
