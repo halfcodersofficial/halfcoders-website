@@ -68,7 +68,7 @@ export default function SupportSessionHistory({
 
     if (isLoading) {
         return (
-            <div className="container-page max-w-4xl space-y-6 py-8">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-12 w-64" />
                 <Skeleton className="h-24 rounded-card" />
                 <Skeleton className="h-72 rounded-card" />
@@ -78,7 +78,7 @@ export default function SupportSessionHistory({
 
     if (isError || !data) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this session</p>
                     <p className="mt-1 text-sm text-muted-foreground">{getApiErrorMessage(error, "It may belong to a course you don't mentor.")}</p>
@@ -96,7 +96,7 @@ export default function SupportSessionHistory({
     const rows = filter ? data.filter((entry) => entry.status === filter) : data;
 
     return (
-        <div className="container-page max-w-4xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="space-y-4 animate-in fade-in duration-500 motion-reduce:animate-none">
                 <BackButton
                     href={backHref ?? routes.session}

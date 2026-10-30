@@ -169,7 +169,7 @@ export default function AssignmentContentPage({
 
     if (isLoading || curriculumLoading) {
         return (
-            <div className="container-page space-y-4 py-10">
+            <div className="w-full space-y-4">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-96" />
             </div>
@@ -178,7 +178,7 @@ export default function AssignmentContentPage({
 
     if (isError || !materials || !assignment || !milestone) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this assignment</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -195,7 +195,7 @@ export default function AssignmentContentPage({
     const milestoneLabel = course?.milestoneLabel ?? "Milestone";
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="flex flex-wrap items-start gap-x-3 gap-y-4">
                 <div className="basis-full">
                     <BackButton href={routes.modules} label="Module Manager" />

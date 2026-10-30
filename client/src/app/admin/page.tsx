@@ -43,7 +43,7 @@ export default function AdminDashboardPage() {
     const needCount = needs ? needsYouCount(needs) : 0;
 
     return (
-        <div className="max-w-7xl space-y-6">
+        <div className="space-y-6">
             <ConsoleHero
                 className={RISE}
                 description="Here's what's waiting on you, and how the platform is doing."

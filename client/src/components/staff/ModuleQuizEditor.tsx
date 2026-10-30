@@ -357,7 +357,7 @@ export default function ModuleQuizEditor({
 
     if (isLoading) {
         return (
-            <div className="container-page space-y-4 py-10">
+            <div className="w-full space-y-4">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-96" />
             </div>
@@ -366,7 +366,7 @@ export default function ModuleQuizEditor({
 
     if (isError) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this quiz</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -384,7 +384,7 @@ export default function ModuleQuizEditor({
     const canPublish = Boolean(quiz && (quiz.isPublished || quiz.questions.length > 0));
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <ModuleContentHeader courseId={courseId} moduleId={moduleId} area={area} active="quiz" />
 
             {quiz && (

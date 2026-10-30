@@ -49,8 +49,6 @@ const ADMIN_INBOX: InboxConfig = {
 
 export default function AdminInbox() {
     return (
-        <div className="max-w-6xl">
-            <Inbox config={ADMIN_INBOX} />
-        </div>
+        <Inbox config={ADMIN_INBOX} />
     );
 }

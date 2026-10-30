@@ -146,7 +146,7 @@ export default function AdminBroadcastPage() {
     );
 
     return (
-        <div className="max-w-6xl space-y-8">
+        <div className="space-y-8">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
                     <ConsoleEyebrow />

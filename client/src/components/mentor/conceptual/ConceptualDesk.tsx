@@ -48,7 +48,7 @@ export default function ConceptualDesk() {
     const loading = summaries.isLoading || details.some((query) => query.isLoading);
 
     return (
-        <div className="container-page space-y-6 py-8 sm:py-10">
+        <div className="w-full space-y-6">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
                     <ConsoleEyebrow />

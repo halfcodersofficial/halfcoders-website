@@ -117,7 +117,7 @@ export default function AdminSettingsPage() {
     const { data, isLoading, isError, refetch } = useQuery({ queryKey: KEY, queryFn: adminService.settings });
 
     return (
-        <div className="max-w-6xl space-y-8">
+        <div className="space-y-8">
             <header className="animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
                 <ConsoleEyebrow />
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Platform settings</h1>

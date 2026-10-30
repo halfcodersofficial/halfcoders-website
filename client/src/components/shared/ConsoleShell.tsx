@@ -424,7 +424,8 @@ export default function ConsoleShell({
                         </div>
                     </div>
 
-                    <main className={cn("relative isolate flex-1", mainClassName)}>
+                    {/* Every page fills the width beside the sidebar; the gutter is set here, once, for both consoles. */}
+                    <main className={cn("relative isolate min-w-0 flex-1 p-4 sm:p-6 lg:p-8", mainClassName)}>
                         {/* Graph paper under the top of every page, fading out as the content goes on. */}
                         <div
                             aria-hidden

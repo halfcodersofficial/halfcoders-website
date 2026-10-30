@@ -38,7 +38,7 @@ export default function MentorDashboardPage() {
     });
 
     return (
-        <div className="container-page space-y-6 py-8 sm:py-10">
+        <div className="w-full space-y-6">
             <ConsoleHero
                 className={RISE}
                 description="Your support desk, your review queue and the week ahead."

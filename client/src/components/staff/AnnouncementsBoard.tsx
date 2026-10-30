@@ -108,7 +108,7 @@ export default function AnnouncementsBoard({ courseId, area, courseTitle }: { co
     });
 
     return (
-        <div className={cn("@container space-y-6", area === "mentor" ? "container-page py-8" : "max-w-7xl")}>
+        <div className="@container space-y-6">
             {area === "admin" && <BackButton href={routes.overview} label="Back to the course" />}
             <header className="max-w-3xl">
                 {courseTitle && <p className="mb-1 text-xs font-semibold font-mono uppercase tracking-wider text-primary">{courseTitle}</p>}

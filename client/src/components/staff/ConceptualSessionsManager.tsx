@@ -199,7 +199,7 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
 
     if (isLoading) {
         return (
-            <div className="container-page max-w-5xl space-y-5 py-10">
+            <div className="w-full space-y-5">
                 <Skeleton className="h-9 w-48" />
                 <Skeleton className="h-64 rounded-card" />
                 <Skeleton className="h-48 rounded-card" />
@@ -209,7 +209,7 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
 
     if (isError || !data) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this course&apos;s conceptual sessions</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -237,7 +237,7 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
     );
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-10">
+        <div className="w-full space-y-6">
             {/* In the mentor console the course's own tab bar does this. */}
             {area === "admin" && <BackButton href={routes.conceptualHome} label="Conceptual sessions" />}
 

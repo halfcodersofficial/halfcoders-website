@@ -77,7 +77,7 @@ export default function MentorCoursePageEditor() {
 
     if (isLoading) {
         return (
-            <div className="container-page space-y-4 py-8">
+            <div className="w-full space-y-4">
                 <Skeleton className="h-8 w-56" />
                 <Skeleton className="h-96 rounded-card" />
             </div>
@@ -86,7 +86,7 @@ export default function MentorCoursePageEditor() {
 
     if (isError || !course) {
         return (
-            <div className="container-page py-16 text-center">
+            <div className="w-full py-16 text-center">
                 <p className="font-medium">Couldn&apos;t load the course page.</p>
                 <p className="mt-1 text-sm text-muted-foreground">{getApiErrorMessage(error, "Try again in a moment.")}</p>
             </div>
@@ -105,7 +105,7 @@ export default function MentorCoursePageEditor() {
     });
 
     return (
-        <div className="container-page max-w-[1700px] space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="flex flex-wrap items-end justify-between gap-4">
                 <div className="min-w-0">
                     <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Course page</h2>

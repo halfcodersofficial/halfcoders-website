@@ -193,7 +193,7 @@ export default function ReviewDesk({
     const activeTab = TABS.find((entry) => entry.value === tab) ?? TABS[0];
 
     return (
-        <div className="container-page space-y-5 py-8 sm:py-10">
+        <div className="w-full space-y-5">
             <header className="flex flex-wrap items-end justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
                 <div className="min-w-0">
                     <ConsoleEyebrow />
