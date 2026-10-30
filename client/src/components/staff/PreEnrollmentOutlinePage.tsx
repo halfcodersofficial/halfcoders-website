@@ -41,7 +41,7 @@ export default function PreEnrollmentOutlinePage({
 
     if (isLoading) {
         return (
-            <div className="container-page max-w-3xl space-y-4 py-10">
+            <div className="w-full space-y-4">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-64" />
             </div>
@@ -50,7 +50,7 @@ export default function PreEnrollmentOutlinePage({
 
     if (isError || !course) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this course</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -65,7 +65,7 @@ export default function PreEnrollmentOutlinePage({
     }
 
     return (
-        <div className="container-page max-w-3xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="flex flex-wrap items-start gap-x-3 gap-y-4">
                 {/* In the mentor console the course's own tab bar does this. */}
                 {area === "admin" && (

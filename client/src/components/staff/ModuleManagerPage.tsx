@@ -641,7 +641,7 @@ export default function ModuleManagerPage({
     // Waits on the course too, so an upcoming one never flashes an empty editor first.
     if (isLoading || isCourseLoading) {
         return (
-            <div className="container-page max-w-5xl space-y-5 py-8">
+            <div className="w-full space-y-5">
                 <Skeleton className="h-12 w-72" />
                 <Skeleton className="h-24 rounded-card" />
                 <Skeleton className="h-64 rounded-card" />
@@ -657,7 +657,7 @@ export default function ModuleManagerPage({
 
     if (isError || !milestones) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this course</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -696,7 +696,7 @@ export default function ModuleManagerPage({
     });
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="space-y-4 animate-in fade-in duration-500 motion-reduce:animate-none">
                 {/* In the mentor console the course's own tab bar does this. */}
                 {area === "admin" && <BackButton href={routes.courses} label="All courses" />}

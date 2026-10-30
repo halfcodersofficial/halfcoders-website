@@ -28,7 +28,7 @@ export default function MentorCoursesPage() {
 
     if (isLoading) {
         return (
-            <div className="container-page space-y-6 py-8 sm:py-10">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-12 w-64" />
                 <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {Array.from({ length: 3 }).map((_, index) => (
@@ -40,7 +40,7 @@ export default function MentorCoursesPage() {
     }
     if (isError || !data) {
         return (
-            <div className="container-page py-16 text-center">
+            <div className="w-full py-16 text-center">
                 <p className="font-medium">Couldn&apos;t load your courses.</p>
                 <Button variant="outline" className="mt-4" onClick={() => refetch()}>
                     Try again
@@ -54,7 +54,7 @@ export default function MentorCoursesPage() {
     const shown = term.trim() ? courses.filter((course) => course.title.toLowerCase().includes(term.trim().toLowerCase())) : courses;
 
     return (
-        <div className="container-page space-y-6 py-8 sm:py-10">
+        <div className="w-full space-y-6">
             <header className={`flex flex-wrap items-end justify-between gap-4 ${RISE}`}>
                 <div className="min-w-0">
                     <ConsoleEyebrow />

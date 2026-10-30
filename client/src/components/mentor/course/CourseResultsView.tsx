@@ -46,7 +46,7 @@ export default function CourseResultsView({ courseId }: { courseId: string }) {
 
     if (isLoading) {
         return (
-            <div className="container-page space-y-6 py-8">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-10 w-72" />
                 <Skeleton className="h-24 rounded-card" />
                 <Skeleton className="h-80 rounded-card" />
@@ -55,7 +55,7 @@ export default function CourseResultsView({ courseId }: { courseId: string }) {
     }
     if (isError || !data) {
         return (
-            <div className="container-page py-16 text-center">
+            <div className="w-full py-16 text-center">
                 <p className="font-medium">Couldn&apos;t load the results.</p>
                 <p className="mt-1 text-sm text-muted-foreground">{getApiErrorMessage(error, "Try again in a moment.")}</p>
                 <Button variant="outline" className="mt-4" onClick={() => refetch()}>
@@ -82,7 +82,7 @@ function Results({ data, term, setTerm }: { data: CourseResults; term: string; s
     const quizzes = searching ? data.quizzes.filter((quiz) => quiz.results.some((row) => matches(row.student.name, term))) : data.quizzes;
 
     return (
-        <div className="container-page space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="flex flex-wrap items-end justify-between gap-4 animate-in fade-in duration-500 motion-reduce:animate-none">
                 <div className="min-w-0">
                     <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Results</h2>

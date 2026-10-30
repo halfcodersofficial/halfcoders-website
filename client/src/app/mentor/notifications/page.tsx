@@ -10,7 +10,7 @@ import MentorInbox from "@/components/mentor/notifications/MentorInbox";
  */
 export default function MentorNotificationsPage() {
     return (
-        <div className="container-page max-w-6xl py-8 sm:py-10">
+        <div className="w-full">
             <MentorInbox />
         </div>
     );

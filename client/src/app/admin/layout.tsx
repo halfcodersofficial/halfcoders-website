@@ -122,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
         <RoleGuard allow={ADMIN_ROLES}>
             {/* Only mounted for an account the guard has already cleared. */}
-            <ConsoleShell config={config} mainClassName="p-4 sm:p-6 lg:p-8">
+            <ConsoleShell config={config}>
                 {children}
             </ConsoleShell>
         </RoleGuard>

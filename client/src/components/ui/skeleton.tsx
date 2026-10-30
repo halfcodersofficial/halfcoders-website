@@ -1,9 +1,9 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-/** A placeholder bar with a soft band scanning across it (`.skeleton-scan`). */
+/** A placeholder bar with a soft band scanning across it (`.skeleton-scan`). Never wider than its box, so a `w-96` bar fits a phone. */
 export const Skeleton = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
-    <div aria-hidden className={cn("skeleton-scan rounded-sm", className)} {...props} />
+    <div aria-hidden className={cn("skeleton-scan max-w-full rounded-sm", className)} {...props} />
 );
 
 /**

@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
-import { cn, formatHoursMinutes } from "@/lib/utils";
+import { formatHoursMinutes } from "@/lib/utils";
 import { conceptualAuthoring } from "@/services/conceptual";
 import type { StaffConceptualCourseSummary } from "@/types/conceptual.types";
 
@@ -101,7 +101,7 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
     const hrefFor = (summary: StaffConceptualCourseSummary) => staffCourseRoutes(area, summary.course.id).conceptual;
 
     return (
-        <div className={cn(area === "mentor" && "container-page py-10")}>
+        <div>
             <DataShell
                 header={
                     <div className="space-y-5">

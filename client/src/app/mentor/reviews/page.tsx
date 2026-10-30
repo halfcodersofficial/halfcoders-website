@@ -9,7 +9,7 @@ export default function ReviewQueuePage() {
     return (
         <Suspense
             fallback={
-                <div className="container-page py-10">
+                <div className="w-full">
                     <Skeleton className="h-96" />
                 </div>
             }

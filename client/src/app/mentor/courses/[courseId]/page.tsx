@@ -37,7 +37,7 @@ export default function MentorCourseOverview() {
 
     if (detail.isLoading || dashboard.isLoading) {
         return (
-            <div className="container-page space-y-6 py-8">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-24 rounded-card" />
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
                     <Skeleton className="h-96 rounded-card" />
@@ -59,7 +59,7 @@ export default function MentorCourseOverview() {
     };
 
     return (
-        <div className="container-page space-y-6 py-8">
+        <div className="w-full space-y-6">
             {/* 1px gaps over the border colour draw the dividers at every column count. */}
             <ul aria-label="This course" className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card lg:grid-cols-4", RISE)}>
                 <Figure label="Students enrolled" value={course._count.enrollments} hint={stats ? `${stats.active} learning · ${stats.completed} finished` : undefined} />

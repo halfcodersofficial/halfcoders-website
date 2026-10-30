@@ -58,7 +58,7 @@ export default function CourseWorkspace({ courseId, children }: { courseId: stri
 
     if (course.isError) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this course</p>
                     <p className="mt-1 text-sm text-muted-foreground">{getApiErrorMessage(course.error, "You may not be assigned to it.")}</p>
@@ -88,8 +88,9 @@ export default function CourseWorkspace({ courseId, children }: { courseId: stri
 
     return (
         <>
-            <div className="border-b border-border bg-card/70">
-                <div className="container-page pt-5 sm:pt-6">
+            {/* The band runs edge to edge, out over the console's page gutter. */}
+            <div className="-mx-4 -mt-4 mb-6 border-b border-border bg-card/70 sm:-mx-6 sm:-mt-6 sm:mb-8 lg:-mx-8 lg:-mt-8">
+                <div className="px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
                     <div className="flex items-center gap-4">
                         <span className="relative hidden aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary ring-1 ring-border sm:grid">
                             {data && (

@@ -169,7 +169,7 @@ export default function AdminPopupAlertPage() {
     );
 
     return (
-        <div className="max-w-6xl space-y-12">
+        <div className="space-y-12">
             <div className="space-y-8">
                 <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                     <div className="min-w-0">

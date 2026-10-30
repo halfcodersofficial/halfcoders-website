@@ -300,7 +300,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
     // bootcamp dates first.
     if (isLoading || isCourseLoading) {
         return (
-            <div className="container-page space-y-4 py-10">
+            <div className="w-full space-y-4">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-96" />
             </div>
@@ -314,7 +314,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
 
     if (isError || !weeks) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this outline</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -339,7 +339,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
     const nextUp = dated.filter((item) => new Date(item.scheduledAt!).getTime() > now).sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))[0];
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             <header className="space-y-4 animate-in fade-in duration-500 motion-reduce:animate-none">
                 {/* In the mentor console the course's own tab bar does this. */}
                 {area === "admin" && <BackButton href={routes.courses} label="All courses" />}

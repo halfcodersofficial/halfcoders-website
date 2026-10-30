@@ -22,7 +22,7 @@ export default function CurriculumClosedNotice({
     const routes = staffCourseRoutes(area, courseId);
 
     return (
-        <div className="container-page max-w-5xl space-y-6 py-8">
+        <div className="w-full space-y-6">
             {/* In the mentor console the course's own tab bar does this. */}
             {area === "admin" && <BackButton href={routes.courses} label="All courses" />}
             <section className="mx-auto max-w-xl rounded-card border border-dashed border-border bg-card px-6 py-12 text-center animate-in fade-in duration-500 motion-reduce:animate-none">

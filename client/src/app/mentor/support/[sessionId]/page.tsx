@@ -112,7 +112,7 @@ export default function MentorQueueBoardPage() {
 
     if (isLoading) {
         return (
-            <div className="container-page space-y-6 py-8">
+            <div className="w-full space-y-6">
                 <Skeleton className="h-16 w-80" />
                 <Skeleton className="h-20 rounded-card" />
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -125,7 +125,7 @@ export default function MentorQueueBoardPage() {
 
     if (isError || !board) {
         return (
-            <div className="container-page grid min-h-[60dvh] max-w-md place-items-center text-center">
+            <div className="mx-auto grid w-full min-h-[60dvh] max-w-md place-items-center text-center">
                 <div>
                     <p className="font-medium">Can&apos;t open this session</p>
                     <p className="mt-1 text-sm text-muted-foreground">{getApiErrorMessage(error, "It may belong to a course you don't mentor.")}</p>
@@ -149,7 +149,7 @@ export default function MentorQueueBoardPage() {
     };
 
     return (
-        <div className="container-page space-y-6 py-8">
+        <div className="w-full space-y-6">
             <Header board={board} now={now} isConnected={isConnected} />
 
             <Stats board={board} now={now} />
