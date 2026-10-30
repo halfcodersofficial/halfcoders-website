@@ -79,7 +79,7 @@ function SettleForm({ order, onBack, onDone }: { order: AdminOrder; onBack?: () 
     return (
         <form className={modalFormClass} noValidate onSubmit={form.handleSubmit}>
             <ModalBody className="space-y-5">
-                <div className="flex items-center gap-3 rounded-xl bg-secondary/50 p-4">
+                <div className="flex items-center gap-3 rounded-card bg-secondary/50 p-4">
                     <Avatar src={order.student.image} name={order.student.name} size={40} />
                     <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold">{order.student.name}</p>
@@ -89,7 +89,7 @@ function SettleForm({ order, onBack, onDone }: { order: AdminOrder; onBack?: () 
                 </div>
 
                 {sentIn && (
-                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 text-sm">
+                    <div className="rounded-card border border-primary/25 bg-primary/5 p-4 text-sm">
                         <p className="font-semibold">Check the bKash merchant statement for a payment with:</p>
                         <ul className="mt-2 space-y-1 text-muted-foreground">
                             <li>
@@ -236,9 +236,9 @@ function Timeline({ order }: { order: AdminOrder }) {
 
 function Section({ title, icon: Icon, children, action }: { title: string; icon: typeof Mail; children: ReactNode; action?: ReactNode }) {
     return (
-        <section className="rounded-xl border border-border">
-            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-                <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <section className="rounded-card border border-border">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 bg-surface">
+                <h3 className="flex items-center gap-2 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                     <Icon className="size-3.5" /> {title}
                 </h3>
                 {action}
@@ -271,7 +271,7 @@ function OrderDetail({ order }: { order: AdminOrder }) {
     return (
         <ModalBody className="space-y-4">
             {/* Where the order stands, with the money it's about. */}
-            <div className="relative overflow-hidden rounded-xl border border-border bg-secondary/30 p-4">
+            <div className="relative overflow-hidden rounded-card border border-border bg-secondary/30 p-4">
                 <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", ORDER_TONE[order.status].fill)} />
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -393,7 +393,7 @@ function OrderDetail({ order }: { order: AdminOrder }) {
                         {payment.failureReason && <Row label="Note">{payment.failureReason}</Row>}
                     </dl>
                     {payment.gatewayData != null && (
-                        <details className="group mt-3 rounded-lg bg-secondary/50">
+                        <details className="group mt-3 rounded-md bg-secondary/50">
                             <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
                                 Raw payment data
                             </summary>

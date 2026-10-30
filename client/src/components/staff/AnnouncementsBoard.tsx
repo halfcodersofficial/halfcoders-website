@@ -111,7 +111,7 @@ export default function AnnouncementsBoard({ courseId, area, courseTitle }: { co
         <div className={cn("@container space-y-6", area === "mentor" ? "container-page py-8" : "max-w-7xl")}>
             {area === "admin" && <BackButton href={routes.overview} label="Back to the course" />}
             <header className="max-w-3xl">
-                {courseTitle && <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">{courseTitle}</p>}
+                {courseTitle && <p className="mb-1 text-xs font-semibold font-mono uppercase tracking-wider text-primary">{courseTitle}</p>}
                 <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Announcements</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
                     Write to everyone on the course. Each student is notified here and by email (unless they&apos;ve turned email off), and it stays on the
@@ -137,19 +137,19 @@ export default function AnnouncementsBoard({ courseId, area, courseTitle }: { co
 
                     {list.isLoading ? (
                         <div className="space-y-3">
-                            <Skeleton className="h-32 rounded-2xl" />
-                            <Skeleton className="h-32 rounded-2xl" />
+                            <Skeleton className="h-32 rounded-card" />
+                            <Skeleton className="h-32 rounded-card" />
                         </div>
                     ) : list.isError ? (
-                        <p className="rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+                        <p className="rounded-card border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
                             {getApiErrorMessage(list.error, "Couldn't load the board.")}{" "}
                             <button type="button" onClick={() => list.refetch()} className="font-medium text-primary hover:underline">
                                 Try again
                             </button>
                         </p>
                     ) : announcements.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-border-strong px-6 py-14 text-center">
-                            <span className="mx-auto grid size-12 place-items-center rounded-full bg-secondary text-primary">
+                        <div className="rounded-card border border-dashed border-border-strong px-6 py-14 text-center">
+                            <span className="mx-auto grid size-12 place-items-center rounded-md border border-border bg-surface text-primary">
                                 <Megaphone className="size-5" aria-hidden />
                             </span>
                             <p className="mt-4 font-semibold">Nothing posted yet</p>
@@ -161,7 +161,7 @@ export default function AnnouncementsBoard({ courseId, area, courseTitle }: { co
                         <>
                             {pinned.length > 0 && (
                                 <div className="space-y-2.5">
-                                    <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                                    <p className="flex items-center gap-1.5 text-xs font-semibold font-mono uppercase tracking-wider text-primary">
                                         <Pin className="size-3.5" aria-hidden /> Pinned
                                     </p>
                                     <ol className="space-y-3">
@@ -176,7 +176,7 @@ export default function AnnouncementsBoard({ courseId, area, courseTitle }: { co
 
                             {days.map((group) => (
                                 <div key={group.day} className="space-y-2.5">
-                                    <p className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <p className="flex items-center gap-3 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                         {group.day}
                                         <span aria-hidden className="h-px flex-1 bg-border" />
                                     </p>
@@ -220,10 +220,10 @@ function Composer({ courseId, onPosted }: { courseId: string; onPosted: () => vo
     const written = Boolean(title.trim() || body.trim());
 
     return (
-        <section aria-labelledby="compose-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm @5xl:sticky @5xl:top-6">
+        <section aria-labelledby="compose-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card @5xl:sticky @5xl:top-6">
             <form noValidate onSubmit={form.handleSubmit}>
                 <div className="space-y-4 p-5 sm:p-6">
-                    <h3 id="compose-title" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <h3 id="compose-title" className="text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                         New announcement
                     </h3>
                     <FormField form={form} name="title" label="Title" required counterMax={160}>
@@ -241,17 +241,17 @@ function Composer({ courseId, onPosted }: { courseId: string; onPosted: () => vo
                 </div>
 
                 <div className="border-t border-border bg-surface/70 p-5 sm:p-6">
-                    <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">How students see it</p>
+                    <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">How students see it</p>
                     <article
                         aria-hidden
                         className={cn(
-                            "mt-2.5 rounded-xl border bg-card p-4 transition-opacity",
+                            "mt-2.5 rounded-card border bg-card p-4 transition-opacity",
                             isPinned ? "border-primary/40" : "border-border",
                             !written && "opacity-60",
                         )}
                     >
                         {isPinned && (
-                            <p className="mb-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-primary">
+                            <p className="mb-2 inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-primary">
                                 <Pin className="size-3" /> Pinned
                             </p>
                         )}
@@ -302,7 +302,7 @@ function PostCard({ post, onPin, onEdit, onRemove, pinning }: PostCardProps) {
     return (
         <article
             className={cn(
-                "group relative rounded-2xl border bg-card p-5 shadow-sm transition-colors sm:p-6",
+                "group relative rounded-card border bg-card p-5 shadow-card transition-colors sm:p-6",
                 post.isPinned ? "border-primary/40" : "border-border",
             )}
         >

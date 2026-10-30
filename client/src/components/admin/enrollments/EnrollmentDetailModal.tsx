@@ -93,9 +93,9 @@ function Timeline({ enrollment }: { enrollment: AdminEnrollment }) {
 
 function Section({ title, icon: Icon, children, action }: { title: string; icon: typeof Mail; children: ReactNode; action?: ReactNode }) {
     return (
-        <section className="rounded-xl border border-border">
-            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-                <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <section className="rounded-card border border-border">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 bg-surface">
+                <h3 className="flex items-center gap-2 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                     <Icon className="size-3.5" /> {title}
                 </h3>
                 {action}
@@ -126,7 +126,7 @@ function EnrollmentDetail({ enrollment, onIssue, isIssuing }: { enrollment: Admi
     return (
         <ModalBody className="space-y-4">
             {/* How far they are, and where. */}
-            <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border bg-secondary/30 p-4">
+            <div className="flex flex-wrap items-center gap-5 rounded-card border border-border bg-secondary/30 p-4">
                 <ProgressRing value={enrollment.progress} size={84} stroke={7} fillIn>
                     <span className="text-lg font-bold tabular-nums">{enrollment.progress}%</span>
                 </ProgressRing>
@@ -134,7 +134,7 @@ function EnrollmentDetail({ enrollment, onIssue, isIssuing }: { enrollment: Admi
                     <div className="flex flex-wrap items-center gap-2">
                         <StatusPill kind="enrollment" value={enrollment.status} />
                         {enrollment.certificate?.status === "ISSUED" && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                            <span className="inline-flex items-center gap-1 rounded-sm bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                                 <Award className="size-3" /> Certified
                             </span>
                         )}

@@ -16,10 +16,11 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * Courses given rather than bought: the free courses a purchase earns through
- * an offer, and the courses a reward gives for finishing in time. Each grant
- * is one `CourseGrant` row under a unique key (offer or reward, student,
- * course), so a repeated payment callback or a second completion can never
- * give a course twice. A student who already has the course is left alone.
+ * an offer, the courses a reward gives for finishing in time, and the reward
+ * courses an admin attaches to a main course (a `BonusCourse`). Each grant
+ * is one `CourseGrant` row under a unique key (offer, reward or bonus,
+ * student, course), so a repeated payment callback or a second completion can
+ * never give a course twice. A student who already has the course is left alone.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,9 +42,9 @@ export const rewardDeadline = (
     return reward.deadlineAt ?? byDays;
 };
 
-const HAS_ACCESS: EnrollmentStatus[] = [EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED];
+export const HAS_ACCESS: EnrollmentStatus[] = [EnrollmentStatus.ACTIVE, EnrollmentStatus.COMPLETED];
 
-type GivenCourse = { id: string; title: string; slug: string };
+export type GivenCourse = { id: string; title: string; slug: string };
 
 const grantableCourse = { id: true, title: true, slug: true, status: true, isDeleted: true } as const;
 
@@ -60,6 +61,7 @@ const giveCourse = async (
         source: GrantSource;
         offerId?: string;
         rewardId?: string;
+        bonusId?: string;
         orderId?: string;
     },
 ) => {
@@ -68,7 +70,9 @@ const giveCourse = async (
     const ids = { studentId: input.studentId, courseId: input.course.id };
     const key = input.offerId
         ? { offerId_studentId_courseId: { offerId: input.offerId, ...ids } }
-        : { rewardId_studentId_courseId: { rewardId: input.rewardId!, ...ids } };
+        : input.bonusId
+          ? { bonusId_studentId_courseId: { bonusId: input.bonusId, ...ids } }
+          : { rewardId_studentId_courseId: { rewardId: input.rewardId!, ...ids } };
 
     const earlier = await tx.courseGrant.findUnique({ where: key, select: { revokedAt: true } });
     if (earlier && !earlier.revokedAt) return false;
@@ -84,6 +88,7 @@ const giveCourse = async (
             source: input.source,
             offerId: input.offerId,
             rewardId: input.rewardId,
+            bonusId: input.bonusId,
             orderId: input.orderId,
             enrollmentId: opened.id,
         },
@@ -151,13 +156,13 @@ export const revokeOfferGrants = async (tx: Tx, orderId: string, at = new Date()
     return grants.length;
 };
 
-/** Tells the student what they were given and why. */
-export const announceGrants = async (studentId: string, given: GivenCourse[], why: string) => {
+/** Tells the student what they were given and why — "free course" or, for one that comes with a main course, "reward course". */
+export const announceGrants = async (studentId: string, given: GivenCourse[], why: string, noun = "free course") => {
     if (given.length === 0) return;
     const names = given.map((course) => `"${course.title}"`).join(", ");
     await createNotification({
         userId: studentId,
-        title: given.length === 1 ? "A free course is yours 🎁" : `${given.length} free courses are yours 🎁`,
+        title: given.length === 1 ? `A ${noun} is yours 🎁` : `${given.length} ${noun}s are yours 🎁`,
         message: `${why} You now have ${names}. Start any time.`,
         type: NotificationType.COURSE,
         link: given.length === 1 ? `/learn/${given[0].slug}` : "/dashboard",
@@ -207,4 +212,118 @@ export const grantCompletionReward = async (enrollmentId: string, met: RewardCon
     } catch (error) {
         logger.error("Couldn't grant a completion reward", { enrollmentId, error });
     }
+};
+
+// ---------------------------------------------------------------------------
+// Reward courses — given alongside a main course (`BonusCourse`)
+// ---------------------------------------------------------------------------
+
+type Bonus = { id: string; course: { id: string; title: string; slug: string; status: CourseStatus; isDeleted: boolean } };
+
+export const bonusSelect = { id: true, course: { select: grantableCourse } } as const;
+
+/** Opens one reward course for one student — the step under every way one is given. Whether it opened anything, as `giveCourse`. */
+export const giveBonusCourse = (tx: Tx, studentId: string, bonus: Bonus) =>
+    giveCourse(tx, { studentId, course: bonus.course, source: GrantSource.BONUS, bonusId: bonus.id });
+
+/**
+ * The reward courses that come with a main course a student has just got —
+ * bought, enrolled in by an admin, or opened again: every one set for
+ * everyone, and any given to them before that went when the main course did.
+ * Inside the transaction that opened the main course; the caller announces
+ * what it returns (`announceGrants`, as "reward course").
+ */
+export const grantBonusCourses = async (tx: Tx, studentId: string, mainCourseId: string): Promise<GivenCourse[]> => {
+    const bonuses = await tx.bonusCourse.findMany({
+        where: { mainCourseId, OR: [{ forEveryone: true }, { grants: { some: { studentId } } }] },
+        orderBy: { createdAt: "asc" },
+        select: bonusSelect,
+    });
+
+    const given: GivenCourse[] = [];
+    for (const bonus of bonuses) {
+        if (await giveBonusCourse(tx, studentId, bonus)) given.push({ id: bonus.course.id, title: bonus.course.title, slug: bonus.course.slug });
+    }
+    if (given.length) logger.create("Reward courses granted", { studentId, mainCourseId, courses: given.map((course) => course.id) });
+    return given;
+};
+
+/**
+ * Closes a reward course a student is losing with one main course — unless
+ * another main course they still have brings it too, in which case it stays
+ * open and its grant moves over to that one. The caller has already marked
+ * or removed the grant it's losing.
+ */
+export const releaseBonusCourse = async (
+    tx: Tx,
+    grant: { studentId: string; courseId: string; enrollmentId: string | null; mainCourseId: string },
+) => {
+    const { studentId, courseId, enrollmentId } = grant;
+    const elsewhere = await tx.bonusCourse.findFirst({
+        where: {
+            courseId,
+            mainCourseId: { not: grant.mainCourseId },
+            mainCourse: { enrollments: { some: { studentId, status: { in: HAS_ACCESS } } } },
+            OR: [{ forEveryone: true }, { grants: { some: { studentId } } }],
+        },
+        select: { id: true },
+    });
+    if (elsewhere) {
+        await tx.courseGrant.upsert({
+            where: { bonusId_studentId_courseId: { bonusId: elsewhere.id, studentId, courseId } },
+            create: { studentId, courseId, source: GrantSource.BONUS, bonusId: elsewhere.id, enrollmentId },
+            update: { revokedAt: null, enrollmentId },
+        });
+        return;
+    }
+    if (enrollmentId) {
+        await tx.enrollment.updateMany({
+            where: { id: enrollmentId, status: { in: HAS_ACCESS } },
+            data: { status: EnrollmentStatus.CANCELLED },
+        });
+    }
+};
+
+/**
+ * Takes back the reward courses a student had with a main course they've
+ * just lost (a refund, a cancelled enrolment): each enrolment is cancelled —
+ * progress kept — and its grant marked, so getting the main course again
+ * gives it back (see `releaseBonusCourse` for one another course still brings).
+ */
+export const revokeBonusCourses = async (tx: Tx, studentId: string, mainCourseId: string, at = new Date()) => {
+    const grants = await tx.courseGrant.findMany({
+        where: { studentId, source: GrantSource.BONUS, revokedAt: null, bonus: { mainCourseId } },
+        select: { id: true, courseId: true, enrollmentId: true },
+    });
+
+    for (const grant of grants) {
+        await tx.courseGrant.update({ where: { id: grant.id }, data: { revokedAt: at } });
+        await releaseBonusCourse(tx, { studentId, courseId: grant.courseId, enrollmentId: grant.enrollmentId, mainCourseId });
+    }
+    if (grants.length) logger.update("Reward courses taken back", { studentId, mainCourseId, grants: grants.length });
+    return grants.length;
+};
+
+const mainCourseSelect = { id: true, title: true, slug: true } as const;
+
+/**
+ * The main course a student has this course as a reward with, when that's how
+ * they hold it — a reward course earns no certificate of its own. Null when
+ * they hold it any other way.
+ */
+export const rewardMainCourse = async (studentId: string, courseId: string) => {
+    const grant = await prisma.courseGrant.findFirst({
+        where: { studentId, courseId, source: GrantSource.BONUS, revokedAt: null },
+        select: { bonus: { select: { mainCourse: { select: mainCourseSelect } } } },
+    });
+    return grant?.bonus?.mainCourse ?? null;
+};
+
+/** Every course a student holds as a reward, with the main course it came with — keyed by the reward course's id. */
+export const rewardMainCourses = async (studentId: string) => {
+    const grants = await prisma.courseGrant.findMany({
+        where: { studentId, source: GrantSource.BONUS, revokedAt: null },
+        select: { courseId: true, bonus: { select: { mainCourse: { select: mainCourseSelect } } } },
+    });
+    return new Map(grants.flatMap((grant) => (grant.bonus ? [[grant.courseId, grant.bonus.mainCourse] as const] : [])));
 };

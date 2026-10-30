@@ -290,6 +290,12 @@ export interface Enrollment {
     certificate?: { id: string; certificateNo: string; issuedAt: string } | null;
     /** Dashboard payload only: the course hands this student an admission ticket. */
     hasAdmissionTicket?: boolean;
+    /**
+     * Dashboard payload only: the main course this one came with as a reward
+     * course, when that's how the student has it. A reward course has no
+     * certificate of its own — the main course's is the one.
+     */
+    rewardWith?: { id: string; title: string; slug: string } | null;
     /** Present on the dashboard payload only — Bootcamp and Traditional
      *  courses earn it under different rules, so it's per enrollment rather
      *  than one shared number. `history` is oldest-to-newest: the last 7

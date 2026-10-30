@@ -57,7 +57,7 @@ const averageProgress = (student: AdminUser) => {
 
 export default function AdminStudentsPage() {
     return (
-        <Suspense fallback={<Skeleton className="h-96 rounded-xl" />}>
+        <Suspense fallback={<Skeleton className="h-96 rounded-card" />}>
             <StudentsScreen />
         </Suspense>
     );

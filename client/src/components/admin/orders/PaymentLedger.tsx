@@ -262,7 +262,7 @@ function Ledger({ kind }: { kind: LedgerKind }) {
                         {summaryQuery.data ? (
                             <StatStrip cells={figures(kind, summaryQuery.data, () => router.push("/admin/orders?status=PENDING"))} />
                         ) : (
-                            <Skeleton className="h-24 rounded-xl" />
+                            <Skeleton className="h-24 rounded-card" />
                         )}
                     </div>
                 }
@@ -303,10 +303,10 @@ function Ledger({ kind }: { kind: LedgerKind }) {
                 meta={data?.meta}
                 onPage={setPage}
             >
-                <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                     <div
                         className={cn(
-                            "hidden border-b border-border bg-secondary/40 px-5 py-2.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground",
+                            "hidden border-b border-border bg-secondary/40 px-5 py-2.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground",
                             COLUMNS,
                         )}
                     >

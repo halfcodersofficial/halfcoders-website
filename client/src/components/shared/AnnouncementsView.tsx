@@ -137,7 +137,7 @@ export default function AnnouncementsView() {
 
             <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start">
                 {/* Left: the list */}
-                <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
+                <div className="overflow-hidden rounded-md border border-border bg-card shadow-card">
                     {isLoading ? (
                         <div className="space-y-2 p-3">
                             {Array.from({ length: 6 }).map((_, index) => (
@@ -227,7 +227,7 @@ export default function AnnouncementsView() {
                 </div>
 
                 {/* Right: the preview */}
-                <div className="min-h-105 rounded-md border border-border bg-card p-6 shadow-sm lg:sticky lg:top-6 lg:p-8">
+                <div className="min-h-105 rounded-md border border-border bg-card p-6 shadow-card lg:sticky lg:top-6 lg:p-8">
                     {selected ? (
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center gap-2">

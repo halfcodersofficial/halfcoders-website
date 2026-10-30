@@ -85,7 +85,7 @@ function Directory() {
                     <div className="min-w-0">
                         <p className="flex items-center gap-2 truncate font-medium">
                             <span className="truncate">{admin.name}</span>
-                            {admin.id === user?.id && <span className="shrink-0 rounded-full bg-secondary px-2 py-px text-[0.6875rem] font-medium text-muted-foreground">You</span>}
+                            {admin.id === user?.id && <span className="shrink-0 rounded-sm bg-secondary px-2 py-px text-[0.6875rem] font-medium text-muted-foreground">You</span>}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{admin.email}</p>
                     </div>
@@ -100,7 +100,7 @@ function Directory() {
             cell: (admin) => (
                 <span
                     className={cn(
-                        "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        "rounded-sm px-2.5 py-0.5 text-xs font-semibold",
                         admin.role === "SUPER_ADMIN" ? "bg-primary/10 text-primary" : "bg-secondary text-secondary-foreground",
                     )}
                 >
@@ -113,9 +113,9 @@ function Directory() {
             header: "Half Coders access",
             cell: (admin) =>
                 admin.status !== "ACTIVE" ? (
-                    <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive">Suspended</span>
+                    <span className="rounded-sm bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive">Suspended</span>
                 ) : admin.hasOpenedHalfCoders ? (
-                    <span className="rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">Active</span>
+                    <span className="rounded-sm bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">Active</span>
                 ) : (
                     <span className="text-xs text-muted-foreground">Hasn&apos;t opened Half Coders yet</span>
                 ),

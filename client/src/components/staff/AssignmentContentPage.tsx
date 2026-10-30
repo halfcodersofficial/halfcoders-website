@@ -201,14 +201,14 @@ export default function AssignmentContentPage({
                     <BackButton href={routes.modules} label="Module Manager" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    <p className="text-xs font-semibold font-mono uppercase tracking-wider text-primary">
                         {milestoneLabel} {pad(milestone.order)} · Assignment
                     </p>
                     <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">{assignment.title}</h1>
                     <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         <span
                             className={cn(
-                                "rounded-full px-2 py-px text-xs font-semibold",
+                                "rounded-sm px-2 py-px text-xs font-semibold",
                                 assignment.isPublished ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground",
                             )}
                         >
@@ -240,7 +240,7 @@ export default function AssignmentContentPage({
                 </div>
             </header>
 
-            <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+            <section className="space-y-4 rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
                     <div>
                         <h2 className="mb-1 flex items-center gap-2 font-semibold">
                             <ClipboardCheck className="size-4" /> What the student has to do
@@ -287,7 +287,7 @@ export default function AssignmentContentPage({
 
             <RubricEditor assignmentId={assignmentId} />
 
-            <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+            <section className="space-y-4 rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
                     <div>
                         <h2 className="font-semibold">Add a lesson</h2>
                         <p className="text-sm text-muted-foreground">
@@ -313,8 +313,8 @@ export default function AssignmentContentPage({
                     )}
             </section>
 
-            <section aria-labelledby="materials-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                <header className="border-b border-border px-5 py-3.5">
+            <section aria-labelledby="materials-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+                <header className="border-b border-border px-5 py-3.5 bg-surface">
                     <h2 id="materials-title" className="font-semibold">
                         {materials.length} lesson{materials.length === 1 ? "" : "s"}{" "}
                         <span className="font-normal text-muted-foreground">· students see them with the brief, above their hand-in</span>

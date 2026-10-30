@@ -62,7 +62,7 @@ function QuestionStats({ question, mostMissed }: { question: Question; mostMisse
                     <p className="text-sm font-medium">
                         {question.question}
                         {mostMissed && (
-                            <span className="ml-2 inline-block rounded-full bg-destructive/10 px-2 py-0.5 align-middle text-[0.6875rem] font-medium text-destructive">
+                            <span className="ml-2 inline-block rounded-sm bg-destructive/10 px-2 py-0.5 align-middle text-[0.6875rem] font-medium text-destructive">
                                 Most missed
                             </span>
                         )}
@@ -134,15 +134,15 @@ export function QuizAttemptModal({
             <ModalBody className="space-y-4">
                 {isLoading ? (
                     <>
-                        <Skeleton className="h-28 rounded-xl" />
-                        <Skeleton className="h-28 rounded-xl" />
+                        <Skeleton className="h-28 rounded-card" />
+                        <Skeleton className="h-28 rounded-card" />
                     </>
                 ) : isError || !data ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">{getApiErrorMessage(error, "Couldn't open this attempt.")}</p>
                 ) : (
                     <ol className="space-y-4">
                         {data.questions.map((question, index) => (
-                            <li key={question.id} className="rounded-xl border border-border p-4">
+                            <li key={question.id} className="rounded-card border border-border p-4">
                                 <p className="flex items-start gap-3 text-sm font-medium">
                                     <span className="mt-px shrink-0 tabular-nums text-muted-foreground">Q{index + 1}</span>
                                     <span className="min-w-0 flex-1">{question.question}</span>
@@ -161,7 +161,7 @@ export function QuizAttemptModal({
                                             <li
                                                 key={option.id}
                                                 className={cn(
-                                                    "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+                                                    "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
                                                     option.isCorrect && "border-primary/40 bg-primary/5",
                                                     picked && !option.isCorrect && "border-destructive/40 bg-destructive/5",
                                                     !picked && !option.isCorrect && "border-transparent text-muted-foreground",

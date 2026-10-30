@@ -5,9 +5,11 @@ import { ArrowRight, BookOpen, Clapperboard, Play, Plus, Radio } from "lucide-re
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { pad2, plural } from "@/components/mentor/dashboard/time";
+import EmptyState from "@/components/site/EmptyState";
 import { Button } from "@/components/ui/button";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn, formatDuration, formatHoursMinutes } from "@/lib/utils";
 import { conceptualAuthoring } from "@/services/conceptual";
@@ -18,7 +20,7 @@ import { filedIn, STATE_LABEL, watchRate, type Filed } from "./recordingState";
 import { publishLabel, usePublishRecording } from "./usePublishRecording";
 
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
-const PANEL = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
+const PANEL = "overflow-hidden rounded-card border border-border bg-card shadow-card";
 
 /**
  * The mentor's conceptual sessions — the recordings of their live classes —
@@ -49,7 +51,8 @@ export default function ConceptualDesk() {
         <div className="container-page space-y-6 py-8 sm:py-10">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Conceptual sessions</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Conceptual sessions</h1>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
                         Recordings of your live classes, filed by topic. Students are told the first time one goes live.
                     </p>
@@ -62,7 +65,7 @@ export default function ConceptualDesk() {
             </header>
 
             {summaries.isError ? (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                <div className="rounded-card border border-dashed border-border p-10 text-center">
                     <p className="font-medium">Couldn&apos;t load your conceptual sessions.</p>
                     <Button variant="outline" className="mt-4" onClick={() => summaries.refetch()}>
                         Try again
@@ -70,8 +73,8 @@ export default function ConceptualDesk() {
                 </div>
             ) : loading ? (
                 <div className="space-y-6">
-                    <Skeleton className="h-24 rounded-2xl" />
-                    <Skeleton className="h-72 rounded-2xl" />
+                    <Skeleton className="h-24 rounded-card" />
+                    <Skeleton className="h-72 rounded-card" />
                 </div>
             ) : courses.length === 0 ? (
                 <NoCourses />
@@ -126,7 +129,7 @@ function Totals({ courses }: { courses: StaffConceptualCourse[] }) {
     const possible = rates.reduce((sum, rate) => sum + rate.possible, 0);
 
     return (
-        <ul aria-label="Totals" className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm lg:grid-cols-4", RISE)} style={{ animationDelay: "60ms" }}>
+        <ul aria-label="Totals" className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card lg:grid-cols-4", RISE)} style={{ animationDelay: "60ms" }}>
             <Total label="Live recordings" value={live.length} hint={`in ${plural(courses.flatMap((course) => course.topics).filter((topic) => topic.isPublished).length, "live topic")}`} />
             <Total label="Not live yet" value={all.length - live.length} hint="Drafts, or waiting on their topic" tone={all.length > live.length ? "warn" : undefined} />
             <Total label="Running time" value={runtime > 0 ? formatHoursMinutes(runtime) : "—"} hint="Of what's live" />
@@ -159,7 +162,7 @@ function NotLiveYet({ courses, onOpen }: { courses: StaffConceptualCourse[]; onO
 
     return (
         <section aria-labelledby="not-live-title" className={cn(PANEL, RISE)} style={{ animationDelay: "90ms" }}>
-            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6">
+            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <h2 id="not-live-title" className="text-lg font-semibold tracking-tight">
                     Not live yet <span className="font-normal text-muted-foreground">{waiting.length}</span>
                 </h2>
@@ -189,7 +192,7 @@ function NotLiveYet({ courses, onOpen }: { courses: StaffConceptualCourse[]; onO
                                     </span>
                                 </span>
                             </button>
-                            <span className="hidden shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 sm:inline dark:text-amber-400">
+                            <span className="hidden shrink-0 rounded-sm bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 sm:inline dark:text-amber-400">
                                 {STATE_LABEL[filed.state]}
                             </span>
                             <Button size="sm" variant="brand-outline" className="shrink-0" isLoading={busy} disabled={publish.isPending} onClick={() => publish.mutate({ filed })}>
@@ -225,7 +228,7 @@ function Shelf({
 
     return (
         <section aria-labelledby={`shelf-${summary.course.id}`} className={PANEL}>
-            <header className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4 sm:px-6">
+            <header className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <span className="relative hidden aspect-video w-16 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary ring-1 ring-border sm:grid">
                     <SafeImage src={summary.course.thumbnail} alt="" fill sizes="64px" className="object-cover" fallback={<BookOpen className="size-4 text-muted-foreground" />} />
                 </span>
@@ -255,9 +258,9 @@ function Shelf({
                 <button
                     type="button"
                     onClick={onAdd}
-                    className="m-5 flex w-[calc(100%-2.5rem)] items-center gap-4 rounded-xl border border-dashed border-border px-5 py-6 text-left transition-colors hover:bg-secondary/40 sm:m-6 sm:w-[calc(100%-3rem)]"
+                    className="m-5 flex w-[calc(100%-2.5rem)] items-center gap-4 rounded-card border border-dashed border-border px-5 py-6 text-left transition-colors hover:bg-secondary/40 sm:m-6 sm:w-[calc(100%-3rem)]"
                 >
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-card bg-primary/10 text-primary">
                         <Clapperboard className="size-5" aria-hidden />
                     </span>
                     <span>
@@ -285,8 +288,8 @@ function Tile({ filed, students, onOpen }: { filed: Filed; students: number; onO
     const share = students > 0 ? Math.min(100, (recording._count.watches / students) * 100) : 0;
 
     return (
-        <button type="button" onClick={onOpen} className="group block w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="relative block aspect-video overflow-hidden rounded-xl bg-secondary ring-1 ring-border">
+        <button type="button" onClick={onOpen} className="group block w-full rounded-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="relative block aspect-video overflow-hidden rounded-card bg-secondary ring-1 ring-border">
                 <SafeImage
                     src={recording.thumbnail}
                     alt=""
@@ -301,7 +304,7 @@ function Tile({ filed, students, onOpen }: { filed: Filed; students: number; onO
                     </span>
                 </span>
                 {state !== "live" && (
-                    <span className="absolute left-2 top-2 rounded-full bg-slate-950/75 px-2 py-0.5 text-[0.6875rem] font-semibold text-white">{STATE_LABEL[state]}</span>
+                    <span className="absolute left-2 top-2 rounded-sm bg-slate-950/75 px-2 py-0.5 text-[0.6875rem] font-semibold text-white">{STATE_LABEL[state]}</span>
                 )}
                 {recording.duration > 0 && (
                     <span className="absolute bottom-2 right-2 rounded bg-slate-950/80 px-1.5 py-px text-[0.6875rem] font-semibold tabular-nums text-white">
@@ -329,15 +332,11 @@ function Tile({ filed, students, onOpen }: { filed: Filed; students: number; onO
 
 function NoCourses() {
     return (
-        <section className={cn("relative isolate overflow-hidden rounded-3xl border border-border bg-brand-soft px-6 py-16 text-center", RISE)}>
-            <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 -z-10 size-64 rounded-full bg-primary/10 blur-2xl" />
-            <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-card text-primary shadow-sm ring-1 ring-border">
-                <Clapperboard className="size-6" aria-hidden />
-            </span>
-            <h2 className="mt-5 text-xl font-bold tracking-tight">No courses assigned yet</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                Once an admin assigns you a course, its live-class recordings are filed here, topic by topic.
-            </p>
-        </section>
+        <EmptyState
+            className={RISE}
+            icon={Clapperboard}
+            title="No courses assigned yet"
+            description="Once an admin assigns you a course, its live-class recordings are filed here, topic by topic."
+        />
     );
 }

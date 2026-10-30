@@ -115,9 +115,9 @@ function MentorContext({ notification }: { notification: AppNotification }) {
 
 function Panel({ label, aside, children }: { label: string; aside?: ReactNode; children: ReactNode }) {
     return (
-        <section className="overflow-hidden rounded-xl border border-border">
-            <header className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-4 py-2">
-                <h3 className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">{label}</h3>
+        <section className="overflow-hidden rounded-card border border-border">
+            <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
+                <h3 className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{label}</h3>
                 {aside}
             </header>
             {children}
@@ -167,7 +167,7 @@ function HandInsWaiting({ courseId, assignmentId }: { courseId: string | null; a
                                         <Avatar name={submission.student.name} size={28} />
                                         <span className="min-w-0 flex-1 truncate text-sm font-medium">{submission.student.name}</span>
                                         {submission.maxScore !== null && (
-                                            <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-px text-[0.6875rem] font-medium text-amber-700 dark:text-amber-400">
+                                            <span className="shrink-0 rounded-sm bg-amber-500/10 px-2 py-px text-[0.6875rem] font-medium text-amber-700 dark:text-amber-400">
                                                 Late
                                             </span>
                                         )}
@@ -198,7 +198,7 @@ function HandInsWaiting({ courseId, assignmentId }: { courseId: string | null; a
 function SessionNow({ id }: { id: string }) {
     const now = useNow(30_000);
     const { data, isLoading } = useQuery({ queryKey: ["dashboard", "mentor"], queryFn: dashboardService.mentor });
-    if (isLoading) return <Skeleton className="h-14 rounded-xl" />;
+    if (isLoading) return <Skeleton className="h-14 rounded-card" />;
 
     const session = data?.upcomingSupport.find((entry) => entry.id === id);
     if (!session || new Date(session.endTime).getTime() < now) {
@@ -248,7 +248,7 @@ function SessionNow({ id }: { id: string }) {
 /** How the course is doing, from the dashboard's own figures. */
 function CourseNow({ id }: { id: string }) {
     const { data, isLoading } = useQuery({ queryKey: ["dashboard", "mentor"], queryFn: dashboardService.mentor });
-    if (isLoading) return <Skeleton className="h-14 rounded-xl" />;
+    if (isLoading) return <Skeleton className="h-14 rounded-card" />;
 
     const course = data?.courses.find((entry) => entry.id === id);
     if (!course) return null;

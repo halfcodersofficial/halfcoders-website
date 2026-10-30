@@ -35,7 +35,7 @@ export default function FrequencyPicker() {
                     <label
                         key={frequency.value}
                         className={cn(
-                            "relative flex cursor-pointer flex-col gap-4 rounded-xl border p-4 transition-colors",
+                            "relative flex cursor-pointer flex-col gap-4 rounded-card border p-4 transition-colors",
                             "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background",
                             checked ? "border-primary bg-primary/6" : "border-border bg-card hover:border-primary/40",
                         )}

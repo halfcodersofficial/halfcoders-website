@@ -210,13 +210,13 @@ export default function MarkingPane({
                         )}
                     </p>
                 </div>
-                <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>{STATUS_META[submission.status].label}</span>
+                <span className={cn("rounded-sm px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>{STATUS_META[submission.status].label}</span>
             </header>
 
             <div className={cn("space-y-5", compact ? "mt-4" : "px-6 py-5")}>
                 {/* The brief it answers. */}
-                <section aria-label="The assignment" className="rounded-xl border border-border bg-secondary/30 p-4">
-                    <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <section aria-label="The assignment" className="rounded-card border border-border bg-secondary/30 p-4">
+                    <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                         {assignment.course.title} · {assignment.course.milestoneLabel} {pad2(assignment.milestone.order)}
                     </p>
                     <p className="mt-1 font-semibold">{assignment.title}</p>
@@ -224,7 +224,7 @@ export default function MarkingPane({
                         <span>Out of {total}</span>
                         {assignment.deadline && <span>Due {formatDateTime(assignment.deadline)}</span>}
                         {isLate && (
-                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">Late — at most {maxScore}</span>
+                            <span className="rounded-sm bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">Late — at most {maxScore}</span>
                         )}
                         <Link href={`/mentor/courses/${assignment.course.id}/assignments/${assignment.id}`} className="font-medium text-primary hover:underline">
                             Read the brief
@@ -235,7 +235,7 @@ export default function MarkingPane({
                 <Work submission={submission} />
 
                 {!pending && submission.reviewedAt && (
-                    <section aria-label="The last review" className="rounded-xl border border-dashed border-border px-4 py-3 text-sm">
+                    <section aria-label="The last review" className="rounded-card border border-dashed border-border px-4 py-3 text-sm">
                         <p className="text-xs text-muted-foreground">
                             Reviewed {formatDateTime(submission.reviewedAt)} —{" "}
                             <span className="font-medium text-foreground">{STATUS_META[submission.status].label}</span>
@@ -255,7 +255,7 @@ export default function MarkingPane({
                 {pending && (
                     <div
                         className={cn(
-                            "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 text-sm",
+                            "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border px-3.5 py-2.5 text-sm",
                             colleagues ? "border-amber-500/40 bg-amber-500/5" : mine ? "border-primary/30 bg-primary/5" : "border-dashed border-border",
                         )}
                     >
@@ -312,7 +312,7 @@ export default function MarkingPane({
                                     <label
                                         key={option.value}
                                         className={cn(
-                                            "flex cursor-pointer flex-col gap-1 rounded-xl border p-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                            "flex cursor-pointer flex-col gap-1 rounded-card border p-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                             selected
                                                 ? option.value === "ACCEPTED"
                                                     ? "border-primary bg-primary/5"
@@ -355,10 +355,10 @@ export default function MarkingPane({
                     </fieldset>
 
                     {rubric.length > 0 && decision && (
-                        <fieldset className="overflow-hidden rounded-xl border border-border">
+                        <fieldset className="overflow-hidden rounded-card border border-border">
                             <legend className="sr-only">Rubric</legend>
                             <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-3.5 py-2 text-xs">
-                                <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+                                <span className="font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                     Rubric{decision === "ACCEPTED" ? <span className="text-destructive"> *</span> : <span className="font-normal normal-case tracking-normal"> · optional</span>}
                                 </span>
                                 <span className="font-semibold tabular-nums">
@@ -414,7 +414,7 @@ export default function MarkingPane({
                                             type="button"
                                             onClick={() => form.setValue("score", String(value))}
                                             className={cn(
-                                                "rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+                                                "rounded-sm border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
                                                 form.values.score === String(value)
                                                     ? "border-primary bg-primary/10 text-primary"
                                                     : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -485,12 +485,12 @@ function Work({ submission }: { submission: ReviewQueueItem }) {
 
     return (
         <section aria-label="Their work" className="space-y-3">
-            <h3 className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">Their work</h3>
+            <h3 className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Their work</h3>
             {nothing && <p className="text-sm text-muted-foreground">Nothing attached — just the hand-in.</p>}
 
             {url && (
-                <div className="flex items-center gap-3 rounded-xl border border-border p-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+                <div className="flex items-center gap-3 rounded-card border border-border p-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-muted-foreground">
                         {isGithub ? <Github className="size-5" aria-hidden /> : <Link2 className="size-5" aria-hidden />}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -520,11 +520,11 @@ function Work({ submission }: { submission: ReviewQueueItem }) {
             )}
 
             {submission.content && (
-                <blockquote className="whitespace-pre-line rounded-xl bg-secondary/40 px-4 py-3 text-sm leading-relaxed">{submission.content}</blockquote>
+                <blockquote className="whitespace-pre-line rounded-card bg-secondary/40 px-4 py-3 text-sm leading-relaxed">{submission.content}</blockquote>
             )}
 
             {submission.fileUrls.length > 0 && (
-                <ul className="divide-y divide-border rounded-xl border border-border">
+                <ul className="divide-y divide-border rounded-card border border-border">
                     {submission.fileUrls.map((file) => (
                         <li key={file}>
                             <a href={privateFileHref(file)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40">

@@ -33,7 +33,7 @@ export default function CouponCard({ coupon, onEdit, onToggle, onDelete }: Coupo
     const href = `/admin/coupons/${coupon.id}`;
 
     return (
-        <article className="@container h-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <article className="@container h-full overflow-hidden rounded-card border border-border bg-card shadow-card">
             <div className="flex h-full flex-col @md:flex-row">
                 <CouponStub coupon={coupon} className="@md:w-32 @max-md:py-4" />
 

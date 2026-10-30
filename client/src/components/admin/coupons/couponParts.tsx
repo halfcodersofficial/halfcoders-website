@@ -117,7 +117,7 @@ export function CouponStub({ coupon, className }: { coupon: Pick<AdminCoupon, "k
     return (
         <div className={cn("grid shrink-0 place-content-center bg-primary-950 px-4 py-5 text-center text-white", className)}>
             <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">{offFigure(coupon)}</p>
-            <p className="mt-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.2em] text-lilac-400">off</p>
+            <p className="mt-1.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-[0.2em] text-lilac-400">off</p>
             {coupon.kind === "PERCENT" && coupon.maxDiscount !== null && (
                 <p className="mt-1 text-[0.6875rem] text-white/70">up to {formatBDT(coupon.maxDiscount)}</p>
             )}

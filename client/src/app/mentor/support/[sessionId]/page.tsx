@@ -21,7 +21,7 @@ import { supportService } from "@/services";
 import type { QueueBoard } from "@/types/domain.types";
 
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
-const PANEL = "rounded-2xl border border-border bg-card shadow-sm";
+const PANEL = "rounded-card border border-border bg-card shadow-card";
 
 /** True while the person is typing — a key press there is text, not a shortcut. */
 const typing = (target: EventTarget | null) =>
@@ -114,10 +114,10 @@ export default function MentorQueueBoardPage() {
         return (
             <div className="container-page space-y-6 py-8">
                 <Skeleton className="h-16 w-80" />
-                <Skeleton className="h-20 rounded-2xl" />
+                <Skeleton className="h-20 rounded-card" />
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                    <Skeleton className="h-96 rounded-2xl" />
-                    <Skeleton className="h-96 rounded-2xl" />
+                    <Skeleton className="h-96 rounded-card" />
+                    <Skeleton className="h-96 rounded-card" />
                 </div>
             </div>
         );
@@ -206,7 +206,7 @@ function Header({ board, now, isConnected }: { board: QueueBoard; now: number; i
             <BackButton href="/mentor/support" label="All sessions" />
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="flex flex-wrap items-center gap-2 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                         {board.isLive ? (
                             <span className="inline-flex items-center gap-1.5 text-success">
                                 <span className="size-2 rounded-full bg-success motion-safe:animate-pulse" aria-hidden /> Live
@@ -298,7 +298,7 @@ function NowServing({
     const next = board.waiting[0];
     return (
         <section aria-labelledby="serving-title" className={cn(PANEL, RISE, serving && "border-primary/40")} style={{ animationDelay: "160ms" }}>
-            <h2 id="serving-title" className="border-b border-border px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:px-6">
+            <h2 id="serving-title" className="border-b border-border px-5 py-3 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground sm:px-6">
                 With you now
             </h2>
             <div className="space-y-5 p-5 sm:p-6">
@@ -320,8 +320,8 @@ function NowServing({
                             </div>
                         </div>
                         {serving.topic && (
-                            <blockquote className="rounded-xl bg-secondary/40 px-4 py-3 text-sm leading-relaxed">
-                                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">They need help with</span>
+                            <blockquote className="rounded-card bg-secondary/40 px-4 py-3 text-sm leading-relaxed">
+                                <span className="mb-1 block text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">They need help with</span>
                                 {serving.topic}
                             </blockquote>
                         )}
@@ -336,7 +336,7 @@ function NowServing({
                     </>
                 ) : (
                     <div className="py-6 text-center">
-                        <span className="mx-auto grid size-12 place-items-center rounded-full bg-secondary text-muted-foreground">
+                        <span className="mx-auto grid size-12 place-items-center rounded-md border border-border bg-surface text-muted-foreground">
                             <Hourglass className="size-5" aria-hidden />
                         </span>
                         <p className="mt-3 font-medium">{next ? "Ready when you are" : "Nobody's in line"}</p>
@@ -382,7 +382,7 @@ function Line({ board, now, skipping, onSkip }: { board: QueueBoard; now: number
     return (
         <section aria-labelledby="line-title" className={cn(PANEL, "overflow-hidden", RISE)} style={{ animationDelay: "200ms" }}>
             <h2 id="line-title" className="flex items-baseline justify-between border-b border-border px-5 py-3 sm:px-6">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">In line</span>
+                <span className="text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground">In line</span>
                 <span className="text-xs tabular-nums text-muted-foreground">{board.waitingCount}</span>
             </h2>
             {board.waiting.length === 0 ? (
@@ -400,7 +400,7 @@ function Line({ board, now, skipping, onSkip }: { board: QueueBoard; now: number
                                 <div className="min-w-0 flex-1">
                                     <p className="flex items-baseline gap-2">
                                         <span className="truncate text-sm font-medium">{entry.student.name}</span>
-                                        {index === 0 && <span className="shrink-0 text-[0.6875rem] font-semibold uppercase tracking-wider text-primary">Next</span>}
+                                        {index === 0 && <span className="shrink-0 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-primary">Next</span>}
                                     </p>
                                     <p className="text-xs text-muted-foreground">waiting {wait.text}</p>
                                     {entry.topic && <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-foreground/80">{entry.topic}</p>}

@@ -348,7 +348,7 @@ function MentorReview({ values, upload, onEdit, disabled }: MentorReviewProps) {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-lg bg-secondary/40 p-3">
+            <div className="flex items-center gap-3 rounded-md bg-secondary/40 p-3">
                 {photo ? (
                     // A blob: preview or a local SVG, so a plain <img> rather than the optimizer.
                     // eslint-disable-next-line @next/next/no-img-element

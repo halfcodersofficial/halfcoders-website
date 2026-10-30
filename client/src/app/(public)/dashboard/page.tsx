@@ -10,6 +10,7 @@ import {
     CheckCircle2,
     ClipboardCheck,
     Flame,
+    Gift,
     Headphones,
     Link2,
     ListTree,
@@ -102,9 +103,13 @@ function StudentDashboardView() {
         enrollments.find((e) => e.id === continueLearning?.id && e.streak) ??
         [...enrollments].sort((a, b) => (b.streak?.currentStreakDays ?? 0) - (a.streak?.currentStreakDays ?? 0))[0];
 
+    // Reward courses (given with a course they have) get their own section under the rest.
+    const ownCourses = enrollments.filter((enrollment) => !enrollment.rewardWith);
+    const rewardCourses = enrollments.filter((enrollment) => enrollment.rewardWith);
+
     const filteredEnrollments = courseFilter
-        ? enrollments.filter((enrollment) => enrollment.status === courseFilter)
-        : enrollments;
+        ? ownCourses.filter((enrollment) => enrollment.status === courseFilter)
+        : ownCourses;
 
     return (
         <div className="container-page space-y-8 py-8 sm:py-10">
@@ -140,49 +145,73 @@ function StudentDashboardView() {
                 </aside>
 
                 {enrollments.length > 0 && (
-                    <section className={cn(RISE, "delay-200 min-w-0 lg:col-start-1 lg:row-start-2")}>
-                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                            <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
-                                <span aria-hidden className="h-5 w-1 rounded-full bg-primary" />
-                                My courses
-                                <span className="text-base font-normal text-muted-foreground">({enrollments.length})</span>
-                            </h2>
+                    <div className={cn(RISE, "delay-200 min-w-0 space-y-12 lg:col-start-1 lg:row-start-2")}>
+                        {ownCourses.length > 0 && (
+                            <section>
+                                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                                    <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
+                                        <span aria-hidden className="h-5 w-1 rounded-full bg-primary" />
+                                        My courses
+                                        <span className="text-base font-normal text-muted-foreground">({ownCourses.length})</span>
+                                    </h2>
 
-                            <div role="group" aria-label="Filter courses" className="flex border-b border-border">
-                                {COURSE_FILTERS.map((filter) => {
-                                    const isActive = courseFilter === filter.value;
-                                    return (
-                                        <button
-                                            key={filter.value || "all"}
-                                            type="button"
-                                            aria-pressed={isActive}
-                                            onClick={() => setCourseFilter(filter.value)}
-                                            className={cn(
-                                                "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors",
-                                                isActive
-                                                    ? "border-primary text-foreground"
-                                                    : "border-transparent text-muted-foreground hover:text-foreground",
-                                            )}
-                                        >
-                                            {filter.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                                    <div role="group" aria-label="Filter courses" className="flex border-b border-border">
+                                        {COURSE_FILTERS.map((filter) => {
+                                            const isActive = courseFilter === filter.value;
+                                            return (
+                                                <button
+                                                    key={filter.value || "all"}
+                                                    type="button"
+                                                    aria-pressed={isActive}
+                                                    onClick={() => setCourseFilter(filter.value)}
+                                                    className={cn(
+                                                        "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors",
+                                                        isActive
+                                                            ? "border-primary text-foreground"
+                                                            : "border-transparent text-muted-foreground hover:text-foreground",
+                                                    )}
+                                                >
+                                                    {filter.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
 
-                        {filteredEnrollments.length === 0 ? (
-                            <p className="rounded-card border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-                                No {courseFilter.toLowerCase()} courses.
-                            </p>
-                        ) : (
-                            <div className="grid gap-5 sm:grid-cols-2">
-                                {filteredEnrollments.map((enrollment) => (
-                                    <CourseTile key={enrollment.id} enrollment={enrollment} />
-                                ))}
-                            </div>
+                                {filteredEnrollments.length === 0 ? (
+                                    <p className="rounded-card border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+                                        No {courseFilter.toLowerCase()} courses.
+                                    </p>
+                                ) : (
+                                    <div className="grid gap-5 sm:grid-cols-2">
+                                        {filteredEnrollments.map((enrollment) => (
+                                            <CourseTile key={enrollment.id} enrollment={enrollment} />
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
                         )}
-                    </section>
+
+                        {rewardCourses.length > 0 && (
+                            <section aria-labelledby="reward-courses-title">
+                                <div className="mb-5">
+                                    <h2 id="reward-courses-title" className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
+                                        <span aria-hidden className="h-5 w-1 rounded-full bg-syn-number" />
+                                        Reward courses
+                                        <span className="text-base font-normal text-muted-foreground">({rewardCourses.length})</span>
+                                    </h2>
+                                    <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
+                                        Extra courses that came free with yours. Learn them any time — your certificate comes from the main course.
+                                    </p>
+                                </div>
+                                <div className="grid gap-5 sm:grid-cols-2">
+                                    {rewardCourses.map((enrollment) => (
+                                        <CourseTile key={enrollment.id} enrollment={enrollment} />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                    </div>
                 )}
             </div>
         </div>
@@ -714,6 +743,14 @@ function CourseTile({ enrollment }: { enrollment: Enrollment }) {
                         {enrollment.course.title}
                     </Link>
                 </h3>
+                {enrollment.rewardWith && (
+                    <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs font-medium text-syn-number">
+                        <Gift className="size-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">
+                            Reward with <span className="text-foreground">{enrollment.rewardWith.title}</span>
+                        </span>
+                    </p>
+                )}
 
                 <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
                     <Button asChild size="sm" className="px-4">

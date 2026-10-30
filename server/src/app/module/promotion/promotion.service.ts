@@ -4,15 +4,25 @@ import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
 import { adminCourseSelect } from "../../utils/adminCourseSelect";
-import { isLive, rewardDeadline } from "../../utils/courseGrants";
+import {
+    announceGrants,
+    bonusSelect,
+    giveBonusCourse,
+    HAS_ACCESS,
+    isLive,
+    releaseBonusCourse,
+    rewardDeadline,
+    type GivenCourse,
+} from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { bundlesWithCourse } from "../bundle/bundle.service";
 
 /**
- * Per-course promotions: the free courses a purchase earns (offer) and the
- * courses finishing in time earns (reward). Admins set them up course by
- * course; the course page and checkout show them to students. Granting them
- * is `utils/courseGrants.ts`'s job.
+ * Per-course promotions: the free courses a purchase earns (offer), the
+ * courses finishing in time earns (reward), and the reward courses an admin
+ * gives with a course (bonus). Admins set them up course by course; the
+ * course page and checkout show offers and rewards to students. Granting
+ * them is `utils/courseGrants.ts`'s job.
  */
 
 const promoCourseSelect = {
@@ -53,6 +63,7 @@ const getPromotionCourses = async () => {
                 completionReward: {
                     select: { isActive: true, condition: true, deadlineAt: true, withinDays: true, _count: { select: { rewardCourses: true } } },
                 },
+                bonusCourses: { select: { forEveryone: true, _count: { select: { grants: { where: { revokedAt: null } } } } } },
             },
         }),
         prisma.courseGrant.findMany({
@@ -66,8 +77,15 @@ const getPromotionCourses = async () => {
             source === GrantSource.OFFER ? grant.offer?.courseId === courseId : grant.reward?.courseId === courseId,
         ).length;
 
-    return courses.map(({ offer, completionReward, ...course }) => ({
+    return courses.map(({ offer, completionReward, bonusCourses, ...course }) => ({
         course,
+        bonus: bonusCourses.length
+            ? {
+                  courseCount: bonusCourses.length,
+                  forEveryone: bonusCourses.filter((bonus) => bonus.forEveryone).length,
+                  given: bonusCourses.reduce((sum, bonus) => sum + bonus._count.grants, 0),
+              }
+            : null,
         offer: offer
             ? {
                   isActive: offer.isActive,
@@ -91,7 +109,7 @@ const getPromotionCourses = async () => {
     }));
 };
 
-/** One course's offer and reward in full, with the latest students each gave courses to. */
+/** One course's offer, reward and reward courses in full, with the latest students each gave courses to. */
 const getPromotionCourse = async (courseId: string) => {
     const course = await prisma.course.findFirst({
         where: { id: courseId, isDeleted: false },
@@ -99,6 +117,16 @@ const getPromotionCourse = async (courseId: string) => {
             ...adminCourseSelect,
             offer: { include: offerInclude },
             completionReward: { include: rewardInclude },
+            bonusCourses: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                    id: true,
+                    forEveryone: true,
+                    createdAt: true,
+                    course: { select: promoCourseSelect },
+                    _count: { select: { grants: { where: { revokedAt: null } } } },
+                },
+            },
         },
     });
     if (!course) throw new AppError(status.NOT_FOUND, "Course not found.");
@@ -107,10 +135,11 @@ const getPromotionCourse = async (courseId: string) => {
         id: true,
         createdAt: true,
         revokedAt: true,
+        bonusId: true,
         student: { select: { id: true, name: true, image: true } },
         course: { select: { id: true, title: true } },
     } as const;
-    const [offerGrants, rewardGrants] = await Promise.all([
+    const [offerGrants, rewardGrants, bonusGrants] = await Promise.all([
         course.offer
             ? prisma.courseGrant.findMany({ where: { offerId: course.offer.id }, orderBy: { createdAt: "desc" }, take: 50, select: grantSelect })
             : [],
@@ -122,10 +151,26 @@ const getPromotionCourse = async (courseId: string) => {
                   select: grantSelect,
               })
             : [],
+        course.bonusCourses.length
+            ? prisma.courseGrant.findMany({
+                  where: { bonus: { mainCourseId: courseId } },
+                  orderBy: { createdAt: "desc" },
+                  take: 50,
+                  select: grantSelect,
+              })
+            : [],
     ]);
 
-    const { offer, completionReward, ...summary } = course;
-    return { course: summary, offer, reward: completionReward, offerGrants, rewardGrants };
+    const { offer, completionReward, bonusCourses, ...summary } = course;
+    return {
+        course: summary,
+        offer,
+        reward: completionReward,
+        bonuses: bonusCourses.map(({ _count, ...bonus }) => ({ ...bonus, holders: _count.grants })),
+        offerGrants,
+        rewardGrants,
+        bonusGrants,
+    };
 };
 
 /** The courses given away must exist, and can't include the course itself. */
@@ -196,6 +241,153 @@ const saveReward = async (
 const deleteReward = async (courseId: string) => {
     const { count } = await prisma.completionReward.deleteMany({ where: { courseId } });
     if (count === 0) throw new AppError(status.NOT_FOUND, "This course has no reward.");
+};
+
+// ---------------------------------------------------------------------------
+// Reward courses — given alongside a main course, by hand
+// ---------------------------------------------------------------------------
+
+/** The students who have the main course now — all of them, or the ones named. */
+const holdersOf = async (mainCourseId: string, studentIds?: string[]) => {
+    const rows = await prisma.enrollment.findMany({
+        where: { courseId: mainCourseId, status: { in: HAS_ACCESS }, ...(studentIds ? { studentId: { in: studentIds } } : {}) },
+        select: { studentId: true },
+    });
+    return rows.map((row) => row.studentId);
+};
+
+/**
+ * Gives each student the reward courses — a transaction per student, so a
+ * whole class isn't one long lock — and tells each what they got. Counts the
+ * students it gave something to, and the ones who already had it all.
+ */
+const giveToStudents = async (bonuses: { id: string; course: Parameters<typeof giveBonusCourse>[2]["course"] }[], studentIds: string[], mainTitle: string) => {
+    let reached = 0;
+    for (const studentId of studentIds) {
+        const given = await prisma.$transaction(async (tx) => {
+            const opened: GivenCourse[] = [];
+            for (const bonus of bonuses) {
+                if (await giveBonusCourse(tx, studentId, bonus)) opened.push({ id: bonus.course.id, title: bonus.course.title, slug: bonus.course.slug });
+            }
+            return opened;
+        });
+        if (given.length) {
+            reached += 1;
+            await announceGrants(studentId, given, `They come with "${mainTitle}".`, "reward course");
+        }
+    }
+    return { students: reached, alreadyHad: studentIds.length - reached };
+};
+
+/**
+ * Gives reward courses with a main course: to the students named (one or a
+ * group — each must have the main course), or to everyone who has it, which
+ * also switches on "everyone" so whoever gets the main course later gets
+ * them too.
+ */
+const giveRewardCourses = async (
+    mainCourseId: string,
+    payload: { courseIds: string[]; audience: "STUDENTS" | "EVERYONE"; studentIds?: string[] },
+) => {
+    const main = await prisma.course.findFirst({ where: { id: mainCourseId, isDeleted: false }, select: { id: true, title: true } });
+    if (!main) throw new AppError(status.NOT_FOUND, "Course not found.");
+    await assertGivable(mainCourseId, payload.courseIds);
+
+    const unpublished = await prisma.course.findMany({
+        where: { id: { in: payload.courseIds }, status: { not: CourseStatus.PUBLISHED } },
+        select: { title: true },
+    });
+    if (unpublished.length) {
+        throw new AppError(status.BAD_REQUEST, `Publish "${unpublished[0].title}" first — only a published course can be given.`);
+    }
+
+    const everyone = payload.audience === "EVERYONE";
+    const named = everyone ? undefined : [...new Set(payload.studentIds ?? [])];
+    const students = await holdersOf(mainCourseId, named);
+    if (named) {
+        const missing = named.length - students.length;
+        if (missing > 0) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                named.length === 1 ? `That student doesn't have "${main.title}".` : `${missing} of those students don't have "${main.title}".`,
+            );
+        }
+    }
+
+    logger.create("Giving reward courses", { mainCourseId, courses: payload.courseIds, audience: payload.audience, students: students.length });
+    const bonuses = await prisma.$transaction(
+        payload.courseIds.map((courseId) =>
+            prisma.bonusCourse.upsert({
+                where: { mainCourseId_courseId: { mainCourseId, courseId } },
+                create: { mainCourseId, courseId, forEveryone: everyone },
+                // Giving to a few never switches "everyone" off.
+                update: everyone ? { forEveryone: true } : {},
+                select: bonusSelect,
+            }),
+        ),
+    );
+
+    return { ...(await giveToStudents(bonuses, students, main.title)), forEveryone: everyone };
+};
+
+const findBonus = async (bonusId: string) => {
+    const bonus = await prisma.bonusCourse.findUnique({
+        where: { id: bonusId },
+        select: { ...bonusSelect, mainCourseId: true, mainCourse: { select: { title: true } } },
+    });
+    if (!bonus) throw new AppError(status.NOT_FOUND, "That reward course isn't on this course any more.");
+    return bonus;
+};
+
+/** Switches "everyone who has the main course" on or off. On, everyone who has it now gets it straight away. */
+const setRewardForEveryone = async (bonusId: string, forEveryone: boolean) => {
+    const bonus = await findBonus(bonusId);
+    await prisma.bonusCourse.update({ where: { id: bonusId }, data: { forEveryone } });
+    logger.update("Reward course for everyone", { bonusId, forEveryone });
+    if (!forEveryone) return { students: 0, alreadyHad: 0, forEveryone };
+    return { ...(await giveToStudents([bonus], await holdersOf(bonus.mainCourseId), bonus.mainCourse.title)), forEveryone };
+};
+
+/**
+ * Takes a reward course back from one student: their enrolment is cancelled
+ * (progress kept) and the grant removed, so getting the main course again
+ * doesn't bring it back — unless it's on for everyone.
+ */
+const takeBackRewardCourse = async (bonusId: string, studentId: string) => {
+    const bonus = await findBonus(bonusId);
+    const grant = await prisma.courseGrant.findFirst({
+        where: { bonusId, studentId },
+        select: { id: true, enrollmentId: true, revokedAt: true },
+    });
+    if (!grant) throw new AppError(status.NOT_FOUND, "This student doesn't have that reward course.");
+
+    logger.update("Reward course taken back", { bonusId, studentId });
+    await prisma.$transaction(async (tx) => {
+        await tx.courseGrant.delete({ where: { id: grant.id } });
+        if (!grant.revokedAt) {
+            await releaseBonusCourse(tx, { studentId, courseId: bonus.course.id, enrollmentId: grant.enrollmentId, mainCourseId: bonus.mainCourseId });
+        }
+    });
+};
+
+/** Removes a reward course from its main course, taking it back from everyone who has it. */
+const removeRewardCourse = async (bonusId: string) => {
+    const bonus = await findBonus(bonusId);
+    const grants = await prisma.courseGrant.findMany({
+        where: { bonusId, revokedAt: null },
+        select: { studentId: true, enrollmentId: true },
+    });
+
+    logger.delete("Removing reward course", { bonusId, takingBackFrom: grants.length });
+    // One student at a time, then the entry (its grants go with it): stopped
+    // half-way, running it again finishes the job.
+    for (const grant of grants) {
+        await prisma.$transaction((tx) =>
+            releaseBonusCourse(tx, { ...grant, courseId: bonus.course.id, mainCourseId: bonus.mainCourseId }),
+        );
+    }
+    await prisma.bonusCourse.delete({ where: { id: bonusId } });
+    return { takenBack: grants.length };
 };
 
 // ---------------------------------------------------------------------------
@@ -282,5 +474,9 @@ export const PromotionService = {
     deleteOffer,
     saveReward,
     deleteReward,
+    giveRewardCourses,
+    setRewardForEveryone,
+    takeBackRewardCourse,
+    removeRewardCourse,
     getCoursePromotions,
 };

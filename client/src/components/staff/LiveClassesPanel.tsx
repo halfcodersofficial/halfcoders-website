@@ -91,8 +91,8 @@ export default function LiveClassesPanel({ courseId, topics }: { courseId: strin
     const past = classes.filter((entry) => endOf(entry) < now).reverse();
 
     return (
-        <section aria-labelledby="live-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <section aria-labelledby="live-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <div className="min-w-0">
                     <h2 id="live-title" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
                         <CalendarClock className="size-5 text-primary" aria-hidden /> Live classes
@@ -136,11 +136,11 @@ export default function LiveClassesPanel({ courseId, topics }: { courseId: strin
                                     <p className="flex flex-wrap items-center gap-2">
                                         <span className={cn("truncate font-medium", cancelled && "line-through")}>{liveClass.title}</span>
                                         {live && (
-                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                                            <span className="inline-flex items-center gap-1.5 rounded-sm bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                                                 <Radio className="size-3" aria-hidden /> On now
                                             </span>
                                         )}
-                                        {cancelled && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">Cancelled</span>}
+                                        {cancelled && <span className="rounded-sm bg-secondary px-2 py-0.5 text-xs font-medium">Cancelled</span>}
                                     </p>
                                     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                         <span className="tabular-nums">{when(liveClass.startsAt)}</span>
@@ -333,7 +333,7 @@ function ClassForm({
                                     aria-pressed={length === minutes}
                                     onClick={() => form.setValue("durationMinutes", minutes)}
                                     className={cn(
-                                        "rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums transition-colors",
+                                        "rounded-sm border px-3 py-1.5 text-xs font-medium tabular-nums transition-colors",
                                         length === minutes ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                                     )}
                                 >

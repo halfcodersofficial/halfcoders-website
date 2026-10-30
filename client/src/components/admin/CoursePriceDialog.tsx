@@ -128,7 +128,7 @@ function PriceForm({ course, onDone, onCancel }: { course: AdminCourse; onDone: 
                             </FormField>
                         </div>
                         {regular > 0 && (
-                            <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+                            <p className="rounded-md bg-secondary/60 px-3 py-2 text-sm">
                                 Students pay <span className="font-semibold tabular-nums">{formatBDT(pays)}</span>
                                 {off !== null && (
                                     <span className="text-muted-foreground">

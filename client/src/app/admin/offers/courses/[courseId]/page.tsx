@@ -101,7 +101,7 @@ function OfferForm({ detail }: { detail: PromotionCourseDetail }) {
         return (
             <div className="divide-y divide-border">
                 <div className="flex gap-3 px-5 py-6 sm:px-6">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-warning/10 text-warning-ink">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-warning/10 text-warning-ink">
                         <PauseCircle className="size-5" aria-hidden />
                     </span>
                     <div className="min-w-0">

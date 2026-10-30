@@ -13,9 +13,9 @@ import { supportService } from "@/services";
 import type { MentorSupportSession } from "@/types/mentor.types";
 import { clock, DAY_MS, dhakaDayKey, pad2, plural } from "./time";
 
-const STAGE = "relative isolate overflow-hidden rounded-3xl bg-slate-950 text-white shadow-panel ring-1 ring-white/5";
-const EYEBROW = "text-xs font-semibold uppercase tracking-[0.2em]";
-const LABEL = "text-[0.6875rem] font-semibold uppercase tracking-wider text-white/50";
+const STAGE = "editor relative isolate overflow-hidden rounded-panel border border-editor-line shadow-panel";
+const EYEBROW = "font-mono text-xs font-semibold uppercase tracking-wider";
+const LABEL = "text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-white/50";
 
 /**
  * The support desk, as the top of the dashboard: the session on air — who's
@@ -65,12 +65,11 @@ function OnAir({ session, alsoLive }: { session: MentorSupportSession; alsoLive:
 
     return (
         <section aria-labelledby="stage-title" className={STAGE}>
-            <span aria-hidden className="absolute -left-24 -top-28 -z-10 size-80 rounded-full bg-emerald-500/20 blur-3xl" />
-            <span aria-hidden className="absolute -bottom-32 right-0 -z-10 size-72 rounded-full bg-sky-500/10 blur-3xl" />
+            <span aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0 -z-10" />
 
             <div className="p-6 sm:p-8">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                    <p className={cn(EYEBROW, "inline-flex items-center gap-2 text-emerald-300")}>
+                    <p className={cn(EYEBROW, "inline-flex items-center gap-2 text-syn-string")}>
                         <span className="relative flex size-2.5" aria-hidden>
                             <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
                             <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
@@ -90,7 +89,7 @@ function OnAir({ session, alsoLive }: { session: MentorSupportSession; alsoLive:
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                     {/* The ticket being served. */}
-                    <div className="relative overflow-hidden rounded-2xl bg-white/6 p-5 ring-1 ring-white/10">
+                    <div className="relative overflow-hidden rounded-card bg-white/6 p-5 ring-1 ring-white/10">
                         <p className={LABEL}>Now serving</p>
                         {serving ? (
                             <>
@@ -111,7 +110,7 @@ function OnAir({ session, alsoLive }: { session: MentorSupportSession; alsoLive:
                     </div>
 
                     {/* The line behind them. */}
-                    <div className="rounded-2xl bg-white/6 p-5 ring-1 ring-white/10">
+                    <div className="rounded-card bg-white/6 p-5 ring-1 ring-white/10">
                         <p className={LABEL}>In line</p>
                         <p className="mt-1 text-5xl font-bold leading-none tracking-tight tabular-nums">{waitingCount}</p>
                         {waiting.length > 0 ? (
@@ -183,11 +182,10 @@ function NextSession({ session, later, now }: { session: MentorSupportSession; l
 
     return (
         <section aria-labelledby="stage-title" className={STAGE}>
-            <span aria-hidden className="absolute -right-24 -top-28 -z-10 size-80 rounded-full bg-sky-500/20 blur-3xl" />
-            <span aria-hidden className="absolute -bottom-36 -left-20 -z-10 size-72 rounded-full bg-indigo-500/15 blur-3xl" />
+            <span aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0 -z-10" />
 
             <div className="flex h-full flex-col p-6 sm:p-8">
-                <p className={cn(EYEBROW, "text-sky-300")}>Your next session · {when}</p>
+                <p className={cn(EYEBROW, "text-syn-func")}>Your next session · {when}</p>
 
                 <div className="mt-4 flex items-start gap-5">
                     <DayLeaf date={start} isToday={isToday} tone="dark" />
@@ -251,9 +249,9 @@ function NextSession({ session, later, now }: { session: MentorSupportSession; l
 function NothingScheduled() {
     return (
         <section aria-labelledby="stage-title" className={STAGE}>
-            <span aria-hidden className="absolute -right-28 -top-32 -z-10 size-80 rounded-full bg-sky-500/15 blur-3xl" />
+            <span aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0 -z-10" />
             <div className="flex h-full flex-col p-6 sm:p-8">
-                <p className={cn(EYEBROW, "text-sky-300")}>Support</p>
+                <p className={cn(EYEBROW, "text-syn-func")}>Support</p>
                 <h2 id="stage-title" className="mt-3 text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
                     No sessions scheduled
                 </h2>
@@ -286,7 +284,7 @@ function MissingLink({ sessionId, live = false }: { sessionId: string; live?: bo
     return (
         <Link
             href={`/mentor/support?edit=${sessionId}`}
-            className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-1.5 text-xs font-medium text-amber-200 ring-1 ring-amber-300/30 transition-colors hover:bg-amber-400/25"
+            className="inline-flex items-center gap-1.5 rounded-sm bg-amber-400/15 px-3 py-1.5 text-xs font-medium text-amber-200 ring-1 ring-amber-300/30 transition-colors hover:bg-amber-400/25"
         >
             <Link2Off className="size-3.5" aria-hidden />
             {live ? "No Meet link — students can't join" : "No Meet link yet"} · Add one

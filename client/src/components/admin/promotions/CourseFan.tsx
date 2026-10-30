@@ -20,7 +20,7 @@ export default function CourseFan({
             {shown.map((course, index) => (
                 <span
                     key={course.id}
-                    className="relative -ml-6 aspect-video w-19 shrink-0 overflow-hidden rounded-lg bg-secondary shadow-sm ring-2 ring-card first:ml-0"
+                    className="relative -ml-6 aspect-video w-19 shrink-0 overflow-hidden rounded-md bg-secondary shadow-card ring-2 ring-card first:ml-0"
                     style={{ zIndex: shown.length - index }}
                 >
                     <SafeImage
@@ -34,7 +34,7 @@ export default function CourseFan({
                 </span>
             ))}
             {more > 0 && (
-                <span className="-ml-6 grid aspect-video w-19 shrink-0 place-items-center rounded-lg bg-primary-950 pl-4 text-xs font-semibold text-white ring-2 ring-card">
+                <span className="-ml-6 grid aspect-video w-19 shrink-0 place-items-center rounded-md bg-primary-950 pl-4 text-xs font-semibold text-white ring-2 ring-card">
                     +{more}
                 </span>
             )}

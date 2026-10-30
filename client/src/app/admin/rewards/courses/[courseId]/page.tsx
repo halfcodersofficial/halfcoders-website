@@ -145,7 +145,7 @@ function RewardForm({ detail }: { detail: PromotionCourseDetail }) {
                         <DateTimeInput />
                     </FormField>
                 </div>
-                <p className="flex items-start gap-2 rounded-lg border border-border bg-surface/70 px-3 py-2.5 text-sm">
+                <p className="flex items-start gap-2 rounded-md border border-border bg-surface/70 px-3 py-2.5 text-sm">
                     <CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
                     <span>
                         <span className="font-medium">{deadlineText({ withinDays: days, deadlineAt: date })}</span>

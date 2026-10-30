@@ -55,7 +55,7 @@ export default function AdminLeaderboardCoursePage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/leaderboard" label="All courses" />
-                <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border bg-card px-6 py-16 text-center">
                     <p className="font-medium">This course couldn&apos;t be found.</p>
                     <p className="mt-1 text-sm text-muted-foreground">It may have been removed. Go back to pick another course.</p>
                 </div>
@@ -68,14 +68,14 @@ export default function AdminLeaderboardCoursePage() {
             header={
                 <div className="space-y-4">
                     <BackButton href="/admin/leaderboard" label="All courses" />
-                    {summary ? <CourseHeader summary={summary} /> : <Skeleton className="h-72 rounded-2xl" />}
+                    {summary ? <CourseHeader summary={summary} /> : <Skeleton className="h-72 rounded-card" />}
                 </div>
             }
             isLoading={isLoading}
             skeleton={
                 <div className="space-y-2">
                     {Array.from({ length: 6 }).map((_, index) => (
-                        <Skeleton key={index} className="h-16 rounded-xl" />
+                        <Skeleton key={index} className="h-16 rounded-card" />
                     ))}
                 </div>
             }
@@ -94,7 +94,7 @@ export default function AdminLeaderboardCoursePage() {
                             <Link
                                 href={`/admin/students/${row.student.id}`}
                                 className={cn(
-                                    "group flex items-center gap-4 rounded-xl border bg-card p-3 pr-4 shadow-sm transition-colors hover:border-primary/30 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                    "group flex items-center gap-4 rounded-card border bg-card p-3 pr-4 shadow-card transition-colors hover:border-primary/30 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                     row.rank <= 3 ? "border-border bg-linear-to-r from-[#d9a441]/6 to-transparent" : "border-border",
                                 )}
                             >
@@ -157,7 +157,7 @@ function Podium({ top }: { top: AdminLeaderboardCourse["top"] }) {
     const step = { 1: "h-24", 2: "h-16", 3: "h-12" } as Record<number, string>;
 
     return (
-        <section aria-label="Top three" className="rounded-2xl border border-border bg-card px-4 pb-0 pt-6 shadow-sm sm:px-8">
+        <section aria-label="Top three" className="rounded-card border border-border bg-card px-4 pb-0 pt-6 shadow-card sm:px-8">
             <ol className="mx-auto grid max-w-xl grid-cols-3 items-end gap-3 sm:gap-5">
                 {order.map((rank) => {
                     const row = byRank.get(rank);
@@ -167,7 +167,7 @@ function Podium({ top }: { top: AdminLeaderboardCourse["top"] }) {
                             {row ? (
                                 <Link
                                     href={`/admin/students/${row.student.id}`}
-                                    className="group flex min-w-0 max-w-full flex-col items-center rounded-lg px-1 pb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="group flex min-w-0 max-w-full flex-col items-center rounded-md px-1 pb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 >
                                     {rank === 1 && <Crown className={cn("mb-1 size-6", medal.text)} aria-hidden />}
                                     <span className={cn("rounded-full ring-4", medal.ring)}>
@@ -185,7 +185,7 @@ function Podium({ top }: { top: AdminLeaderboardCourse["top"] }) {
                             )}
                             <span
                                 className={cn(
-                                    "grid w-full place-items-center rounded-t-xl border-t-4 bg-secondary/60 text-2xl font-bold tabular-nums",
+                                    "grid w-full place-items-center rounded-t-card border-t-4 bg-secondary/60 text-2xl font-bold tabular-nums",
                                     step[rank],
                                     rank === 1 ? "border-[#d9a441]" : rank === 2 ? "border-[#9ca3af]" : "border-[#b45309]",
                                     medal.text,

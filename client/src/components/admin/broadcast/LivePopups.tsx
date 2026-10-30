@@ -64,7 +64,7 @@ export default function LivePopups() {
                 <h2 id="live-popups-title" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
                     Pop-ups out there
                     {showing > 0 && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
+                        <span className="rounded-sm bg-primary/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
                             {showing} showing
                         </span>
                     )}
@@ -77,15 +77,15 @@ export default function LivePopups() {
             {isLoading ? (
                 <div className="space-y-2">
                     {Array.from({ length: 2 }).map((_, index) => (
-                        <Skeleton key={index} className="h-24 rounded-xl" />
+                        <Skeleton key={index} className="h-24 rounded-card" />
                     ))}
                 </div>
             ) : isError ? (
-                <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+                <p className="rounded-card border border-border bg-card p-6 text-center text-sm text-muted-foreground">
                     Couldn&apos;t load the pop-ups. Reload to try again.
                 </p>
             ) : !data || data.length === 0 ? (
-                <div className="flex flex-col items-center rounded-xl border border-dashed border-border px-6 py-10 text-center">
+                <div className="flex flex-col items-center rounded-card border border-dashed border-border px-6 py-10 text-center">
                     <MonitorPlay className="mb-3 size-6 text-muted-foreground" aria-hidden />
                     <p className="text-sm font-medium">Nothing is popping up right now.</p>
                     <p className="mt-1 max-w-sm text-sm text-muted-foreground">
@@ -93,7 +93,7 @@ export default function LivePopups() {
                     </p>
                 </div>
             ) : (
-                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card">
                     {data.map((popup) => {
                         const seen = popup.recipients - popup.pending;
                         const busy = stop.isPending && stop.variables?.id === popup.id;
@@ -110,7 +110,7 @@ export default function LivePopups() {
                                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                         <span
                                             className={cn(
-                                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium",
+                                                "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 font-medium",
                                                 popup.repeatOnLogin ? "bg-primary/10 text-primary" : "bg-secondary text-secondary-foreground",
                                             )}
                                         >

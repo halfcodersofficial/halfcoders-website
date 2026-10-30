@@ -112,7 +112,7 @@ export default function TestimonialRow({
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Watch ${testimonial.name}'s video on YouTube`}
-                        className="group relative hidden aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-black lg:block"
+                        className="group relative hidden aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-black lg:block"
                     >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img

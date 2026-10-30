@@ -337,7 +337,14 @@ export const lessonService = {
 export const progressService = {
     completeVideo: (videoId: string) =>
         httpClient
-            .post<ApiResponse<{ courseProgress: number; courseCompleted: boolean }>>(
+            .post<
+                ApiResponse<{
+                    courseProgress: number;
+                    courseCompleted: boolean;
+                    /** Set when that finished a reward course: the main course it came with (no certificate of its own). */
+                    rewardWith?: { id: string; title: string; slug: string } | null;
+                }>
+            >(
                 `/progress/videos/${videoId}/complete`,
             )
             .then(unwrap),

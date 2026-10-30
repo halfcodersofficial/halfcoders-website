@@ -13,6 +13,7 @@ import DataShell from "@/components/admin/DataShell";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { formatBDT } from "@/lib/utils";
@@ -92,7 +93,8 @@ export default function AdminBundlesPage() {
                     <div className="space-y-5">
                         <header className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 max-w-3xl">
-                                <h1 className="text-2xl font-bold sm:text-3xl">Bundles</h1>
+                                <ConsoleEyebrow />
+                                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Bundles</h1>
                                 <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                                     Courses sold together for less, in one checkout. Each becomes a paid order per course, so Payments still shows every
                                     course&apos;s share.
@@ -100,7 +102,7 @@ export default function AdminBundlesPage() {
                             </div>
                             <div className="shrink-0">{newButton}</div>
                         </header>
-                        {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={cells} />}
+                        {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={cells} />}
                     </div>
                 }
                 searchPlaceholder="Search bundles or courses…"
@@ -117,7 +119,7 @@ export default function AdminBundlesPage() {
                     <div className="@container">
                         <div className={BUNDLE_GRID}>
                             {Array.from({ length: 2 }).map((_, index) => (
-                                <Skeleton key={index} className="h-96 rounded-2xl" />
+                                <Skeleton key={index} className="h-96 rounded-card" />
                             ))}
                         </div>
                     </div>

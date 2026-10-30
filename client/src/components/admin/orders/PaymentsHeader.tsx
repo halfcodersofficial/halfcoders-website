@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { adminService } from "@/services/admin";
 import type { AdminOrderCourse } from "@/types/admin.types";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 
 const TABS: { href: string; label: string; icon: LucideIcon; count?: (courses: AdminOrderCourse[]) => number }[] = [
     { href: "/admin/orders", label: "By course", icon: LayoutGrid },
@@ -42,7 +43,8 @@ export default function PaymentsHeader({ description, actions }: { description: 
         <div className="border-b border-border">
             <header className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Payments</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Payments</h1>
                     <p className="mt-1 text-sm text-muted-foreground sm:text-base">{description}</p>
                 </div>
                 {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

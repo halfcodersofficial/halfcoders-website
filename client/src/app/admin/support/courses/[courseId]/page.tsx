@@ -148,7 +148,7 @@ export default function AdminSupportCoursePage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/support" label="All courses" />
-                <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border bg-card px-6 py-16 text-center">
                     <p className="font-medium">This course couldn&apos;t be found.</p>
                     <p className="mt-1 text-sm text-muted-foreground">It may have been removed. Go back to pick another course.</p>
                 </div>
@@ -167,7 +167,7 @@ export default function AdminSupportCoursePage() {
                         {summary ? (
                             <CourseHeader summary={summary} nextUpcomingAt={nextUpcoming?.startTime ?? null} action={scheduleButton} />
                         ) : (
-                            <Skeleton className="h-72 rounded-2xl" />
+                            <Skeleton className="h-72 rounded-card" />
                         )}
                     </div>
                 }
@@ -185,7 +185,7 @@ export default function AdminSupportCoursePage() {
                 skeleton={
                     <div className="space-y-2">
                         {Array.from({ length: 4 }).map((_, index) => (
-                            <Skeleton key={index} className="h-20 rounded-xl" />
+                            <Skeleton key={index} className="h-20 rounded-card" />
                         ))}
                     </div>
                 }
@@ -303,20 +303,20 @@ function SessionRow({ session, phase, courseId }: { session: AdminSupportSession
     return (
         <div
             className={cn(
-                "flex flex-wrap items-center gap-4 rounded-xl border bg-card p-3 pr-4 shadow-sm",
+                "flex flex-wrap items-center gap-4 rounded-card border bg-card p-3 pr-4 shadow-card",
                 phase === "live" ? "border-success/40 bg-success/5" : "border-border",
                 phase === "cancelled" && "opacity-70",
             )}
         >
             <div
                 className={cn(
-                    "grid w-14 shrink-0 overflow-hidden rounded-lg border text-center",
+                    "grid w-14 shrink-0 overflow-hidden rounded-md border text-center",
                     phase === "live" ? "border-success/40" : "border-border",
                 )}
             >
                 <span
                     className={cn(
-                        "py-0.5 text-[0.625rem] font-semibold uppercase tracking-wider",
+                        "py-0.5 text-[0.625rem] font-semibold font-mono uppercase tracking-wider",
                         phase === "live" ? "bg-success text-success-foreground" : ahead ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
                     )}
                 >

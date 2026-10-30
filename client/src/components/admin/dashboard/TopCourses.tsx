@@ -10,13 +10,15 @@ const TYPE_LABEL = { BOOTCAMP: "Bootcamp", TRADITIONAL: "Traditional" } as const
  * Published courses with the most students who still have access — how many,
  * how many finished, and what each has actually earned (settled orders, not
  * the list price). Each opens the course.
+ *
+ * The table's columns follow the card's own width (a container query), not
+ * the screen's: beside the activity feed on a 1280px screen the card is
+ * narrower than a phone in landscape, and the columns would crush the title.
  */
 export default function TopCourses({ courses }: { courses: AdminDashboard["topCourses"] }) {
-    const most = Math.max(1, ...courses.map((entry) => entry.enrolled));
-
     return (
-        <section aria-labelledby="courses-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <section aria-labelledby="courses-title" className="@container overflow-hidden rounded-card border border-border bg-card shadow-card">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <h2 id="courses-title" className="text-lg font-semibold tracking-tight">
                     Courses
                 </h2>
@@ -30,7 +32,7 @@ export default function TopCourses({ courses }: { courses: AdminDashboard["topCo
             ) : (
                 <>
                     <div
-                        className="hidden grid-cols-[minmax(0,1fr)_6rem_7rem_7rem_1rem] gap-4 border-b border-border px-6 py-2 text-xs font-medium text-muted-foreground md:grid"
+                        className="hidden grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_6rem_1rem] gap-4 border-b border-border px-6 py-2 text-xs font-medium text-muted-foreground @2xl:grid"
                         aria-hidden
                     >
                         <span>Course</span>
@@ -42,14 +44,15 @@ export default function TopCourses({ courses }: { courses: AdminDashboard["topCo
                     <ul className="divide-y divide-border">
                         {courses.map(({ course, enrolled, completed, revenue }) => {
                             const rate = enrolled > 0 ? Math.round((completed / enrolled) * 100) : 0;
+                            // "0 of 3" says it plainly; the rate only once someone has finished.
                             return (
                                 <li key={course.id}>
                                     <Link
                                         href={`/admin/courses/${course.id}`}
-                                        className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-secondary/40 sm:px-6 md:grid-cols-[minmax(0,1fr)_6rem_7rem_7rem_1rem]"
+                                        className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-secondary/40 sm:px-6 @2xl:grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_6rem_1rem]"
                                     >
                                         <span className="flex min-w-0 items-center gap-3">
-                                            <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-secondary">
+                                            <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-secondary">
                                                 <SafeImage
                                                     src={course.thumbnail}
                                                     alt=""
@@ -60,42 +63,39 @@ export default function TopCourses({ courses }: { courses: AdminDashboard["topCo
                                                 />
                                             </span>
                                             <span className="min-w-0">
-                                                <span className="block truncate text-sm font-semibold">{course.title}</span>
-                                                <span className="block text-xs text-muted-foreground">
-                                                    {TYPE_LABEL[course.courseType]} · {formatBDT(course.discountPrice ?? course.price)}
+                                                {/* Two lines before it's cut — long course names stay readable. */}
+                                                <span className="line-clamp-2 text-sm font-semibold leading-snug" title={course.title}>
+                                                    {course.title}
                                                 </span>
-                                                {/* How it compares with the busiest course here. */}
-                                                <span className="mt-1.5 block h-1 w-full max-w-40 overflow-hidden rounded-full bg-secondary" aria-hidden>
-                                                    <span
-                                                        className="block h-full rounded-full bg-primary/70"
-                                                        style={{ width: `${(enrolled / most) * 100}%` }}
-                                                    />
+                                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                                    {TYPE_LABEL[course.courseType]} · {formatBDT(course.discountPrice ?? course.price)}
                                                 </span>
                                             </span>
                                         </span>
 
-                                        <span className="text-right text-sm md:contents">
-                                            <span className="block font-semibold tabular-nums md:text-right">
+                                        <span className="text-right text-sm @2xl:contents">
+                                            <span className="block font-semibold tabular-nums @2xl:text-right">
                                                 {enrolled}
-                                                <span className="font-normal text-muted-foreground md:hidden"> enrolled</span>
+                                                <span className="font-normal text-muted-foreground @2xl:hidden"> enrolled</span>
                                             </span>
-                                            <span className="block text-xs tabular-nums text-muted-foreground md:text-right md:text-sm md:text-foreground">
+                                            <span className="block text-xs tabular-nums text-muted-foreground @2xl:text-right @2xl:text-sm @2xl:text-foreground">
                                                 {enrolled > 0 ? (
                                                     <>
-                                                        {completed}
-                                                        <span className="md:hidden"> finished</span>
-                                                        <span className="text-muted-foreground"> · {rate}%</span>
+                                                        {completed} of {enrolled}
+                                                        <span className="@2xl:hidden"> finished</span>
+                                                        {completed > 0 && <span className="text-muted-foreground"> · {rate}%</span>}
                                                     </>
                                                 ) : (
-                                                    <span className="text-muted-foreground">—</span>
+                                                    // Only the table needs a placeholder; the stacked list just skips the line.
+                                                    <span className="text-muted-foreground @max-2xl:hidden">—</span>
                                                 )}
                                             </span>
-                                            <span className="block text-xs font-medium tabular-nums md:text-right md:text-sm">
+                                            <span className="block text-xs font-medium tabular-nums @2xl:text-right @2xl:text-sm">
                                                 {formatBDT(revenue)}
                                             </span>
                                         </span>
                                         <ChevronRight
-                                            className="hidden size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 md:block"
+                                            className="hidden size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 @2xl:block"
                                             aria-hidden
                                         />
                                     </Link>

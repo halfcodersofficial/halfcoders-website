@@ -97,7 +97,7 @@ function PaymentsOverview() {
                             </>
                         }
                     />
-                    {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={totals(all, () => setFilter("PENDING"))} />}
+                    {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={totals(all, () => setFilter("PENDING"))} />}
                 </div>
             }
             searchPlaceholder="Search courses…"
@@ -115,14 +115,14 @@ function PaymentsOverview() {
                     <div className="@container">
                         <div className={COURSE_GRID}>
                             {Array.from({ length: 5 }).map((_, index) => (
-                                <Skeleton key={index} className="h-80 rounded-xl" />
+                                <Skeleton key={index} className="h-80 rounded-card" />
                             ))}
                         </div>
                     </div>
                 ) : (
                     <div className="space-y-2">
                         {Array.from({ length: 6 }).map((_, index) => (
-                            <Skeleton key={index} className="h-20 rounded-xl" />
+                            <Skeleton key={index} className="h-20 rounded-card" />
                         ))}
                     </div>
                 )

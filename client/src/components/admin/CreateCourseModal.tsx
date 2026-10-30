@@ -556,9 +556,9 @@ function CreateCourseWizard({ onClose }: { onClose: () => void }) {
                                     </Label>
 
                                     {pdfFile ? (
-                                        <div className="space-y-2 rounded-xl border border-border p-3">
+                                        <div className="space-y-2 rounded-card border border-border p-3">
                                             <div className="flex items-center gap-3">
-                                                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                                                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                                     <FileText className="size-4" />
                                                 </span>
                                                 <div className="min-w-0 flex-1">
@@ -595,7 +595,7 @@ function CreateCourseWizard({ onClose }: { onClose: () => void }) {
                                                 }
                                             }}
                                             className={cn(
-                                                "grid min-h-36 cursor-pointer place-content-center rounded-xl border-[1.5px] border-dashed p-5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                                "grid min-h-36 cursor-pointer place-content-center rounded-card border-[1.5px] border-dashed p-5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                                 dragActive
                                                     ? "border-primary bg-primary/5"
                                                     : "border-border-strong hover:border-primary/50 hover:bg-surface",
@@ -636,7 +636,7 @@ function CreateCourseWizard({ onClose }: { onClose: () => void }) {
                                     </Label>
 
                                     {thumbnail ? (
-                                        <div className="overflow-hidden rounded-xl border border-border">
+                                        <div className="overflow-hidden rounded-card border border-border">
                                             {/* A local blob: URL, so a plain <img> rather than the optimizer. */}
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img
@@ -685,7 +685,7 @@ function CreateCourseWizard({ onClose }: { onClose: () => void }) {
                                                 }
                                             }}
                                             className={cn(
-                                                "grid min-h-36 cursor-pointer place-content-center rounded-xl border-[1.5px] border-dashed p-5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                                "grid min-h-36 cursor-pointer place-content-center rounded-card border-[1.5px] border-dashed p-5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                                 thumbnailDrop.dragActive
                                                     ? "border-primary bg-primary/5"
                                                     : "border-border-strong hover:border-primary/50 hover:bg-surface",
@@ -792,12 +792,12 @@ function CourseReview({ values, categoryName, pdfFile, thumbnailPreview, onEdit,
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface/70 p-3 @md:flex-row @md:items-center">
+            <div className="flex flex-col gap-4 rounded-card border border-border bg-surface/70 p-3 @md:flex-row @md:items-center">
                 {thumbnailPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumbnailPreview} alt="" className="aspect-video w-full shrink-0 rounded-lg border border-border object-cover @md:w-44" />
+                    <img src={thumbnailPreview} alt="" className="aspect-video w-full shrink-0 rounded-md border border-border object-cover @md:w-44" />
                 ) : (
-                    <span className="grid aspect-video w-full shrink-0 place-items-center rounded-lg bg-primary/10 text-primary @md:w-44">
+                    <span className="grid aspect-video w-full shrink-0 place-items-center rounded-md bg-primary/10 text-primary @md:w-44">
                         <BookOpen className="size-6" />
                     </span>
                 )}

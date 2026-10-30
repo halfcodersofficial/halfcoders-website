@@ -604,8 +604,9 @@ function CourseEditor() {
         // From `xl` the editor fills the window below the page header: the form
         // and its preview are two equal panes, each scrolling on its own, so
         // neither outgrows the other and Save never scrolls away. `main` is
-        // padded 2rem top and bottom at that width, hence the 4rem.
-        <div className="max-w-[1700px] space-y-5 xl:flex xl:h-[calc(100dvh-4rem)] xl:flex-col">
+        // padded 2rem top and bottom at that width, hence the 4rem, and sits
+        // between the console's title and status bars (`--console-chrome`).
+        <div className="max-w-[1700px] space-y-5 xl:flex xl:h-[calc(100dvh-4rem-var(--console-chrome,0px))] xl:flex-col">
             <header className="flex flex-wrap items-start gap-x-3 gap-y-4">
                 <div className="basis-full">
                     <BackButton href="/admin/courses" label="সব কোর্স" />
@@ -707,7 +708,7 @@ function CourseEditor() {
                 stacks underneath. */}
             <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-2 xl:grid-rows-1 xl:items-stretch">
                 <div ref={editorRef} className="min-w-0 scroll-mt-4 xl:min-h-0">
-                    <Card className="flex flex-col rounded-xl shadow-sm xl:h-full">
+                    <Card className="flex flex-col rounded-card shadow-card xl:h-full">
                         <div className="border-b border-border px-4 pb-4 pt-5 sm:px-6">
                             <EditorSteps
                                 label="কোর্স এডিটরের ধাপ"
@@ -748,11 +749,11 @@ function CourseEditor() {
                                 {page.id === "mentors" ? (
                                     <div className="space-y-5">
                                         {course.mentors.length === 0 ? (
-                                            <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                                            <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                                                 এখনো কোনো মেন্টর যুক্ত করা হয়নি। শিক্ষার্থীরা এই কোর্সে কোনো ইন্সট্রাক্টর দেখতে পাবে না।
                                             </p>
                                         ) : (
-                                            <ul className="divide-y divide-border rounded-lg border border-border">
+                                            <ul className="divide-y divide-border rounded-md border border-border">
                                                 {course.mentors.map(({ mentor, role }) => (
                                                     <li key={mentor.id} className="flex items-center gap-3 px-3 py-3">
                                                         <Avatar src={mentor.image} name={mentor.name} size={36} />
@@ -999,7 +1000,7 @@ function CourseEditor() {
 
                                                 {/* A previous course's run is over: no batch, so enrolment simply stays open while it's published. */}
                                                 {form.values.courseType === "BOOTCAMP" && form.values.phase === "PREVIOUS" && (
-                                                    <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                                                    <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
                                                         আগের কোর্সের কোনো ব্যাচ থাকে না, তাই এখানে ব্যাচের তারিখ নেই — সংরক্ষণ করলে আগের তারিখগুলো মুছে যায়। প্রকাশিত থাকলে যে কেউ যেকোনো সময় রেকর্ডেড কোর্স হিসেবে ভর্তি হতে পারবে।
                                                     </p>
                                                 )}
@@ -1090,7 +1091,7 @@ function CourseEditor() {
                                                                 </p>
                                                             </div>
 
-                                                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3">
+                                                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
                                                                 <div className="min-w-0 flex-1 text-sm">
                                                                     <p className="font-medium">
                                                                         {isPublished ? "প্রকাশিত" : "প্রকাশিত নয়"}
@@ -1144,7 +1145,7 @@ function CourseEditor() {
                         {/* Outside the sliding page so it stays put: pinned to the
                             pane's foot beside the preview, and sticky when the
                             panes stack, so Save is in reach from anywhere. */}
-                        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
+                        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-card border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:px-6">
                             <p className="text-xs text-muted-foreground">
                                 {form.isDirty ? "সংরক্ষণ না করা পরিবর্তন আছে।" : "সব সংরক্ষিত।"}
                             </p>

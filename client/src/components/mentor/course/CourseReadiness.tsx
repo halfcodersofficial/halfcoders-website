@@ -59,7 +59,7 @@ export function CourseReadiness({
     const done = items.filter((item) => item.done).length;
 
     return (
-        <section aria-labelledby="readiness-title" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <section aria-labelledby="readiness-title" className="rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 id="readiness-title" className="text-base font-semibold tracking-tight">
                     Is the page ready to sell?

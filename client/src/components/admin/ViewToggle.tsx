@@ -17,7 +17,7 @@ const VIEWS = [
  */
 export default function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (view: ViewMode) => void }) {
     return (
-        <div role="group" aria-label="Layout" className="flex items-center gap-0.5 rounded-lg bg-secondary/60 p-1">
+        <div role="group" aria-label="Layout" className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5">
             {VIEWS.map(({ value: view, label, icon: Icon }) => (
                 <button
                     key={view}
@@ -27,10 +27,10 @@ export default function ViewToggle({ value, onChange }: { value: ViewMode; onCha
                     title={label}
                     onClick={() => onChange(view)}
                     className={cn(
-                        "grid size-8 place-items-center rounded-md transition-colors",
+                        "grid size-8 place-items-center rounded-sm transition-colors",
                         value === view
-                            ? "bg-card text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground",
+                            ? "bg-primary/10 text-primary-ink"
+                            : "text-muted-foreground hover:bg-surface hover:text-foreground",
                     )}
                 >
                     <Icon className="size-4" />

@@ -42,7 +42,7 @@ export default function BundleCard({ bundle, onEdit, onOrders, onToggle, onDelet
     const percent = savingPercent(bundle.combined, bundle.bundlePrice);
 
     return (
-        <article className="@container flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <article className="@container flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border bg-surface/70 px-5 py-4">
                 {/* Five covers where there's room for them, three on a narrow card. */}
                 <CourseFan courses={courses} className="@max-md:hidden" />
@@ -103,7 +103,7 @@ export default function BundleCard({ bundle, onEdit, onOrders, onToggle, onDelet
                     {priced ? (
                         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
                             <div>
-                                <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                                <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                     {bundle.pricing === "PERCENT" ? `${bundle.discountPercent}% off the total` : "Fixed price"}
                                 </p>
                                 <p className="mt-0.5 flex items-baseline gap-2">
@@ -112,15 +112,15 @@ export default function BundleCard({ bundle, onEdit, onOrders, onToggle, onDelet
                                 </p>
                             </div>
                             {saving > 0 ? (
-                                <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success-ink">
+                                <span className="rounded-sm bg-success/10 px-2.5 py-1 text-xs font-semibold text-success-ink">
                                     Saves {formatBDT(saving)} · {percent}%
                                 </span>
                             ) : (
-                                <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive-ink">No saving</span>
+                                <span className="rounded-sm bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive-ink">No saving</span>
                             )}
                         </div>
                     ) : (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-warning/60 bg-warning/5 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-warning/60 bg-warning/5 px-4 py-3">
                             <p className="text-sm">
                                 <span className="font-semibold">Not priced yet.</span>{" "}
                                 <span className="text-muted-foreground">One by one it&apos;s {formatBDT(bundle.combined)}.</span>

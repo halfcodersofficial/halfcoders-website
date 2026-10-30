@@ -137,7 +137,7 @@ export default function BundleForm({ bundle, onDone, onCancel }: { bundle: Admin
                                     : "What the whole bundle costs, whatever the courses cost alone."
                             }
                             labelAction={
-                                <div role="radiogroup" aria-label="Priced as" className="flex rounded-lg bg-secondary p-0.5">
+                                <div role="radiogroup" aria-label="Priced as" className="flex rounded-md bg-secondary p-0.5">
                                     {PRICINGS.map((option) => (
                                         <button
                                             key={option.value}
@@ -152,7 +152,7 @@ export default function BundleForm({ bundle, onDone, onCancel }: { bundle: Admin
                                             }}
                                             className={cn(
                                                 "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                                pricing === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                                pricing === option.value ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                                             )}
                                         >
                                             {option.label}
@@ -196,12 +196,12 @@ export default function BundleForm({ bundle, onDone, onCancel }: { bundle: Admin
                     </div>
 
                     <aside className="@3xl:sticky @3xl:top-0 @3xl:self-start" aria-label="Summary">
-                        <div className="rounded-2xl border border-border bg-surface/70 p-4">
-                            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">What students pay</p>
+                        <div className="rounded-card border border-border bg-surface/70 p-4">
+                            <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">What students pay</p>
                             <p className={cn("mt-1 font-semibold leading-snug", !title.trim() && "text-muted-foreground")}>{title.trim() || "Your bundle"}</p>
 
                             {picked.length === 0 ? (
-                                <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                                <p className="mt-4 rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
                                     Pick two or more courses to see the sums.
                                 </p>
                             ) : (
@@ -232,7 +232,7 @@ export default function BundleForm({ bundle, onDone, onCancel }: { bundle: Admin
                                 {amount > 0 && picked.length >= 2 && (
                                     <div
                                         className={cn(
-                                            "mt-2 flex justify-between gap-3 rounded-lg px-2.5 py-1.5 font-semibold",
+                                            "mt-2 flex justify-between gap-3 rounded-md px-2.5 py-1.5 font-semibold",
                                             saving > 0 ? "bg-success/10 text-success-ink" : "bg-destructive/10 text-destructive-ink",
                                         )}
                                     >

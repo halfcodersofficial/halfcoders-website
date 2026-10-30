@@ -4,7 +4,7 @@ import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
 import { assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
-import { grantCompletionReward } from "../../utils/courseGrants";
+import { grantCompletionReward, rewardMainCourse } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { awardXp } from "../leaderboard/leaderboard.service";
 
@@ -354,6 +354,8 @@ const markVideoComplete = async (user: IRequestUser, videoId: string) => {
         completedModules: result.newlyCompletedModuleIds,
         completedMilestones: result.newlyCompletedMilestoneIds,
         courseCompleted: result.courseJustCompleted,
+        // Finishing a reward course earns no certificate — the player says so instead.
+        rewardWith: result.courseJustCompleted ? await rewardMainCourse(user.userId, video.courseId) : null,
     };
 };
 

@@ -29,6 +29,19 @@ const deleteReward = catchAsync(async (req: Request, res: Response) => {
     await PromotionService.deleteReward(courseIdOf(req));
     ok(res, "Reward removed", null);
 });
+const giveRewardCourses = catchAsync(async (req: Request, res: Response) =>
+    ok(res, "Reward courses given", await PromotionService.giveRewardCourses(courseIdOf(req), req.body)),
+);
+const setRewardForEveryone = catchAsync(async (req: Request, res: Response) =>
+    ok(res, "Reward course updated", await PromotionService.setRewardForEveryone(req.params.bonusId as string, req.body.forEveryone)),
+);
+const takeBackRewardCourse = catchAsync(async (req: Request, res: Response) => {
+    await PromotionService.takeBackRewardCourse(req.params.bonusId as string, req.params.studentId as string);
+    ok(res, "Reward course taken back", null);
+});
+const removeRewardCourse = catchAsync(async (req: Request, res: Response) =>
+    ok(res, "Reward course removed", await PromotionService.removeRewardCourse(req.params.bonusId as string)),
+);
 const getCoursePromotions = catchAsync(async (req: Request, res: Response) =>
     ok(res, "Course promotions retrieved", await PromotionService.getCoursePromotions(courseIdOf(req), req.user)),
 );
@@ -40,5 +53,9 @@ export const PromotionController = {
     deleteOffer,
     saveReward,
     deleteReward,
+    giveRewardCourses,
+    setRewardForEveryone,
+    takeBackRewardCourse,
+    removeRewardCourse,
     getCoursePromotions,
 };

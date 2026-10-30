@@ -451,7 +451,7 @@ function LateWindowsField({ form }: { form: ZodFormApi<AssignmentFormValues> }) 
     };
 
     return (
-        <fieldset className="space-y-3 rounded-lg border border-border p-4">
+        <fieldset className="space-y-3 rounded-md border border-border p-4">
             <legend className="px-1 text-sm font-medium">
                 Late submissions <span className="font-normal text-muted-foreground">(optional)</span>
             </legend>

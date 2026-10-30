@@ -9,7 +9,7 @@ function AwaitingPill({ summary, className }: { summary: AdminOrderCourse; class
     return (
         <span
             className={cn(
-                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm",
+                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white shadow-card",
                 className,
             )}
         >
@@ -35,7 +35,7 @@ export function OrderCourseCard({ summary, href }: { summary: AdminOrderCourse; 
             figure={
                 <div className="flex items-end justify-between gap-2">
                     <div className="min-w-0">
-                        <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">Collected</p>
+                        <p className="text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Collected</p>
                         <p className="truncate text-xl font-bold tabular-nums tracking-tight">{formatBDT(summary.collected)}</p>
                     </div>
                     <p className="shrink-0 text-right text-[0.6875rem] leading-tight text-muted-foreground">

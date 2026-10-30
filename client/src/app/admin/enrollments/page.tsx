@@ -11,6 +11,7 @@ import { EnrollmentCourseCard, EnrollmentCourseRow, withAccess } from "@/compone
 import ViewToggle, { type ViewMode } from "@/components/admin/ViewToggle";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { adminService } from "@/services/admin";
 import type { AdminEnrollmentCourse } from "@/types/admin.types";
 
@@ -101,7 +102,8 @@ export default function AdminEnrollmentsPage() {
                     <div className="space-y-5">
                         <header className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <h1 className="text-2xl font-bold sm:text-3xl">Enrolments</h1>
+                                <ConsoleEyebrow />
+                                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Enrolments</h1>
                                 <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                                     Who has access to what, and how far along they are. Pick a course to see its students.
                                 </p>
@@ -112,7 +114,7 @@ export default function AdminEnrollmentsPage() {
                                 {enrolButton}
                             </div>
                         </header>
-                        {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={totals(all)} />}
+                        {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={totals(all)} />}
                     </div>
                 }
                 searchPlaceholder="Search courses…"
@@ -129,14 +131,14 @@ export default function AdminEnrollmentsPage() {
                         <div className="@container">
                             <div className={COURSE_GRID}>
                                 {Array.from({ length: 5 }).map((_, index) => (
-                                    <Skeleton key={index} className="h-80 rounded-xl" />
+                                    <Skeleton key={index} className="h-80 rounded-card" />
                                 ))}
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-2">
                             {Array.from({ length: 6 }).map((_, index) => (
-                                <Skeleton key={index} className="h-20 rounded-xl" />
+                                <Skeleton key={index} className="h-20 rounded-card" />
                             ))}
                         </div>
                     )

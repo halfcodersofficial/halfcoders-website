@@ -35,7 +35,7 @@ export function SupportPhaseBar({
 /** A green "Live now" pill with a pulsing dot — over a card's picture, or in a row. */
 export function LiveNowBadge() {
     return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-success px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
+        <span className="inline-flex items-center gap-1.5 rounded-sm bg-success px-2.5 py-1 text-xs font-semibold text-white shadow-card">
             <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70 motion-reduce:animate-none" />
                 <span className="relative inline-flex size-2 rounded-full bg-white" />
@@ -62,7 +62,7 @@ export function SupportCourseCard({ summary, href }: { summary: AdminSupportCour
             figure={
                 <div className="flex items-end justify-between gap-2">
                     <div className="min-w-0">
-                        <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">Upcoming</p>
+                        <p className="text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Upcoming</p>
                         <p className="text-xl font-bold tabular-nums tracking-tight">
                             {summary.counts.upcoming}
                             <span className="ml-1.5 text-[0.6875rem] font-medium tracking-normal text-muted-foreground">

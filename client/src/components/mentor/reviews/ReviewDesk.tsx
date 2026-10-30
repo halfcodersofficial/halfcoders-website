@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useNow } from "@/hooks/useNow";
 import { useSession } from "@/hooks/useSession";
@@ -195,7 +196,8 @@ export default function ReviewDesk({
         <div className="container-page space-y-5 py-8 sm:py-10">
             <header className="flex flex-wrap items-end justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Review queue</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Review queue</h1>
                     <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                         {countOf("WAITING") ? (
                             <>
@@ -206,7 +208,7 @@ export default function ReviewDesk({
                         )}
                     </p>
                 </div>
-                <div role="group" aria-label="Order" className="flex items-center gap-0.5 rounded-lg bg-secondary/60 p-1">
+                <div role="group" aria-label="Order" className="flex items-center gap-0.5 rounded-md bg-secondary/60 p-1">
                     {(
                         [
                             { value: "asc", label: "Oldest first", icon: ArrowUpNarrowWide },
@@ -220,7 +222,7 @@ export default function ReviewDesk({
                             onClick={() => resetTo(() => setSortOrder(option.value))}
                             className={cn(
                                 "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                                sortOrder === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                sortOrder === option.value ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                             )}
                         >
                             <option.icon className="size-4" aria-hidden />
@@ -232,7 +234,7 @@ export default function ReviewDesk({
 
             <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                    <div role="group" aria-label="State" className="no-scrollbar relative flex max-w-full gap-1 overflow-x-auto rounded-lg bg-secondary/60 p-1">
+                    <div role="group" aria-label="State" className="no-scrollbar relative flex max-w-full gap-1 overflow-x-auto rounded-md bg-secondary/60 p-1">
                         {TABS.map((option) => {
                             const count = countOf(option.value);
                             const active = tab === option.value;
@@ -244,14 +246,14 @@ export default function ReviewDesk({
                                     onClick={() => resetTo(() => setTab(option.value))}
                                     className={cn(
                                         "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                        active ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
                                     {option.label}
                                     {count !== null && (
                                         <span
                                             className={cn(
-                                                "min-w-5 rounded-full px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums",
+                                                "min-w-5 rounded-sm px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums",
                                                 option.value === "WAITING" && count > 0 ? "bg-primary text-primary-foreground" : "bg-card/80 text-muted-foreground",
                                             )}
                                         >
@@ -317,11 +319,11 @@ export default function ReviewDesk({
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start">
-                <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                     {list.isLoading ? (
                         <div className="space-y-px p-2">
                             {Array.from({ length: 6 }).map((_, index) => (
-                                <Skeleton key={index} className="h-16 rounded-lg" />
+                                <Skeleton key={index} className="h-16 rounded-md" />
                             ))}
                         </div>
                     ) : list.isError && !list.data ? (
@@ -333,7 +335,7 @@ export default function ReviewDesk({
                         </div>
                     ) : items.length === 0 ? (
                         <div className="px-8 py-14 text-center">
-                            <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                            <span className="mx-auto grid size-12 place-items-center rounded-md border border-border bg-primary/10 text-primary">
                                 <ClipboardCheck className="size-5" aria-hidden />
                             </span>
                             <p className="mt-4 font-medium">{searchTerm ? `Nothing matches “${searchTerm}”.` : tab === "WAITING" ? "All caught up" : "Nothing here"}</p>
@@ -341,7 +343,7 @@ export default function ReviewDesk({
                         </div>
                     ) : (
                         <>
-                            <p className="border-b border-border bg-secondary/30 px-4 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                            <p className="border-b border-border bg-secondary/30 px-4 py-1.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                 {total} {total === 1 ? "hand-in" : "hand-ins"} · {sortOrder === "asc" ? "oldest first" : "newest first"}
                             </p>
                             <ul aria-label="Hand-ins" onKeyDown={onListKeyDown}>
@@ -376,7 +378,7 @@ export default function ReviewDesk({
                                                                 {wait.text}
                                                             </span>
                                                         ) : (
-                                                            <span className={cn("shrink-0 rounded-full px-2 py-px text-[0.6875rem] font-semibold", STATUS_META[item.status].tone)}>
+                                                            <span className={cn("shrink-0 rounded-sm px-2 py-px text-[0.6875rem] font-semibold", STATUS_META[item.status].tone)}>
                                                                 {item.status === "ACCEPTED" && item.score !== null ? `${item.score}/${item.assignment.totalMarks}` : STATUS_META[item.status].label}
                                                             </span>
                                                         )}
@@ -418,13 +420,13 @@ export default function ReviewDesk({
                     <aside
                         ref={paneRef}
                         aria-label="Marking"
-                        className="min-h-96 rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto"
+                        className="min-h-96 rounded-card border border-border bg-card shadow-card lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto"
                     >
                         {current ? (
                             <MarkingPane key={current.id} submission={current} onSaved={onSaved} onClaimChange={onClaimChange} onDirtyChange={onDirtyChange} />
                         ) : (
                             <div className="flex min-h-96 flex-col items-center justify-center p-8 text-center">
-                                <span className="grid size-12 place-items-center rounded-full bg-secondary/70">
+                                <span className="grid size-12 place-items-center rounded-md border border-border bg-surface">
                                     <ClipboardCheck className="size-5 text-muted-foreground" aria-hidden />
                                 </span>
                                 <p className="mt-4 font-medium">{items.length ? "Pick a hand-in to mark it" : "Nothing to mark here"}</p>
@@ -448,12 +450,12 @@ function Chip({ active, onClick, badge, children }: { active: boolean; onClick: 
             aria-pressed={active}
             onClick={onClick}
             className={cn(
-                "inline-flex max-w-64 items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                "inline-flex max-w-64 items-center gap-1.5 rounded-sm border px-3 py-1 text-sm transition-colors",
                 active ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
             )}
         >
             <span className="truncate">{children}</span>
-            {badge !== undefined && <span className="shrink-0 rounded-full bg-primary px-1.5 text-[0.6875rem] font-semibold tabular-nums text-primary-foreground">{badge}</span>}
+            {badge !== undefined && <span className="shrink-0 rounded-sm bg-primary px-1.5 text-[0.6875rem] font-semibold tabular-nums text-primary-foreground">{badge}</span>}
         </button>
     );
 }

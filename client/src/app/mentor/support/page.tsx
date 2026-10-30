@@ -14,7 +14,7 @@ export default function MentorSupportPage() {
         <Suspense
             fallback={
                 <div className="container-page py-10">
-                    <Skeleton className="h-72 rounded-3xl" />
+                    <Skeleton className="h-72 rounded-panel" />
                 </div>
             }
         >

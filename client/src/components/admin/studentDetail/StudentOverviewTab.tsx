@@ -68,13 +68,13 @@ export function StudentOverviewTab({
     return (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div className="min-w-0 space-y-6 xl:col-span-2">
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>Courses</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {data.enrollments.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                            <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                                 Not enrolled in any course yet.
                             </p>
                         ) : (
@@ -89,7 +89,7 @@ export function StudentOverviewTab({
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>Last 30 days</CardTitle>
                         <p className="text-sm text-muted-foreground">Lessons completed, work handed in, and quizzes and practice days done, day by day.</p>
@@ -101,7 +101,7 @@ export function StudentOverviewTab({
             </div>
 
             <div className="min-w-0 space-y-6">
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>Recent activity</CardTitle>
                     </CardHeader>
@@ -145,7 +145,7 @@ export function StudentOverviewTab({
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader className="flex-row items-baseline justify-between gap-3">
                         <CardTitle>XP</CardTitle>
                         <p className="text-2xl font-bold tabular-nums">{data.xp.total.toLocaleString()}</p>
@@ -173,7 +173,7 @@ export function StudentOverviewTab({
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>In the lessons</CardTitle>
                     </CardHeader>
@@ -200,7 +200,7 @@ function CourseRow({ enrollment, onOpen }: { enrollment: StudentEnrollment; onOp
 
     return (
         <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="relative grid aspect-video w-full shrink-0 place-items-center self-start overflow-hidden rounded-lg bg-secondary sm:w-36">
+            <div className="relative grid aspect-video w-full shrink-0 place-items-center self-start overflow-hidden rounded-md bg-secondary sm:w-36">
                 <SafeImage
                     src={course.thumbnail}
                     alt=""
@@ -276,7 +276,7 @@ function Figure({ label, children }: { label: string; children: ReactNode }) {
 
 function Tally({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
     return (
-        <div className="flex items-center gap-2.5 rounded-lg bg-secondary/40 px-3 py-2.5">
+        <div className="flex items-center gap-2.5 rounded-md bg-secondary/40 px-3 py-2.5">
             <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <div className="min-w-0">
                 <dd className="font-semibold leading-none tabular-nums">{value}</dd>

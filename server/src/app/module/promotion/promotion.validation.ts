@@ -19,6 +19,20 @@ export const saveOfferZodSchema = z
         message: "It must end after it starts",
     });
 
+/** Reward courses with a main course: to students picked by hand (one or a group), or to everyone who has it. */
+export const giveRewardCoursesZodSchema = z
+    .object({
+        courseIds,
+        audience: z.enum(["STUDENTS", "EVERYONE"]),
+        studentIds: z.array(z.string().trim().min(1)).max(500, "Up to 500 students at a time").optional(),
+    })
+    .refine((data) => data.audience === "EVERYONE" || (data.studentIds?.length ?? 0) > 0, {
+        path: ["studentIds"],
+        message: "Pick at least one student",
+    });
+
+export const setRewardForEveryoneZodSchema = z.object({ forEveryone: z.boolean() });
+
 export const saveRewardZodSchema = z.object({
     courseIds,
     condition: z.enum(RewardCondition),

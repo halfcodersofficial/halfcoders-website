@@ -183,6 +183,9 @@ model Course {
   offeredFreeWith     CourseOfferItem[]
   completionReward    CompletionReward?      @relation("RewardCourse")
   givenAsReward       CompletionRewardItem[]
+  /// Reward courses that come with this one, and the main courses this one comes with.
+  bonusCourses        BonusCourse[]          @relation("BonusMainCourse")
+  givenAsBonus        BonusCourse[]          @relation("BonusGivenCourse")
   bundleItems         CourseBundleItem[]
   grants              CourseGrant[]
   admissionTicket     AdmissionTicket?

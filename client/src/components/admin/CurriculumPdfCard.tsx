@@ -79,7 +79,7 @@ export default function CurriculumPdfCard({
             </p>
 
             {curriculumPdfUrl ? (
-                <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex flex-wrap items-center gap-4 rounded-card border border-border bg-card p-4 shadow-card">
                     <FileText className="size-6 shrink-0 text-primary" aria-hidden />
                     <div className="min-w-0 flex-1">
                         <a
@@ -134,7 +134,7 @@ export default function CurriculumPdfCard({
                 <div
                     {...dropHandlers}
                     className={cn(
-                        "rounded-lg border border-dashed p-6 text-center transition-colors",
+                        "rounded-md border border-dashed p-6 text-center transition-colors",
                         dragActive ? "border-primary bg-primary/5" : "border-border",
                     )}
                 >

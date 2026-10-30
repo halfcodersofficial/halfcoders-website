@@ -170,7 +170,7 @@ function QuestionForm({
             </div>
 
             {touched && error && (
-                <p className="rounded-lg bg-destructive/10 p-2.5 text-sm text-destructive">{error}</p>
+                <p className="rounded-md bg-destructive/10 p-2.5 text-sm text-destructive">{error}</p>
             )}
 
             <div className="flex gap-2">
@@ -380,7 +380,7 @@ export default function ModuleQuizEditor({
         );
     }
 
-    const PANEL = "rounded-2xl border border-border bg-card shadow-sm";
+    const PANEL = "rounded-card border border-border bg-card shadow-card";
     const canPublish = Boolean(quiz && (quiz.isPublished || quiz.questions.length > 0));
 
     return (
@@ -413,7 +413,7 @@ export default function ModuleQuizEditor({
                                     <span className="truncate text-lg font-semibold">{quiz.title}</span>
                                     <span
                                         className={cn(
-                                            "rounded-full px-2 py-px text-xs font-semibold",
+                                            "rounded-sm px-2 py-px text-xs font-semibold",
                                             quiz.isPublished ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground",
                                         )}
                                     >
@@ -489,7 +489,7 @@ export default function ModuleQuizEditor({
                         </form>
                     </section>
                 ) : (
-                    <div className="rounded-2xl border border-dashed border-border px-6 py-16 text-center">
+                    <div className="rounded-card border border-dashed border-border px-6 py-16 text-center">
                         <HelpCircle className="mx-auto size-7 text-muted-foreground" aria-hidden />
                         <p className="mt-3 font-medium">No quiz here yet</p>
                         <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">A short single-choice check students take right after the lessons.</p>
@@ -561,7 +561,7 @@ export default function ModuleQuizEditor({
                                                     <li
                                                         key={option.id}
                                                         className={cn(
-                                                            "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+                                                            "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
                                                             option.isCorrect ? "border-primary/40 bg-primary/5 font-medium" : "border-border text-muted-foreground",
                                                         )}
                                                     >
@@ -601,7 +601,7 @@ export default function ModuleQuizEditor({
                             <button
                                 type="button"
                                 onClick={() => setAddingQuestion(true)}
-                                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border px-4 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                                className="flex w-full items-center justify-center gap-2 rounded-card border border-dashed border-border px-4 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                             >
                                 <Plus className="size-4" aria-hidden /> Add {quiz.questions.length === 0 ? "the first" : "a"} question
                             </button>

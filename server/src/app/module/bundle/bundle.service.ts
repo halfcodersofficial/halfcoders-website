@@ -14,7 +14,7 @@ import { prisma } from "../../lib/prisma";
 import { assertTransactionUnused, bkashGatewayData, BkashSubmission } from "../../utils/bkash";
 import { quoteBundle, type BundleCoursePrice } from "../../utils/bundlePricing";
 import { assertEnrollmentOpen, ENROLLMENT_RULE_SELECT } from "../../utils/courseBatch";
-import { isLive } from "../../utils/courseGrants";
+import { announceGrants, grantBonusCourses, isLive, type GivenCourse } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { nextBundleOrderNumber, nextOrderNumber, withUniqueRetry } from "../../utils/referenceNumber";
 import { generateBundleSlug } from "../../utils/slug";
@@ -372,8 +372,11 @@ const settleBundleOrder = async (
     const listPrice = new Map(courses.map((course) => [course.id, course.price]));
     const paidAt = new Date();
 
+    // The reward courses each bundled course brings, gathered as they're given.
+    const rewards: GivenCourse[] = [];
     const settled = await withUniqueRetry(() =>
         prisma.$transaction(async (tx) => {
+            rewards.length = 0;
             const claimed = await tx.bundleOrder.updateMany({
                 where: { id: order.id, status: { notIn: [OrderStatus.PAID, OrderStatus.REFUNDED] } },
                 data: {
@@ -413,6 +416,7 @@ const settleBundleOrder = async (
                     },
                 });
                 await activateEnrollment(tx, { studentId: order.studentId, courseId: item.courseId, orderId: child.id });
+                rewards.push(...(await grantBonusCourses(tx, order.studentId, item.courseId)));
             }
             return true;
         }),
@@ -428,6 +432,7 @@ const settleBundleOrder = async (
             link: "/dashboard",
             email: { actionLabel: "Open your dashboard" },
         });
+        await announceGrants(order.studentId, rewards, `They come with the courses in "${order.bundle.title}".`, "reward course");
         await notifyAdmins(
             {
                 title: `Bundle sold · ৳${order.total.toLocaleString("en-US")}`,

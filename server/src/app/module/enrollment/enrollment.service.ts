@@ -8,6 +8,7 @@ import { learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
 import { adminCourseSelect, AdminCourseCard } from "../../utils/adminCourseSelect";
 import { assertCanManageCourse } from "../../utils/courseAccess";
+import { announceGrants, grantBonusCourses, revokeBonusCourses } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { courseMentorOrder } from "../course/course.constant";
@@ -327,7 +328,10 @@ const enrollStudentManually = async (input: { studentId: string; courseId: strin
 
     logger.create("Manual enrolment", { studentId: input.studentId, courseId: input.courseId });
 
-    const enrollment = await prisma.$transaction((tx) => activateEnrollment(tx, input));
+    const { enrollment, rewards } = await prisma.$transaction(async (tx) => ({
+        enrollment: await activateEnrollment(tx, input),
+        rewards: await grantBonusCourses(tx, input.studentId, input.courseId),
+    }));
 
     await createNotification({
         userId: input.studentId,
@@ -337,37 +341,49 @@ const enrollStudentManually = async (input: { studentId: string; courseId: strin
         link: `/learn/${course.slug}`,
         email: { actionLabel: "Start learning" },
     });
+    await announceGrants(input.studentId, rewards, `They come with "${course.title}".`, "reward course");
 
     return enrollment;
 };
 
-/** Revokes access without destroying learning history. */
+/** Revokes access without destroying learning history. The reward courses that came with the course go too. */
 const cancelEnrollment = async (enrollmentId: string) => {
     const enrollment = await prisma.enrollment.findUnique({
         where: { id: enrollmentId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, studentId: true, courseId: true },
     });
     if (!enrollment) throw new AppError(status.NOT_FOUND, "Enrolment not found.");
 
-    return prisma.enrollment.update({
-        where: { id: enrollmentId },
-        data: { status: EnrollmentStatus.CANCELLED },
+    return prisma.$transaction(async (tx) => {
+        const cancelled = await tx.enrollment.update({
+            where: { id: enrollmentId },
+            data: { status: EnrollmentStatus.CANCELLED },
+        });
+        await revokeBonusCourses(tx, enrollment.studentId, enrollment.courseId);
+        return cancelled;
     });
 };
 
+/** Opens a cancelled enrolment again — and gives back the reward courses that went with it. */
 const reactivateEnrollment = async (enrollmentId: string) => {
     const enrollment = await prisma.enrollment.findUnique({
         where: { id: enrollmentId },
-        select: { id: true, progress: true },
+        select: { id: true, progress: true, studentId: true, courseId: true, course: { select: { title: true } } },
     });
     if (!enrollment) throw new AppError(status.NOT_FOUND, "Enrolment not found.");
 
-    return prisma.enrollment.update({
-        where: { id: enrollmentId },
-        data: {
-            status: enrollment.progress >= 100 ? EnrollmentStatus.COMPLETED : EnrollmentStatus.ACTIVE,
-        },
-    });
+    const { reopened, rewards } = await prisma.$transaction(async (tx) => ({
+        reopened: await tx.enrollment.update({
+            where: { id: enrollmentId },
+            data: {
+                status: enrollment.progress >= 100 ? EnrollmentStatus.COMPLETED : EnrollmentStatus.ACTIVE,
+            },
+        }),
+        rewards: await grantBonusCourses(tx, enrollment.studentId, enrollment.courseId),
+    }));
+    await announceGrants(enrollment.studentId, rewards, `They come with "${enrollment.course.title}".`, "reward course");
+
+    return reopened;
 };
 
 export const EnrollmentService = {

@@ -117,7 +117,7 @@ function EditMentorFields({ mentor, onClose }: { mentor: AdminMentorDetail; onCl
     return (
         <form className={modalFormClass} noValidate onSubmit={form.handleSubmit}>
             <ModalBody className="space-y-6">
-                <div className="rounded-lg bg-secondary/40 px-3 py-2 text-sm">
+                <div className="rounded-md bg-secondary/40 px-3 py-2 text-sm">
                     <span className="text-muted-foreground">Signs in as</span>{" "}
                     {mentor.email ?? mentor.phone}
                     {mentor.email && mentor.phone ? ` · ${mentor.phone}` : ""}

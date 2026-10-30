@@ -76,7 +76,7 @@ export default function ModuleContentHeader({
             <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                     {current && (
-                        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                        <p className="text-xs font-semibold font-mono uppercase tracking-wider text-primary">
                             {milestoneLabel} {pad(current.milestone.order)} · {moduleLabel} {pad(current.courseModule.order)}
                         </p>
                     )}
@@ -85,7 +85,7 @@ export default function ModuleContentHeader({
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                             <span
                                 className={cn(
-                                    "rounded-full px-2 py-px text-xs font-semibold",
+                                    "rounded-sm px-2 py-px text-xs font-semibold",
                                     current.courseModule.isPublished ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground",
                                 )}
                             >
@@ -166,7 +166,7 @@ function PagerLink({
 }) {
     const isNext = direction === "next";
     return (
-        <Button asChild variant="outline" className="h-auto max-w-60 bg-card py-2 shadow-sm">
+        <Button asChild variant="outline" className="h-auto max-w-60 bg-card py-2 shadow-card">
             <Link href={href} aria-label={`${label}: ${title}`} title={title}>
                 {!isNext && <ChevronLeft />}
                 <span className={cn("min-w-0", isNext ? "text-right" : "text-left")}>

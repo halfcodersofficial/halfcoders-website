@@ -95,7 +95,7 @@ export default function CourseMultiPicker({ label, value, onChange, exclude = []
                 />
             </div>
 
-            <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+            <div className="max-h-64 overflow-y-auto rounded-md border border-border">
                 {isLoading ? (
                     <div className="space-y-2 p-3">
                         {Array.from({ length: 3 }).map((_, index) => (

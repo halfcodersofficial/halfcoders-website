@@ -30,7 +30,7 @@ export default function TypePicker() {
                     <label
                         key={type.value}
                         className={cn(
-                            "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                            "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-sm border px-3.5 text-sm font-medium transition-colors",
                             "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background",
                             checked
                                 ? "border-primary bg-primary/10 text-primary"

@@ -60,33 +60,33 @@ export default function BundleOrders({ bundle, onChanged }: { bundle: AdminBundl
             {isLoading ? (
                 <div className="space-y-2">
                     {Array.from({ length: 3 }).map((_, index) => (
-                        <Skeleton key={index} className="h-16 rounded-xl" />
+                        <Skeleton key={index} className="h-16 rounded-card" />
                     ))}
                 </div>
             ) : orders.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+                <div className="rounded-card border border-dashed border-border px-6 py-10 text-center">
                     <Layers className="mx-auto size-7 text-muted-foreground" aria-hidden />
                     <p className="mt-3 font-medium">No orders yet</p>
                     <p className="mt-1 text-sm text-muted-foreground">They show here as soon as a student starts a checkout.</p>
                 </div>
             ) : (
                 <>
-                    <dl className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-xl border border-border bg-surface/70 text-center">
+                    <dl className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-card border border-border bg-surface/70 text-center">
                         <div className="px-3 py-2.5">
-                            <dt className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">Paid</dt>
+                            <dt className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Paid</dt>
                             <dd className="text-lg font-bold tabular-nums">{paid.length}</dd>
                         </div>
                         <div className="px-3 py-2.5">
-                            <dt className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">Earned</dt>
+                            <dt className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Earned</dt>
                             <dd className="text-lg font-bold tabular-nums">{formatBDT(paid.reduce((sum, order) => sum + order.total, 0))}</dd>
                         </div>
                         <div className="px-3 py-2.5">
-                            <dt className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">Awaiting</dt>
+                            <dt className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Awaiting</dt>
                             <dd className={waiting > 0 ? "text-lg font-bold tabular-nums text-warning-ink" : "text-lg font-bold tabular-nums"}>{waiting}</dd>
                         </div>
                     </dl>
 
-                    <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+                    <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
                         {orders.map((order) => (
                             <li key={order.id} className="p-3.5">
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -149,7 +149,7 @@ export default function BundleOrders({ bundle, onChanged }: { bundle: AdminBundl
                                 {order.orders.length > 0 && (
                                     <ul className="mt-2.5 flex flex-wrap gap-1.5 sm:pl-12">
                                         {order.orders.map((child) => (
-                                            <li key={child.id} className="max-w-full truncate rounded-full bg-secondary px-2.5 py-0.5 text-xs" title={child.course.title}>
+                                            <li key={child.id} className="max-w-full truncate rounded-sm bg-secondary px-2.5 py-0.5 text-xs" title={child.course.title}>
                                                 {child.course.title} · <span className="tabular-nums">{formatBDT(child.total)}</span>
                                                 {child.status !== "PAID" && <span className="text-muted-foreground"> ({child.status.toLowerCase()})</span>}
                                             </li>

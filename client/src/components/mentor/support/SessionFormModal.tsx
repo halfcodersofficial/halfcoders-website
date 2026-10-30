@@ -215,7 +215,7 @@ function SessionForm({
                                     <label
                                         key={course.id}
                                         className={cn(
-                                            "flex cursor-pointer items-center gap-3 rounded-xl border p-2.5 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                            "flex cursor-pointer items-center gap-3 rounded-card border p-2.5 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                             selected ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/40",
                                         )}
                                     >
@@ -233,7 +233,7 @@ function SessionForm({
                     </fieldset>
                 )}
                 {editing && (
-                    <p className="rounded-lg bg-secondary/50 px-3 py-2 text-sm">
+                    <p className="rounded-md bg-secondary/50 px-3 py-2 text-sm">
                         <span className="text-muted-foreground">Course:</span> <span className="font-medium">{session.course.title}</span>
                     </p>
                 )}
@@ -258,7 +258,7 @@ function SessionForm({
                             type="button"
                             onClick={() => setLength(minutes)}
                             className={cn(
-                                "rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+                                "rounded-sm border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
                                 length === minutes ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                             )}
                         >
@@ -289,7 +289,7 @@ function SessionForm({
 
                 {/* The whole thing in a line, the way students will read it. */}
                 {valid && !Number.isNaN(start.getTime()) && (
-                    <p className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+                    <p className="rounded-card border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
                         <span className="font-semibold">
                             {weekdayOf(dhakaDayKey(start), true)} {dayMonthOf(dhakaDayKey(start))}, {clock(start)} – {clock(endTime)}
                         </span>

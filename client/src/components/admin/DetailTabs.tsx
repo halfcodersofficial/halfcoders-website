@@ -40,7 +40,8 @@ export default function DetailTabs<T extends string>({
     };
 
     return (
-        <div role="tablist" aria-label={label} className="no-scrollbar flex gap-1 overflow-x-auto border-b border-border">
+        // A strip of editor tabs: the open one sits on the page with a violet line across its top.
+        <div role="tablist" aria-label={label} className="no-scrollbar flex overflow-x-auto border-b border-border">
             {tabs.map((item, index) => {
                 const selected = item.id === value;
                 return (
@@ -55,21 +56,22 @@ export default function DetailTabs<T extends string>({
                         aria-selected={selected}
                         aria-controls={`panel-${item.id}`}
                         tabIndex={selected ? 0 : -1}
+                        data-active={selected || undefined}
                         onClick={() => onChange(item.id)}
                         onKeyDown={(event) => onKeyDown(event, index)}
                         className={cn(
-                            "-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            "editor-tab flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                             selected
-                                ? "border-primary text-foreground"
-                                : "border-transparent text-muted-foreground hover:text-foreground",
+                                ? "bg-card text-foreground shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]"
+                                : "text-muted-foreground hover:bg-surface hover:text-foreground",
                         )}
                     >
                         {item.label}
                         {item.count !== undefined && (
                             <span
                                 className={cn(
-                                    "rounded-full px-1.5 py-px text-[11px] tabular-nums",
-                                    selected ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground",
+                                    "rounded-sm px-1.5 py-px font-mono text-[0.68rem] tabular-nums",
+                                    selected ? "bg-primary/10 text-primary-ink" : "bg-secondary text-muted-foreground",
                                 )}
                             >
                                 {item.count}

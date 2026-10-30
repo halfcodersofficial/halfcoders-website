@@ -263,7 +263,7 @@ function Summary({ items }: { items: [string, ReactNode][] }) {
 
 function EmptyTab({ icon: Icon, title, hint }: { icon: typeof Receipt; title: string; hint: string }) {
     return (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+        <div className="rounded-card border border-dashed border-border p-10 text-center">
             <Icon className="mx-auto size-6 text-muted-foreground" aria-hidden />
             <p className="mt-3 font-medium">{title}</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{hint}</p>

@@ -14,6 +14,7 @@ import { Role } from "../../lib/roles";
 import { learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
 import { STUDENT_NAME_ONLY } from "../../lib/studentPrivacy";
+import { rewardMainCourses } from "../../utils/courseGrants";
 import { isSequentialLearningEnabled } from "../../utils/platformSettings";
 import { computeLive } from "../support/support.service";
 
@@ -207,7 +208,7 @@ const getUpNext = async (enrollmentId: string, courseId: string) => {
 
 /** Student dashboard (plan §14). */
 const getStudentDashboard = async (user: IRequestUser) => {
-    const [enrollments, unreadNotifications, certificates, xp] = await Promise.all([
+    const [enrollments, unreadNotifications, certificates, xp, rewardsWith] = await Promise.all([
         prisma.enrollment.findMany({
             where: { studentId: user.userId, status: { not: EnrollmentStatus.CANCELLED } },
             orderBy: { updatedAt: "desc" },
@@ -236,6 +237,8 @@ const getStudentDashboard = async (user: IRequestUser) => {
             where: { studentId: user.userId },
             _sum: { totalXp: true },
         }),
+        // Courses held as a reward with another — the dashboard lists them on their own.
+        rewardMainCourses(user.userId),
     ]);
 
     // Learning streak — Bootcamp and Traditional courses earn it differently
@@ -327,7 +330,14 @@ const getStudentDashboard = async (user: IRequestUser) => {
         const hasAdmissionTicket =
             Boolean(admissionTicket?.isActive) && (e.status === EnrollmentStatus.ACTIVE || e.status === EnrollmentStatus.COMPLETED);
 
-        return { ...e, course, hasAdmissionTicket, streak: { currentStreakDays, courseType: e.course.courseType, history } };
+        return {
+            ...e,
+            course,
+            hasAdmissionTicket,
+            /** The main course this one came with as a reward, if that's how they have it. */
+            rewardWith: rewardsWith.get(e.courseId) ?? null,
+            streak: { currentStreakDays, courseType: e.course.courseType, history },
+        };
     });
 
     const courseIds = enrollments.map((e) => e.courseId);

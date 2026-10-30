@@ -13,6 +13,7 @@ import { FormField } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useZodForm, type FormValues, type ZodFormApi } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
@@ -118,7 +119,8 @@ export default function AdminSettingsPage() {
     return (
         <div className="max-w-6xl space-y-8">
             <header className="animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
-                <h1 className="text-2xl font-bold sm:text-3xl">Platform settings</h1>
+                <ConsoleEyebrow />
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Platform settings</h1>
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
                     How Half Coders behaves for everyone — XP, support sessions, certificates and the order students learn in.
                     A change applies as soon as it&apos;s saved.
@@ -129,12 +131,12 @@ export default function AdminSettingsPage() {
                 <div className="grid gap-8 lg:grid-cols-[12rem_minmax(0,1fr)]">
                     <Skeleton className="hidden h-40 lg:block" />
                     <div className="space-y-6">
-                        <Skeleton className="h-96 rounded-2xl" />
-                        <Skeleton className="h-56 rounded-2xl" />
+                        <Skeleton className="h-96 rounded-card" />
+                        <Skeleton className="h-56 rounded-card" />
                     </div>
                 </div>
             ) : isError || !data ? (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                <div className="rounded-card border border-dashed border-border p-10 text-center">
                     <p className="font-medium">Couldn&apos;t load the settings.</p>
                     <Button variant="outline" className="mt-4" onClick={() => refetch()}>
                         Try again
@@ -272,7 +274,7 @@ function SettingsBoard({ settings }: { settings: PlatformSettings }) {
                                     href={`#${item.id}`}
                                     aria-current={active === item.id ? "true" : undefined}
                                     className={cn(
-                                        "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                        "relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                         active === item.id ? "bg-primary/10 text-primary" : "text-foreground/80 hover:bg-secondary",
                                     )}
                                 >
@@ -373,7 +375,7 @@ function SettingsBoard({ settings }: { settings: PlatformSettings }) {
                     changedAt={changedAt["learning.sequential"]}
                     onReset={() => resetToDefault("learning.sequential")}
                 >
-                    <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
+                    <div className="flex items-start justify-between gap-4 rounded-card border border-border p-4">
                         <div className="min-w-0">
                             <p className="text-sm font-medium" id="sequential-label">
                                 Sequential learning
@@ -404,7 +406,7 @@ function SettingsBoard({ settings }: { settings: PlatformSettings }) {
                     <div
                         role="region"
                         aria-label="Unsaved changes"
-                        className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-card/95 px-4 py-3 backdrop-blur"
+                        className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-border bg-card/95 px-4 py-3 backdrop-blur"
                         style={{ boxShadow: "var(--shadow-panel)" }}
                     >
                         <span className="size-2 shrink-0 rounded-full bg-amber-500" aria-hidden />

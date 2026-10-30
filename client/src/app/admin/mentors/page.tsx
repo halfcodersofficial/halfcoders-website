@@ -274,7 +274,7 @@ export default function AdminMentorsPage() {
                                 <li key={mentor.id}>
                                     <Card
                                         className={cn(
-                                            "flex h-full flex-col shadow-sm",
+                                            "flex h-full flex-col shadow-card",
                                             mentor.status !== "ACTIVE" && "bg-secondary/30",
                                         )}
                                     >

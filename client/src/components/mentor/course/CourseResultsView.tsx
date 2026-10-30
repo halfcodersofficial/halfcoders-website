@@ -48,8 +48,8 @@ export default function CourseResultsView({ courseId }: { courseId: string }) {
         return (
             <div className="container-page space-y-6 py-8">
                 <Skeleton className="h-10 w-72" />
-                <Skeleton className="h-24 rounded-2xl" />
-                <Skeleton className="h-80 rounded-2xl" />
+                <Skeleton className="h-24 rounded-card" />
+                <Skeleton className="h-80 rounded-card" />
             </div>
         );
     }
@@ -108,7 +108,7 @@ function Results({ data, term, setTerm }: { data: CourseResults; term: string; s
                 </div>
             </header>
 
-            <ul aria-label="Totals" className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm lg:grid-cols-4">
+            <ul aria-label="Totals" className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card lg:grid-cols-4">
                 <Total label="Hand-ins" value={handedIn} hint={`across ${plural(data.assignments.length, "assignment")} · ${data.learners} enrolled`} />
                 <Total
                     label="Waiting for review"
@@ -201,13 +201,13 @@ function SectionTitle({ id, count, searching, children }: { id: string; count: n
 }
 
 function Empty({ children }: { children: ReactNode }) {
-    return <p className="rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">{children}</p>;
+    return <p className="rounded-card border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
 /** One expandable row: a header that summarises, and the table it opens to. */
 function Expandable({ summary, children, open, onToggle }: { summary: ReactNode; children: ReactNode; open: boolean; onToggle: () => void }) {
     return (
-        <li className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <li className="overflow-hidden rounded-card border border-border bg-card shadow-card">
             <button
                 type="button"
                 onClick={onToggle}
@@ -250,7 +250,7 @@ function AssignmentRow({
             summary={
                 <span className="grid items-center gap-x-6 gap-y-2 md:grid-cols-[minmax(0,1fr)_12rem_5rem]">
                     <span className="min-w-0">
-                        <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="block text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                             {course.milestoneLabel} {pad2(assignment.milestone.order)}
                             {!assignment.isPublished && <span className="ml-2 normal-case tracking-normal">· not out yet</span>}
                         </span>
@@ -318,7 +318,7 @@ function AssignmentRow({
                                         {/* A name, deliberately not a link: there's no profile for a mentor to open. */}
                                         <td className="px-5 py-2.5 font-medium sm:px-6">{row.student.name}</td>
                                         <td className="px-3 py-2.5">
-                                            <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", status.tone)}>{status.label}</span>
+                                            <span className={cn("rounded-sm px-2 py-0.5 text-xs font-medium", status.tone)}>{status.label}</span>
                                             {row.maxScore !== null && (
                                                 <span className="ml-1.5 text-xs text-amber-700 dark:text-amber-400" title={`Late — marked out of ${row.maxScore}`}>
                                                     Late
@@ -382,7 +382,7 @@ function QuizRow({ quiz, course, term }: { quiz: Quiz; course: CourseResults["co
             summary={
                 <span className="grid items-center gap-x-6 gap-y-2 md:grid-cols-[minmax(0,1fr)_12rem_5rem]">
                     <span className="min-w-0">
-                        <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="block text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                             {course.milestoneLabel} {pad2(quiz.module.milestone.order)} · {course.moduleLabel} {pad2(quiz.module.order)}
                             {!quiz.isPublished && <span className="ml-2 normal-case tracking-normal">· not out yet</span>}
                         </span>
@@ -433,8 +433,8 @@ function QuizRow({ quiz, course, term }: { quiz: Quiz; course: CourseResults["co
                     {shown === "questions" ? (
                         detail.isLoading ? (
                             <div className="space-y-3 px-5 py-4 sm:px-6">
-                                <Skeleton className="h-20 rounded-xl" />
-                                <Skeleton className="h-20 rounded-xl" />
+                                <Skeleton className="h-20 rounded-card" />
+                                <Skeleton className="h-20 rounded-card" />
                             </div>
                         ) : detail.data ? (
                             <QuizQuestions detail={detail.data} />

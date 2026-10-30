@@ -53,8 +53,8 @@ export default function StudentCard({ student, href, selected, onSelectedChange,
     return (
         <Card
             className={cn(
-                "group relative flex h-full flex-col shadow-sm transition-[box-shadow,border-color,transform] duration-200",
-                "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md motion-reduce:hover:translate-y-0",
+                "group relative flex h-full flex-col shadow-card transition-[box-shadow,border-color,transform] duration-200",
+                "hover:border-primary/40 hover:shadow-card-hover",
                 "has-[[data-card-link]:focus-visible]:ring-2 has-[[data-card-link]:focus-visible]:ring-ring",
                 blocked && "bg-secondary/30",
                 selected && "border-primary ring-1 ring-primary",
@@ -73,7 +73,7 @@ export default function StudentCard({ student, href, selected, onSelectedChange,
                             href={href}
                             data-card-link
                             title={student.name}
-                            className="block truncate font-semibold leading-snug outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']"
+                            className="block truncate font-semibold leading-snug outline-none after:absolute after:inset-0 after:rounded-card after:content-['']"
                         >
                             {student.name}
                         </Link>
@@ -129,7 +129,7 @@ export default function StudentCard({ student, href, selected, onSelectedChange,
                 </dl>
 
                 <section className="flex-1 border-t border-border pt-4" aria-label="Courses">
-                    <p className="mb-2.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="mb-2.5 flex items-center justify-between text-[11px] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                         Learning
                         {courses.length > 0 && (
                             <span className="font-medium normal-case tracking-normal">
@@ -209,7 +209,7 @@ function Stat({ label, value, muted = false }: { label: string; value: ReactNode
 /** A card-shaped placeholder while the register loads. */
 export function StudentCardSkeleton() {
     return (
-        <Card className="flex flex-col shadow-sm">
+        <Card className="flex flex-col shadow-card">
             <div className="space-y-4 p-5">
                 <div className="flex items-center gap-3.5">
                     <Skeleton className="size-12 rounded-full" />

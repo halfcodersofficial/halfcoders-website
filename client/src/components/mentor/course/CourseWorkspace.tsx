@@ -91,7 +91,7 @@ export default function CourseWorkspace({ courseId, children }: { courseId: stri
             <div className="border-b border-border bg-card/70">
                 <div className="container-page pt-5 sm:pt-6">
                     <div className="flex items-center gap-4">
-                        <span className="relative hidden aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary ring-1 ring-border sm:grid">
+                        <span className="relative hidden aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary ring-1 ring-border sm:grid">
                             {data && (
                                 <SafeImage
                                     src={data.thumbnail}
@@ -167,7 +167,7 @@ export default function CourseWorkspace({ courseId, children }: { courseId: stri
                                     <tab.icon className={cn("size-4", active && "text-primary")} aria-hidden />
                                     {tab.label}
                                     {!!tab.badge && (
-                                        <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums text-primary-foreground">
+                                        <span className="min-w-5 rounded-sm bg-primary px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums text-primary-foreground">
                                             {tab.badge}
                                             <span className="sr-only"> waiting for review</span>
                                         </span>

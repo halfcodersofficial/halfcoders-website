@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useNow } from "@/hooks/useNow";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -60,7 +61,8 @@ export default function QuestionsDesk() {
         <div className="container-page space-y-6 py-8 sm:py-10">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Student questions</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Student questions</h1>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
                         What students asked on your courses&apos; lessons. Your answers carry a Mentor mark, and the student is told.
                     </p>
@@ -107,19 +109,19 @@ export default function QuestionsDesk() {
 
             {list.isLoading ? (
                 <div className="space-y-3">
-                    <Skeleton className="h-40 rounded-2xl" />
-                    <Skeleton className="h-40 rounded-2xl" />
+                    <Skeleton className="h-40 rounded-card" />
+                    <Skeleton className="h-40 rounded-card" />
                 </div>
             ) : list.isError ? (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                <div className="rounded-card border border-dashed border-border p-10 text-center">
                     <p className="font-medium">Couldn&apos;t load the questions.</p>
                     <Button variant="outline" className="mt-4" onClick={() => list.refetch()}>
                         Try again
                     </Button>
                 </div>
             ) : questions.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
-                    <span className="mx-auto grid size-11 place-items-center rounded-full bg-success/10 text-success">
+                <div className="rounded-card border border-dashed border-border px-6 py-14 text-center">
+                    <span className="mx-auto grid size-11 place-items-center rounded-md border border-border bg-success/10 text-success">
                         <MessagesSquare className="size-5" aria-hidden />
                     </span>
                     <p className="mt-3 font-medium">{tab === "open" ? "Nothing waiting" : "Nothing here yet"}</p>
@@ -178,11 +180,11 @@ function QuestionCard({ question, highlighted, delay }: { question: InboxQuestio
             style={{ animationDelay: `${delay + 100}ms` }}
             className={cn(
                 RISE,
-                "scroll-mt-24 overflow-hidden rounded-2xl border bg-card shadow-sm",
+                "scroll-mt-24 overflow-hidden rounded-card border bg-card shadow-card",
                 highlighted ? "border-primary ring-2 ring-primary/20" : "border-border",
             )}
         >
-            <p className="flex flex-wrap items-center gap-x-2 border-b border-border bg-secondary/30 px-5 py-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground sm:px-6">
+            <p className="flex flex-wrap items-center gap-x-2 border-b border-border bg-secondary/30 px-5 py-2 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground sm:px-6">
                 <span className="truncate">{course.title}</span>
                 <span aria-hidden>·</span>
                 <span>

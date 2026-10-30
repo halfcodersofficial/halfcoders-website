@@ -19,9 +19,9 @@ export default function ReviewPanel({ pending, waiting, now }: { pending: number
     const oldest = waiting[0] ? elapsed(waiting[0].submittedAt, now) : null;
 
     return (
-        <section aria-labelledby="reviews-title" className="flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+        <section aria-labelledby="reviews-title" className="flex flex-col overflow-hidden rounded-panel border border-border bg-card shadow-card">
             <header className="flex items-center justify-between gap-3 px-6 pt-6">
-                <h2 id="reviews-title" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <h2 id="reviews-title" className="text-xs font-semibold font-mono uppercase tracking-[0.2em] text-muted-foreground">
                     Review queue
                 </h2>
                 <Link href="/mentor/reviews" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
@@ -31,7 +31,7 @@ export default function ReviewPanel({ pending, waiting, now }: { pending: number
 
             {pending === 0 ? (
                 <div className="flex flex-1 flex-col justify-center px-6 pb-8 pt-6">
-                    <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary ring-8 ring-primary/5">
+                    <span className="grid size-12 place-items-center rounded-md border border-border bg-primary/10 text-primary">
                         <Check className="size-6" strokeWidth={2.5} aria-hidden />
                     </span>
                     <p className="mt-5 text-2xl font-bold tracking-tight">All caught up</p>
@@ -71,7 +71,7 @@ export default function ReviewPanel({ pending, waiting, now }: { pending: number
                                         </span>
                                         <span
                                             className={cn(
-                                                "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+                                                "shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium tabular-nums",
                                                 wait.days >= 2
                                                     ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
                                                     : "bg-secondary text-secondary-foreground",

@@ -18,7 +18,7 @@ import type { AdminCourseDetail } from "@/types/admin.types";
 import type { CourseResults, MentorDashboard } from "@/types/mentor.types";
 
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
-const PANEL = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
+const PANEL = "overflow-hidden rounded-card border border-border bg-card shadow-card";
 
 /**
  * One course at a glance, for a mentor who teaches it: how many are enrolled
@@ -38,10 +38,10 @@ export default function MentorCourseOverview() {
     if (detail.isLoading || dashboard.isLoading) {
         return (
             <div className="container-page space-y-6 py-8">
-                <Skeleton className="h-24 rounded-2xl" />
+                <Skeleton className="h-24 rounded-card" />
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                    <Skeleton className="h-96 rounded-2xl" />
-                    <Skeleton className="h-96 rounded-2xl" />
+                    <Skeleton className="h-96 rounded-card" />
+                    <Skeleton className="h-96 rounded-card" />
                 </div>
             </div>
         );
@@ -61,7 +61,7 @@ export default function MentorCourseOverview() {
     return (
         <div className="container-page space-y-6 py-8">
             {/* 1px gaps over the border colour draw the dividers at every column count. */}
-            <ul aria-label="This course" className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm lg:grid-cols-4", RISE)}>
+            <ul aria-label="This course" className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card lg:grid-cols-4", RISE)}>
                 <Figure label="Students enrolled" value={course._count.enrollments} hint={stats ? `${stats.active} learning · ${stats.completed} finished` : undefined} />
                 <Figure
                     label="Hand-ins to review"
@@ -141,7 +141,7 @@ function Curriculum({ course, modulesHref }: { course: AdminCourseDetail; module
 
     return (
         <section aria-labelledby="curriculum-title" className={PANEL}>
-            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <div>
                     <h2 id="curriculum-title" className="text-lg font-semibold tracking-tight">
                         Curriculum
@@ -178,7 +178,7 @@ function Curriculum({ course, modulesHref }: { course: AdminCourseDetail; module
                                     href={modulesHref}
                                     className="group grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-4 px-5 py-3.5 transition-colors hover:bg-secondary/40 sm:px-6"
                                 >
-                                    <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <span className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                         {label} {pad2(milestone.order)}
                                     </span>
                                     <span className="min-w-0">
@@ -292,8 +292,8 @@ function Support({ courseId, sessions, now }: { courseId: string; sessions: Ment
             </header>
             <div className="px-5 pb-4 pt-2">
                 {next ? (
-                    <Link href={`/mentor/support/${next.id}`} className="group block rounded-xl border border-border px-4 py-3 transition-colors hover:bg-secondary/40">
-                        <span className={cn("text-xs font-semibold uppercase tracking-wider", live ? "text-success" : "text-primary")}>
+                    <Link href={`/mentor/support/${next.id}`} className="group block rounded-card border border-border px-4 py-3 transition-colors hover:bg-secondary/40">
+                        <span className={cn("text-xs font-semibold font-mono uppercase tracking-wider", live ? "text-success" : "text-primary")}>
                             {live ? "Live now" : "Next"}
                         </span>
                         <span className="mt-0.5 block truncate text-sm font-semibold">{next.title || "Support session"}</span>

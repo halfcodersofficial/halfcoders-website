@@ -42,7 +42,7 @@ export function StudentSubmissions({
 
     if (submissions.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed border-border p-10 text-center">
+            <div className="rounded-card border border-dashed border-border p-10 text-center">
                 <ClipboardCheck className="mx-auto size-6 text-muted-foreground" aria-hidden />
                 <p className="mt-3 font-medium">No assignments submitted yet.</p>
                 <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -90,11 +90,11 @@ export function StudentSubmissions({
             </div>
 
             {shown.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                <p className="rounded-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                     Nothing matches these filters.
                 </p>
             ) : (
-                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card">
                     {shown.map((submission) => (
                         <li key={submission.id}>
                             <SubmissionRow submission={submission} />
@@ -231,7 +231,7 @@ export function SubmissionDetail({ submission, className }: { submission: Studen
 
                 <Block title="What they submitted">
                     {submission.content && (
-                        <p className="max-h-48 overflow-y-auto whitespace-pre-line rounded-lg border border-border bg-card px-3 py-2 text-sm wrap-break-word">
+                        <p className="max-h-48 overflow-y-auto whitespace-pre-line rounded-md border border-border bg-card px-3 py-2 text-sm wrap-break-word">
                             {submission.content}
                         </p>
                     )}
@@ -316,7 +316,7 @@ export function SubmissionDetail({ submission, className }: { submission: Studen
 function Block({ title, children }: { title: string; children: ReactNode }) {
     return (
         <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+            <p className="text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">{title}</p>
             {children}
         </div>
     );

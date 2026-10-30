@@ -1,8 +1,10 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Inbox, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import ExportCsvButton from "@/components/admin/ExportCsvButton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
+import EmptyState from "@/components/site/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -112,9 +114,10 @@ export default function DataShell({
     return (
         <div className="space-y-5">
             {header ?? (
-                <header className="flex flex-wrap items-start justify-between gap-3">
+                <header className="flex flex-wrap items-end justify-between gap-3">
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
+                        <ConsoleEyebrow />
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
                         {description && <div className="mt-1 text-sm text-muted-foreground sm:text-base">{description}</div>}
                     </div>
                     {action && <div className="shrink-0">{action}</div>}
@@ -157,7 +160,7 @@ export default function DataShell({
                         <div
                             role="group"
                             aria-label="Filter"
-                            className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-lg bg-secondary/60 p-1"
+                            className="no-scrollbar flex max-w-full gap-0.5 overflow-x-auto rounded-md border border-border bg-card p-0.5"
                         >
                             {filters.map((filter) => {
                                 const isActive = activeFilter === filter.value;
@@ -168,18 +171,18 @@ export default function DataShell({
                                         aria-pressed={isActive}
                                         onClick={() => onFilter(filter.value)}
                                         className={cn(
-                                            "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                            "shrink-0 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors",
                                             isActive
-                                                ? "bg-card text-foreground shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground",
+                                                ? "bg-primary/10 text-primary-ink"
+                                                : "text-muted-foreground hover:bg-surface hover:text-foreground",
                                         )}
                                     >
                                         {filter.label}
                                         {filter.count !== undefined && (
                                             <span
                                                 className={cn(
-                                                    "ml-1.5 tabular-nums",
-                                                    isActive ? "text-muted-foreground" : "text-muted-foreground/70",
+                                                    "ml-1.5 font-mono text-xs tabular-nums",
+                                                    isActive ? "text-syn-number" : "text-muted-foreground/70",
                                                 )}
                                             >
                                                 {filter.count}
@@ -204,26 +207,25 @@ export default function DataShell({
             {isLoading && skeleton ? (
                 <div aria-busy>{skeleton}</div>
             ) : isLoading ? (
-                <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" aria-busy>
-                    <div className="h-10 bg-secondary/40" />
+                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card" aria-busy>
+                    <div className="h-10 bg-surface" />
                     {Array.from({ length: 6 }).map((_, index) => (
                         <div key={index} className="flex items-center gap-4 border-t border-border px-4 py-3.5">
+                            <span className="w-5 shrink-0 text-right font-mono text-[0.7rem] text-muted-foreground/60">{index + 1}</span>
                             <Skeleton className="size-9 rounded-full" />
                             <Skeleton className="h-4 w-1/3" />
                             <Skeleton className="ml-auto h-4 w-24" />
-                            <Skeleton className="h-6 w-20 rounded-full" />
+                            <Skeleton className="h-6 w-20" />
                         </div>
                     ))}
                 </div>
             ) : isEmpty ? (
-                <div className="animate-in fade-in-0 zoom-in-95 rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center duration-200">
-                    <div className="mx-auto grid size-14 place-items-center rounded-full bg-secondary/60">
-                        <Inbox className="size-6 text-muted-foreground" aria-hidden />
-                    </div>
-                    <p className="mt-4 font-medium">{emptyMessage}</p>
-                    {emptyHint && <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{emptyHint}</p>}
-                    {emptyAction && <div className="mt-5 flex justify-center">{emptyAction}</div>}
-                </div>
+                <EmptyState
+                    className="animate-in fade-in-0 zoom-in-95 duration-200"
+                    title={emptyMessage}
+                    description={emptyHint}
+                    action={emptyAction}
+                />
             ) : (
                 <>
                     {children}
@@ -233,15 +235,19 @@ export default function DataShell({
                             className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"
                             aria-label="Pagination"
                         >
-                            <p>
+                            <p className="tabular-nums">
                                 {meta.totalPages > 1 ? (
                                     <>
-                                        Showing {(meta.page - 1) * meta.limit + 1}–
-                                        {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+                                        Showing{" "}
+                                        <span className="font-mono text-foreground">
+                                            {(meta.page - 1) * meta.limit + 1}–{Math.min(meta.page * meta.limit, meta.total)}
+                                        </span>{" "}
+                                        of <span className="font-mono text-syn-number">{meta.total}</span>
                                     </>
                                 ) : (
                                     <>
-                                        {meta.total} {meta.total === 1 ? "result" : "results"}
+                                        <span className="font-mono text-syn-number">{meta.total}</span>{" "}
+                                        {meta.total === 1 ? "result" : "results"}
                                     </>
                                 )}
                             </p>
@@ -257,8 +263,8 @@ export default function DataShell({
                                     >
                                         <ChevronLeft /> Prev
                                     </Button>
-                                    <span className="px-2 tabular-nums">
-                                        {meta.page} / {meta.totalPages}
+                                    <span className="px-2 font-mono text-xs tabular-nums">
+                                        Page {meta.page} of {meta.totalPages}
                                     </span>
                                     <Button
                                         variant="outline"

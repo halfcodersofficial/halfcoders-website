@@ -81,7 +81,7 @@ export default function EntityPicker({
             </Label>
 
             {value ? (
-                <div className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2.5">
+                <div className="flex items-center gap-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2.5">
                     {avatar && <Avatar src={value.image} name={value.label} size={36} />}
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{value.label}</p>
@@ -109,7 +109,7 @@ export default function EntityPicker({
                         />
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-border">
+                    <div className="overflow-hidden rounded-md border border-border">
                         {results.isLoading ? (
                             <div className="space-y-2 p-3">
                                 {Array.from({ length: 3 }).map((_, index) => (

@@ -144,7 +144,7 @@ function PickerBody({ mode, onClose }: { mode: PickerMode; onClose: () => void }
             onClick={() => setGroup(id)}
             aria-pressed={group === id}
             className={cn(
-                "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "shrink-0 rounded-sm border px-3 py-1 text-xs font-medium transition-colors",
                 group === id
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -187,7 +187,7 @@ function PickerBody({ mode, onClose }: { mode: PickerMode; onClose: () => void }
                 ) : (
                     sections.map((section) => (
                         <section key={section.id} aria-label={lang === "bn" ? section.labelBn : section.label}>
-                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <h3 className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                                 {lang === "bn" ? section.labelBn : section.label}{" "}
                                 <span className="font-normal">({digits(section.keys.length)})</span>
                             </h3>
@@ -208,7 +208,7 @@ function PickerBody({ mode, onClose }: { mode: PickerMode; onClose: () => void }
                                                 aria-pressed={isSelected}
                                                 title={added ? t("Already in the list", "তালিকায় আগেই আছে") : undefined}
                                                 className={cn(
-                                                    "relative flex h-full w-full flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                                    "relative flex h-full w-full flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                                     isSelected
                                                         ? "border-primary bg-primary/10 text-primary"
                                                         : "border-border hover:border-primary/40 hover:bg-secondary/60",

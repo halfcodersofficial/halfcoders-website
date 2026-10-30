@@ -1225,15 +1225,47 @@ export interface PromotionCourseSummary {
         rewardCount: number;
         given: number;
     } | null;
+    /** The reward courses given with this course, in brief. */
+    bonus: {
+        /** How many reward courses come with it. */
+        courseCount: number;
+        /** How many of them go to everyone who has the course. */
+        forEveryone: number;
+        /** Students holding one now (each reward course counted once per student). */
+        given: number;
+    } | null;
 }
 
 /** Someone a promotion gave a course to. */
 export interface PromotionGrant {
     id: string;
     createdAt: string;
+    /** Set when it was taken back — for a reward course, because the student lost the main course. */
     revokedAt: string | null;
+    /** Reward courses only: which of the course's reward courses it came from. */
+    bonusId?: string | null;
     student: { id: string; name: string; image: string | null };
     course: { id: string; title: string };
+}
+
+/** A reward course given with a main course. */
+export interface AdminRewardCourse {
+    id: string;
+    /** On: everyone who has the main course gets it, including anyone who gets it later. */
+    forEveryone: boolean;
+    createdAt: string;
+    course: AdminPromoCourse;
+    /** Students who have it now. */
+    holders: number;
+}
+
+/** What giving reward courses (or switching one on for everyone) did. */
+export interface RewardCoursesGiven {
+    /** Students who got at least one course they didn't have. */
+    students: number;
+    /** Students who already had them all, so nothing changed for them. */
+    alreadyHad: number;
+    forEveryone: boolean;
 }
 
 export interface PromotionCourseDetail {
@@ -1253,8 +1285,12 @@ export interface PromotionCourseDetail {
         isActive: boolean;
         rewardCourses: { courseId: string; order: number; course: AdminPromoCourse }[];
     } | null;
+    /** The reward courses given with this course, oldest first. */
+    bonuses: AdminRewardCourse[];
     offerGrants: PromotionGrant[];
     rewardGrants: PromotionGrant[];
+    /** Who has (or had) one of this course's reward courses, latest 50. */
+    bonusGrants: PromotionGrant[];
 }
 
 /** A course on the admission-tickets overview: its ticket, if written, and who it would go to. */

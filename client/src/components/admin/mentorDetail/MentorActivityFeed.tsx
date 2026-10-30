@@ -151,11 +151,11 @@ export function MentorActivityFeed({ mentorId, courses, preview }: MentorActivit
                     ))}
                 </div>
             ) : query.isError ? (
-                <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {getApiErrorMessage(query.error, "Couldn't load the change history.")}
                 </p>
             ) : entries.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border p-8 text-center">
+                <div className="rounded-md border border-dashed border-border p-8 text-center">
                     <History className="mx-auto size-6 text-muted-foreground" aria-hidden />
                     <p className="mt-3 font-medium">{courseId ? "No changes in this course yet." : "No changes recorded yet."}</p>
                     <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -167,17 +167,17 @@ export function MentorActivityFeed({ mentorId, courses, preview }: MentorActivit
                 <div className="space-y-5">
                     {groups.map((group) => (
                         <section key={group.heading + group.entries[0].id}>
-                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <h3 className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                                 {group.heading}
                             </h3>
-                            <ol className="divide-y divide-border rounded-lg border border-border bg-card">
+                            <ol className="divide-y divide-border rounded-md border border-border bg-card">
                                 {group.entries.map((entry) => {
                                     const Icon = ENTITY_ICONS[entry.entityType ?? ""] ?? History;
                                     const DeviceIcon = DEVICE_ICONS[entry.device.deviceType];
                                     const detail = detailLine(entry);
                                     return (
                                         <li key={entry.id} className="flex gap-3 px-4 py-3">
-                                            <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                                            <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                                 <Icon className="size-4" aria-hidden />
                                             </span>
                                             <div className="min-w-0 flex-1">

@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { formatDate } from "@/lib/utils";
@@ -69,7 +70,8 @@ export default function CourseStudents({
                     <BackButton href={routes.courses} label="All courses" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold">Student progress</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Student progress</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {meta ? `${meta.total} enrolled` : "Everyone enrolled on this course"}
                     </p>
@@ -105,7 +107,7 @@ export default function CourseStudents({
                     ))}
                 </div>
             ) : students.length === 0 ? (
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardContent className="py-16 text-center">
                         <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
                         <p className="font-medium">
@@ -116,7 +118,7 @@ export default function CourseStudents({
             ) : (
                 <div className="space-y-3">
                     {students.map((enrollment) => (
-                        <Card key={enrollment.id} className="shadow-sm transition-colors hover:border-primary/30">
+                        <Card key={enrollment.id} className="shadow-card transition-colors hover:border-primary/30">
                             <CardContent className="flex flex-wrap items-center gap-4 p-5">
                                 <Avatar
                                     src={enrollment.student.image}

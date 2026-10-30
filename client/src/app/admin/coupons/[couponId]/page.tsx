@@ -104,7 +104,7 @@ export default function AdminCouponPage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/coupons" label="All coupons" />
-                <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border bg-card px-6 py-16 text-center">
                     <p className="font-medium">This coupon couldn&apos;t be found.</p>
                     <p className="mt-1 text-sm text-muted-foreground">It may have been deleted.</p>
                 </div>
@@ -115,9 +115,9 @@ export default function AdminCouponPage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/coupons" label="All coupons" />
-                <Skeleton className="h-64 rounded-2xl" />
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-80 rounded-2xl" />
+                <Skeleton className="h-64 rounded-card" />
+                <Skeleton className="h-24 rounded-card" />
+                <Skeleton className="h-80 rounded-card" />
             </div>
         );
     }
@@ -214,7 +214,7 @@ export default function AdminCouponPage() {
                     <div className="space-y-5">
                         <BackButton href="/admin/coupons" label="All coupons" />
 
-                        <section className="@container overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                        <section className="@container overflow-hidden rounded-card border border-border bg-card shadow-card">
                             <div className="flex flex-col @2xl:flex-row">
                                 <CouponStub coupon={coupon} className="py-6 @2xl:w-44 [&>p:first-child]:text-4xl" />
                                 <div className="min-w-0 flex-1 border-dashed border-border-strong p-5 @2xl:border-l-2 @max-2xl:border-t-2 sm:p-6">
@@ -284,7 +284,7 @@ export default function AdminCouponPage() {
 
                                     <CouponUsage coupon={coupon} className="mt-5 max-w-xl" />
 
-                                    <div className="mt-5 flex flex-col gap-2 rounded-xl border border-border bg-surface/70 p-3 sm:flex-row sm:items-center">
+                                    <div className="mt-5 flex flex-col gap-2 rounded-card border border-border bg-surface/70 p-3 sm:flex-row sm:items-center">
                                         <Link2 className="hidden size-4 shrink-0 text-primary sm:block" aria-hidden />
                                         <input
                                             readOnly
@@ -312,7 +312,7 @@ export default function AdminCouponPage() {
                         <StatStrip cells={cells} />
 
                         {byCourse.length > 0 && (
-                            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                            <section className="rounded-card border border-border bg-card p-5 shadow-card">
                                 <h2 className="text-sm font-semibold">Spent on</h2>
                                 <ul className="mt-3 space-y-2.5">
                                     {byCourse.map((row) => (

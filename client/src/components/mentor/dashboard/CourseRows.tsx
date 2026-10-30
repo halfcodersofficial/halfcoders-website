@@ -35,8 +35,8 @@ function nextOut(course: MentorCourse, now: number) {
  */
 export default function CourseRows({ courses, now }: { courses: MentorCourse[]; now: number }) {
     return (
-        <section aria-labelledby="courses-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <section aria-labelledby="courses-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <h2 id="courses-title" className="text-lg font-semibold tracking-tight">
                     Your courses <span className="font-normal text-muted-foreground">{courses.length}</span>
                 </h2>
@@ -64,7 +64,7 @@ export default function CourseRows({ courses, now }: { courses: MentorCourse[]; 
                             className={cn("group relative grid gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-secondary/40 sm:px-6 md:items-center", COLUMNS)}
                         >
                             <div className="flex min-w-0 items-center gap-3">
-                                <span className="relative grid aspect-video w-20 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary">
+                                <span className="relative grid aspect-video w-20 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary">
                                     <SafeImage
                                         src={course.thumbnail}
                                         alt=""
@@ -117,7 +117,7 @@ export default function CourseRows({ courses, now }: { courses: MentorCourse[]; 
                                             href={`/mentor/reviews?course=${course.id}`}
                                             title={waited ? `Oldest waiting ${waited.text}` : undefined}
                                             className={cn(
-                                                "relative z-10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-semibold tabular-nums transition-colors",
+                                                "relative z-10 inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-sm font-semibold tabular-nums transition-colors",
                                                 waited && waited.days >= 2
                                                     ? "bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
                                                     : "bg-primary/10 text-primary hover:bg-primary/15",

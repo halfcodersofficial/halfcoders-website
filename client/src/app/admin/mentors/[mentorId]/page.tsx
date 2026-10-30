@@ -106,8 +106,11 @@ export default function AdminMentorDetailPage() {
             <BackButton href="/admin/mentors" label="All mentors" />
 
             {/* ---- Who they are */}
-            <Card className="overflow-hidden shadow-sm">
-                <div className="h-24 bg-linear-to-r from-primary/15 via-primary/5 to-transparent sm:h-28" aria-hidden />
+            <Card className="overflow-hidden shadow-card">
+                <div className="editor relative h-24 overflow-hidden border-b border-editor-line sm:h-28" aria-hidden>
+                    <span className="bg-grid bg-grid-fade absolute inset-0" />
+                    <p className="relative px-6 pt-4 text-right font-mono text-xs text-syn-comment">{"// "}Mentor profile</p>
+                </div>
                 <CardContent className="-mt-14 flex flex-col gap-5 p-6 pt-0 sm:-mt-16 lg:flex-row lg:items-end lg:justify-between">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
                         <Avatar
@@ -264,11 +267,11 @@ function StatTile({
     tone?: "warning";
 }) {
     return (
-        <Card className="h-full shadow-sm">
+        <Card className="h-full shadow-card">
             <CardContent className="flex items-center gap-4 p-5">
                 <span
                     className={cn(
-                        "grid size-11 shrink-0 place-items-center rounded-lg",
+                        "grid size-11 shrink-0 place-items-center rounded-md",
                         tone === "warning" ? "bg-accent/20 text-accent-foreground" : "bg-primary/10 text-primary",
                     )}
                 >
@@ -299,7 +302,7 @@ function OverviewTab({
 
     return (
         <div className="space-y-6">
-            <Card className="shadow-sm">
+            <Card className="shadow-card">
                 <CardHeader>
                     <CardTitle>Work in the last 30 days</CardTitle>
                     <p className="text-sm text-muted-foreground">
@@ -316,13 +319,13 @@ function OverviewTab({
             </Card>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                <Card className="shadow-sm xl:col-span-2">
+                <Card className="shadow-card xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Courses</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {data.courses.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                            <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                                 Not assigned to any course yet.
                             </p>
                         ) : (
@@ -356,7 +359,7 @@ function OverviewTab({
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>Performance</CardTitle>
                     </CardHeader>
@@ -396,7 +399,7 @@ function OverviewTab({
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                <Card className="shadow-sm xl:col-span-2">
+                <Card className="shadow-card xl:col-span-2">
                     <CardHeader className="flex-row items-center justify-between gap-3">
                         <CardTitle>Recent changes</CardTitle>
                         <Button variant="outline" size="sm" onClick={onSeeHistory}>
@@ -408,7 +411,7 @@ function OverviewTab({
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
+                <Card className="shadow-card">
                     <CardHeader>
                         <CardTitle>About</CardTitle>
                     </CardHeader>
@@ -503,7 +506,7 @@ function TabSection({
 }) {
     if (count === 0) {
         return (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 {empty}
             </p>
         );
@@ -522,13 +525,13 @@ function DetailSkeleton() {
     return (
         <div className="space-y-6" aria-busy>
             <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-56 rounded-xl" />
+            <Skeleton className="h-56 rounded-card" />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, index) => (
-                    <Skeleton key={index} className="h-24 rounded-xl" />
+                    <Skeleton key={index} className="h-24 rounded-card" />
                 ))}
             </div>
-            <Skeleton className="h-72 rounded-xl" />
+            <Skeleton className="h-72 rounded-card" />
         </div>
     );
 }

@@ -67,7 +67,7 @@ export default function RubricEditor({ assignmentId }: { assignmentId: string })
         setDirty(true);
     };
 
-    if (isLoading || !data) return <Skeleton className="h-40 rounded-2xl" />;
+    if (isLoading || !data) return <Skeleton className="h-40 rounded-card" />;
 
     const total = data.totalMarks;
     const sum = lines.reduce((acc, line) => acc + (Number(line.maxPoints) || 0), 0);
@@ -89,7 +89,7 @@ export default function RubricEditor({ assignmentId }: { assignmentId: string })
     };
 
     return (
-        <section aria-labelledby="rubric-title" className="rounded-2xl border border-border bg-card shadow-sm">
+        <section aria-labelledby="rubric-title" className="rounded-card border border-border bg-card shadow-card">
             <header className={cn("flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6", lines.length > 0 && "border-b border-border")}>
                 <div>
                     <h2 id="rubric-title" className="flex items-center gap-2 font-semibold">

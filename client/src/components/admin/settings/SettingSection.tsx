@@ -10,7 +10,7 @@ import { cn, formatDateTime } from "@/lib/utils";
  * not rewritten in place, which Firefox could leave with an unlaid-out label.
  */
 export function SettingStatus({ dirty, changedAt, className }: { dirty: boolean; changedAt: string | null; className?: string }) {
-    const base = "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium";
+    const base = "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-1 text-xs font-medium";
 
     if (dirty) {
         return (
@@ -68,13 +68,13 @@ export function SettingSection({
             id={id}
             aria-labelledby={`${id}-title`}
             className={cn(
-                "scroll-mt-8 overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors",
+                "scroll-mt-8 overflow-hidden rounded-card border bg-card shadow-card transition-colors",
                 dirty ? "border-amber-500/40" : "border-border",
             )}
         >
-            <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 border-b border-border px-5 py-4 sm:px-6">
+            <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <div className="flex min-w-0 gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                         <Icon className="size-4.5" aria-hidden />
                     </span>
                     <div className="min-w-0">

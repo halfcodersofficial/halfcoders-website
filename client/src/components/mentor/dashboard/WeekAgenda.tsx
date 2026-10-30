@@ -131,7 +131,7 @@ export default function WeekAgenda({ agenda, now }: { agenda: MentorDashboard["a
     const nowIndex = isToday ? day.items.findIndex((item) => new Date(item.at).getTime() > now) : -1;
 
     return (
-        <section aria-labelledby="week-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <section aria-labelledby="week-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
             <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-4 sm:px-6">
                 <div>
                     <h2 id="week-title" className="text-lg font-semibold tracking-tight">
@@ -182,7 +182,7 @@ export default function WeekAgenda({ agenda, now }: { agenda: MentorDashboard["a
                             />
                             <span
                                 className={cn(
-                                    "block truncate text-[0.6875rem] font-semibold uppercase tracking-wider",
+                                    "block truncate text-[0.6875rem] font-semibold font-mono uppercase tracking-wider",
                                     today ? "text-primary" : "text-muted-foreground",
                                 )}
                             >
@@ -274,7 +274,7 @@ export default function WeekAgenda({ agenda, now }: { agenda: MentorDashboard["a
                                         <Link
                                             href={row.href}
                                             className={cn(
-                                                "group -mx-2 grid grid-cols-[4.25rem_0.75rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-secondary/40 sm:grid-cols-[5rem_0.75rem_minmax(0,1fr)_auto]",
+                                                "group -mx-2 grid grid-cols-[4.25rem_0.75rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-secondary/40 sm:grid-cols-[5rem_0.75rem_minmax(0,1fr)_auto]",
                                                 row.past && "opacity-60 hover:opacity-100",
                                             )}
                                         >
@@ -312,7 +312,7 @@ export default function WeekAgenda({ agenda, now }: { agenda: MentorDashboard["a
 
 function NowLine({ now }: { now: number }) {
     return (
-        <li aria-hidden className="flex items-center gap-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-primary">
+        <li aria-hidden className="flex items-center gap-2 py-1 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-primary">
             <span className="size-1.5 rounded-full bg-primary" />
             Now · {clock(now)}
             <span className="h-px flex-1 bg-primary/30" />

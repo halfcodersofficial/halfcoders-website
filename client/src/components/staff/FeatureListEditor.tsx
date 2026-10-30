@@ -59,7 +59,7 @@ export function FeatureListEditor() {
     return (
         <div className="space-y-3">
             {rows.length === 0 && (
-                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                     {t(
                         "No feature tiles yet. Four to six short ones read best — “60+ video lessons”, “1:1 mentor support”, “Job-ready projects”.",
                         "এখনো কোনো ফিচার টাইল নেই। চার থেকে ছয়টি ছোট টাইল সবচেয়ে ভালো দেখায় — “৬০+ ভিডিও লেসন”, “১:১ মেন্টর সাপোর্ট”, “চাকরির উপযোগী প্রজেক্ট”।",
@@ -77,10 +77,10 @@ export function FeatureListEditor() {
                         // would remount an input mid-typing.
                         <li
                             key={index}
-                            className="grid gap-2 rounded-lg border border-border bg-secondary/30 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-start"
+                            className="grid gap-2 rounded-md border border-border bg-secondary/30 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-start"
                         >
                             <div className="flex items-center gap-2">
-                                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                                <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                     <Icon className="size-5" />
                                 </span>
                                 <select

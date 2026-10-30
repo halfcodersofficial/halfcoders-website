@@ -76,9 +76,9 @@ export default function RecipientPreview({
                         {stamp}
                     </p>
                 ) : (
-                    <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">What they&apos;ll see</p>
+                    <p className="font-mono text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">What they&apos;ll see</p>
                 )}
-                <div role="group" aria-label="Preview" className="flex items-center gap-0.5 rounded-lg bg-secondary/60 p-1">
+                <div role="group" aria-label="Preview" className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5">
                     {views.map((value) => {
                         const { label, icon: Icon } = VIEW_META[value];
                         return (
@@ -88,8 +88,8 @@ export default function RecipientPreview({
                                 aria-pressed={view === value}
                                 onClick={() => onViewChange(value)}
                                 className={cn(
-                                    "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors",
-                                    view === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                    "inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium transition-colors",
+                                    view === value ? "bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-surface hover:text-foreground",
                                 )}
                             >
                                 <Icon className="size-3.5" aria-hidden />

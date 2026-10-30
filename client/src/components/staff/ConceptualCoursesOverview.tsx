@@ -15,6 +15,7 @@ import DataShell from "@/components/admin/DataShell";
 import ViewToggle, { type ViewMode } from "@/components/admin/ViewToggle";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn, formatHoursMinutes } from "@/lib/utils";
 import { conceptualAuthoring } from "@/services/conceptual";
@@ -106,7 +107,8 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
                     <div className="space-y-5">
                         <header className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <h1 className="text-2xl font-bold sm:text-3xl">Conceptual sessions</h1>
+                                <ConsoleEyebrow />
+                                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Conceptual sessions</h1>
                                 <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                                     Recordings of the live conceptual classes, filed by topic. Pick a course to add or
                                     manage its recordings.
@@ -114,7 +116,7 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
                             </div>
                             <ViewToggle value={view} onChange={changeView} />
                         </header>
-                        {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={totals(all)} />}
+                        {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={totals(all)} />}
                     </div>
                 }
                 searchPlaceholder="Search courses…"
@@ -131,7 +133,7 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
                     <div className="@container">
                         <div className={COURSE_GRID}>
                             {Array.from({ length: 5 }).map((_, index) => (
-                                <Skeleton key={index} className="h-72 rounded-xl" />
+                                <Skeleton key={index} className="h-72 rounded-card" />
                             ))}
                         </div>
                     </div>
@@ -156,7 +158,7 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
                                         href={hrefFor(summary)}
                                         badge={
                                             drafts(summary) > 0 && (
-                                                <Badge variant="secondary" className="bg-card/95 shadow-sm">
+                                                <Badge variant="secondary" className="bg-card/95 shadow-card">
                                                     {drafts(summary)} not live
                                                 </Badge>
                                             )
@@ -164,7 +166,7 @@ export default function ConceptualCoursesOverview({ area }: { area: StaffArea })
                                         figure={
                                             <div className="flex items-end justify-between gap-2">
                                                 <div className="min-w-0">
-                                                    <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    <p className="text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                                         Live recordings
                                                     </p>
                                                     <p className="text-xl font-bold tabular-nums tracking-tight">
