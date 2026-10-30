@@ -116,9 +116,9 @@ export default function DataTable<T>({
 
     return (
         <>
-            <div className="relative hidden overflow-x-auto rounded-xl border border-border bg-card shadow-sm md:block">
+            <div className="relative hidden overflow-x-auto rounded-card border border-border bg-card shadow-card md:block">
                 <table className="w-full text-sm">
-                    <thead className="bg-secondary/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <thead className="bg-surface text-left font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground">
                         <tr>
                             {selectable && (
                                 <th scope="col" className="w-10 px-4 py-2.5">
@@ -186,7 +186,7 @@ export default function DataTable<T>({
                                 <tr
                                     key={id}
                                     className={cn(
-                                        "border-t border-border transition-colors hover:bg-secondary/30",
+                                        "border-t border-border transition-colors hover:bg-surface/70",
                                         isSelected && "bg-primary/5 hover:bg-primary/10",
                                         rowClassName?.(row),
                                     )}
@@ -226,7 +226,7 @@ export default function DataTable<T>({
                         <li
                             key={id}
                             className={cn(
-                                "rounded-xl border border-border bg-card p-4 shadow-sm transition-colors",
+                                "rounded-card border border-border bg-card p-4 shadow-card transition-colors",
                                 isSelected && "border-primary/40 bg-primary/5",
                                 rowClassName?.(row),
                             )}
@@ -248,7 +248,7 @@ export default function DataTable<T>({
                                         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
                                             {secondary.map((column) => (
                                                 <div key={column.id} className="min-w-0">
-                                                    <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                    <dt className="font-mono text-[0.68rem] uppercase tracking-wider text-muted-foreground">
                                                         {column.header}
                                                     </dt>
                                                     <dd className="mt-0.5 min-w-0">{column.cell(row)}</dd>

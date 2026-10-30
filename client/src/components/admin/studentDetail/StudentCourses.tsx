@@ -55,7 +55,7 @@ export function StudentCourses({
 
     if (!enrollment) {
         return (
-            <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+            <p className="rounded-card border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
                 Not enrolled in any course yet.
             </p>
         );
@@ -74,7 +74,7 @@ export function StudentCourses({
                                 aria-pressed={active}
                                 onClick={() => onCourse(row.courseId)}
                                 className={cn(
-                                    "flex max-w-72 shrink-0 items-center gap-2.5 rounded-xl border bg-card py-2 pl-2 pr-3.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                    "flex max-w-72 shrink-0 items-center gap-2.5 rounded-card border bg-card py-2 pl-2 pr-3.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                     active ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
                                 )}
                             >
@@ -100,7 +100,7 @@ function CourseHeader({ enrollment }: { enrollment: StudentEnrollment }) {
     ].filter(Boolean).join(" · ");
 
     return (
-        <section className="rounded-xl border border-border bg-card shadow-sm">
+        <section className="rounded-card border border-border bg-card shadow-card">
             <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
                 <ProgressRing value={enrollment.progress} size={84} stroke={6} fillIn className="self-start sm:self-center">
                     <span className="text-lg">{enrollment.progress}%</span>
@@ -134,7 +134,7 @@ function CourseHeader({ enrollment }: { enrollment: StudentEnrollment }) {
                 </Button>
             </div>
 
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-b-xl border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-b-card border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
                 <Cell label="Lessons" value={`${enrollment.lessons.completed} / ${enrollment.lessons.total}`} />
                 <Cell
                     label="Assignments"
@@ -183,7 +183,7 @@ function CourseHeader({ enrollment }: { enrollment: StudentEnrollment }) {
 function Cell({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
     return (
         <div className="min-w-0 bg-card px-4 py-3">
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+            <dt className="text-[11px] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{label}</dt>
             <dd className="mt-1 truncate text-base font-semibold tabular-nums">{value}</dd>
             {hint && <dd className="truncate text-xs text-muted-foreground">{hint}</dd>}
         </div>
@@ -200,7 +200,7 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
         return (
             <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, index) => (
-                    <Skeleton key={index} className="h-36 rounded-xl" />
+                    <Skeleton key={index} className="h-36 rounded-card" />
                 ))}
             </div>
         );
@@ -208,7 +208,7 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
 
     if (isError || !data) {
         return (
-            <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 {getApiErrorMessage(error, "Couldn't load this course's progress.")}
             </p>
         );
@@ -216,7 +216,7 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
 
     if (data.weeks.length === 0) {
         return (
-            <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 Nothing in this course has been released yet.
             </p>
         );
@@ -232,11 +232,11 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
                     <li
                         key={week.id}
                         className={cn(
-                            "overflow-hidden rounded-xl border bg-card shadow-sm",
+                            "overflow-hidden rounded-card border bg-card shadow-card",
                             week.isCurrent ? "border-primary/50" : "border-border",
                         )}
                     >
-                        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-secondary/30 px-4 py-3">
+                        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-3">
                             <span className="font-mono text-xs font-semibold uppercase tracking-wider text-primary">
                                 {weekLabel(milestoneLabel, week.order)}
                             </span>
@@ -306,7 +306,7 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
             >
                 <div className="grid gap-5 px-4 py-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                     <div className="min-w-0">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lessons</p>
+                        <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">Lessons</p>
                         {item.lessons.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No lessons released.</p>
                         ) : (
@@ -337,7 +337,7 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
                     </div>
 
                     <div className="min-w-0">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                             {item.quiz ? `Quiz · ${item.quiz.questions} questions` : "Quiz"}
                         </p>
                         {!item.quiz ? (
@@ -347,7 +347,7 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
                         ) : (
                             <ol className="space-y-1.5">
                                 {item.quiz.attempts.map((attempt, index) => (
-                                    <li key={attempt.id} className="flex items-center justify-between gap-3 rounded-lg bg-secondary/40 px-3 py-2 text-sm">
+                                    <li key={attempt.id} className="flex items-center justify-between gap-3 rounded-md bg-secondary/40 px-3 py-2 text-sm">
                                         <span>
                                             Attempt {index + 1}
                                             <span className="block text-xs text-muted-foreground">

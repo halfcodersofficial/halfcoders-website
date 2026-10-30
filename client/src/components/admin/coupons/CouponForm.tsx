@@ -184,7 +184,7 @@ export default function CouponForm({ coupon, onDone, onCancel }: { coupon: Admin
                                 required
                                 hint={values.kind === "PERCENT" ? "Off the course's sale price." : "Off the course's sale price — never more than the price itself."}
                                 labelAction={
-                                    <div role="radiogroup" aria-label="Takes off" className="flex rounded-lg bg-secondary p-0.5">
+                                    <div role="radiogroup" aria-label="Takes off" className="flex rounded-md bg-secondary p-0.5">
                                         {KINDS.map((option) => (
                                             <button
                                                 key={option.value}
@@ -199,7 +199,7 @@ export default function CouponForm({ coupon, onDone, onCancel }: { coupon: Admin
                                                 }}
                                                 className={cn(
                                                     "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                                    values.kind === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                                    values.kind === option.value ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                                                 )}
                                             >
                                                 {option.label}
@@ -282,8 +282,8 @@ export default function CouponForm({ coupon, onDone, onCancel }: { coupon: Admin
 
                     <aside className="space-y-4 @3xl:sticky @3xl:top-0 @3xl:self-start" aria-label="Preview">
                         <div>
-                            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">What students get</p>
-                            <div className="mt-2 flex overflow-hidden rounded-xl border border-border">
+                            <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">What students get</p>
+                            <div className="mt-2 flex overflow-hidden rounded-card border border-border">
                                 <CouponStub coupon={{ kind: values.kind, value: amount || 0, maxDiscount: cap }} className="w-24 px-2 [&>p:first-child]:text-2xl" />
                                 <div className="min-w-0 flex-1 border-l-2 border-dashed border-border-strong p-3">
                                     <p className={cn("truncate font-mono font-bold tracking-wide", !values.code && "text-muted-foreground")}>
@@ -295,8 +295,8 @@ export default function CouponForm({ coupon, onDone, onCancel }: { coupon: Admin
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-surface/70 p-3.5">
-                            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <div className="rounded-card border border-border bg-surface/70 p-3.5">
+                            <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                                 {sample ? "On the first chosen course" : "On a course of ৳5,000"}
                             </p>
                             {sample && <p className="mt-1 truncate text-xs font-medium" title={sample.title}>{sample.title}</p>}
@@ -319,7 +319,7 @@ export default function CouponForm({ coupon, onDone, onCancel }: { coupon: Admin
                         </div>
 
                         <div>
-                            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">The rules</p>
+                            <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">The rules</p>
                             <ul className="mt-2 space-y-1.5 text-xs">
                                 {rules.map((rule) => (
                                     <li key={rule} className="flex gap-2">

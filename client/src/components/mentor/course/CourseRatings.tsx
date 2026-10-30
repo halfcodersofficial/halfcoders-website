@@ -26,13 +26,13 @@ export default function CourseRatings({ courseId }: { courseId: string }) {
                 Ratings <span className="text-sm font-normal text-muted-foreground">{data?.summary.count ?? 0}</span>
             </h3>
             {isLoading ? (
-                <Skeleton className="h-32 rounded-2xl" />
+                <Skeleton className="h-32 rounded-card" />
             ) : !data || data.summary.count === 0 ? (
-                <p className="rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+                <p className="rounded-card border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
                     No ratings yet. Students rate the course from its learning page.
                 </p>
             ) : (
-                <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border px-5 py-4 sm:px-6">
                         <p className="flex items-baseline gap-2">
                             <span className="text-3xl font-bold tabular-nums">{data.summary.average}</span>

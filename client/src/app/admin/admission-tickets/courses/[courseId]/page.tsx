@@ -109,7 +109,7 @@ export default function AdminAdmissionTicketCoursePage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/admission-tickets" label="All courses" />
-                <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border bg-card px-6 py-16 text-center">
                     <p className="font-medium">This course couldn&apos;t be found.</p>
                     <p className="mt-1 text-sm text-muted-foreground">It may have been removed. Go back to pick another course.</p>
                 </div>
@@ -120,10 +120,10 @@ export default function AdminAdmissionTicketCoursePage() {
         return (
             <div className="space-y-5">
                 <BackButton href="/admin/admission-tickets" label="All courses" />
-                <Skeleton className="h-72 rounded-2xl" />
+                <Skeleton className="h-72 rounded-card" />
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                    <Skeleton className="h-112 rounded-2xl" />
-                    <Skeleton className="aspect-[4/5] rounded-2xl" />
+                    <Skeleton className="h-112 rounded-card" />
+                    <Skeleton className="aspect-[4/5] rounded-card" />
                 </div>
             </div>
         );
@@ -222,7 +222,7 @@ function TicketEditor({ detail }: { detail: AdmissionTicketCourseDetail }) {
                 <AdmissionTicketActions file={file} shareText={course.title} className="justify-center" />
             </aside>
 
-            <section className="@container min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:col-start-1 xl:row-start-1">
+            <section className="@container min-w-0 overflow-hidden rounded-card border border-border bg-card shadow-card xl:col-start-1 xl:row-start-1">
                 <form noValidate onSubmit={form.handleSubmit} className="divide-y divide-border">
                     <PromoSection title="Above the ticket" description="The big word at the top, and one line under it.">
                         <FormField form={form} name="headline" label="Headline" required counterMax={32}>

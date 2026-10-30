@@ -128,8 +128,8 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
     const events = eventsOf(data);
 
     return (
-        <section aria-labelledby="activity-title" className={cn("overflow-hidden rounded-2xl border border-border bg-card shadow-sm", className)}>
-            <header className="border-b border-border px-5 py-4 sm:px-6">
+        <section aria-labelledby="activity-title" className={cn("overflow-hidden rounded-card border border-border bg-card shadow-card", className)}>
+            <header className="border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <h2 id="activity-title" className="text-lg font-semibold tracking-tight">
                     Latest activity
                 </h2>
@@ -169,7 +169,7 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
                                         {event.note && (
                                             <span
                                                 className={cn(
-                                                    "shrink-0 rounded-full px-2 py-px font-medium",
+                                                    "shrink-0 rounded-sm px-2 py-px font-medium",
                                                     event.note.tone === "warning" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
                                                     event.note.tone === "danger" && "bg-destructive/10 text-destructive",
                                                     event.note.tone === "muted" && "bg-secondary text-secondary-foreground",
@@ -186,7 +186,7 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
                         return (
                             <li key={event.id}>
                                 {event.href ? (
-                                    <Link href={event.href} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-secondary/40">
+                                    <Link href={event.href} className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-secondary/40">
                                         {body}
                                     </Link>
                                 ) : (

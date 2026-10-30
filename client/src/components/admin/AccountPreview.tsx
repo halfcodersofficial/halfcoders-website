@@ -27,7 +27,7 @@ export default function AccountPreview({ values }: { values: AccountPreviewValue
 
     return (
         <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-5">
+            <div className="flex flex-wrap items-center gap-4 rounded-card border border-border bg-card p-5">
                 <Avatar src={null} name={name || "New admin"} size={40} />
 
                 <div className="min-w-0 flex-1">

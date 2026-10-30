@@ -57,7 +57,7 @@ export function EnrollmentCourseCard({ summary, href }: { summary: AdminEnrollme
             figure={
                 <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                        <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">Students</p>
+                        <p className="text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Students</p>
                         <p className="text-xl font-bold tabular-nums tracking-tight">
                             {students}
                             {summary.certificates > 0 && (
@@ -68,7 +68,7 @@ export function EnrollmentCourseCard({ summary, href }: { summary: AdminEnrollme
                         </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-right text-[0.625rem] font-semibold uppercase leading-tight tracking-wider text-muted-foreground">
+                        <span className="text-right text-[0.625rem] font-semibold font-mono uppercase leading-tight tracking-wider text-muted-foreground">
                             Avg
                             <br />
                             progress

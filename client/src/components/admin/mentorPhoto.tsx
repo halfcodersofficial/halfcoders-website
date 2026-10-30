@@ -194,7 +194,7 @@ export function MentorPhotoPicker({ upload, onUpload, current, disabled }: Mento
                         onClick={pick}
                         disabled={disabled}
                         className={cn(
-                            "flex flex-col items-center gap-2 rounded-lg border border-dashed p-3 text-center text-xs font-medium text-primary transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+                            "flex flex-col items-center gap-2 rounded-md border border-dashed p-3 text-center text-xs font-medium text-primary transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
                             field?.error ? "border-destructive/60" : "border-border hover:border-primary/40",
                         )}
                     >
@@ -261,7 +261,7 @@ function PhotoOption({ name, label, src, checked, onSelect, disabled, invalid }:
     return (
         <label
             className={cn(
-                "relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border p-3 text-center text-xs font-medium transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                "relative flex cursor-pointer flex-col items-center gap-2 rounded-md border p-3 text-center text-xs font-medium transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                 checked
                     ? "border-primary bg-primary/5 text-foreground"
                     : cn(

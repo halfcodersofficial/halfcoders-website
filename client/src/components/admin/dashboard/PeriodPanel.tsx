@@ -40,7 +40,7 @@ export default function PeriodPanel({ data }: { data: AdminDashboard }) {
     const active = METRICS.find((entry) => entry.key === metric) ?? METRICS[0];
 
     return (
-        <section aria-labelledby="period-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <section aria-labelledby="period-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
             <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 pt-5 sm:px-6">
                 <h2 id="period-title" className="text-lg font-semibold tracking-tight">
                     Last 30 days

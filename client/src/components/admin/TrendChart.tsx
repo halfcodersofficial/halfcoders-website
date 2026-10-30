@@ -161,7 +161,7 @@ export function TrendChart<K extends string>({
                                 {sum > 0 && (
                                     // A 2px surface gap between segments; the stack's rounded top is its data end.
                                     <div
-                                        className="flex w-3/5 max-w-6 flex-col-reverse gap-0.5 overflow-hidden rounded-t-lg"
+                                        className="flex w-3/5 max-w-6 flex-col-reverse gap-0.5 overflow-hidden rounded-t-md"
                                         style={{ height: `${(sum / top) * 100}%` }}
                                     >
                                         {SERIES.filter(({ key }) => day[key] > 0).map((series) => (
@@ -180,7 +180,7 @@ export function TrendChart<K extends string>({
 
                 {activeDay && active !== null && (
                     <div
-                        className="pointer-events-none absolute bottom-full z-10 mb-2 min-w-40 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-md"
+                        className="pointer-events-none absolute bottom-full z-10 mb-2 min-w-40 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-card-hover"
                         style={tooltipPosition((active + 0.5) / trend.length)}
                         aria-hidden
                     >
@@ -212,7 +212,7 @@ export function TrendChart<K extends string>({
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
                     Show as table
                 </summary>
-                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border">
+                <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
                     <table className="w-full text-xs">
                         <thead className="sticky top-0 bg-secondary text-left text-muted-foreground">
                             <tr>

@@ -26,6 +26,7 @@ import HoldToSend from "@/components/admin/broadcast/HoldToSend";
 import MessageFields from "@/components/admin/broadcast/MessageFields";
 import RecipientPreview, { type PreviewView } from "@/components/admin/broadcast/RecipientPreview";
 import { DraftStatus, SentReceipt, type Sent } from "@/components/admin/broadcast/ComposerStatus";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useZodForm } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
@@ -148,7 +149,8 @@ export default function AdminBroadcastPage() {
         <div className="max-w-6xl space-y-8">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Broadcast</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Broadcast</h1>
                     <p className="mt-1 max-w-xl text-sm text-muted-foreground sm:text-base">
                         Write it once and it reaches a whole audience — in their notification bell, and on screen
                         straight away for anyone online.
@@ -156,7 +158,7 @@ export default function AdminBroadcastPage() {
                 </div>
                 <Link
                     href="/admin/broadcast/popup"
-                    className="group inline-flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm transition-colors hover:border-primary/30"
+                    className="group inline-flex items-center gap-3 rounded-card border border-border bg-card px-3.5 py-2.5 shadow-card transition-colors hover:border-primary/30"
                 >
                     <MonitorPlay className="size-4 shrink-0 text-primary" aria-hidden />
                     <span className="text-sm">

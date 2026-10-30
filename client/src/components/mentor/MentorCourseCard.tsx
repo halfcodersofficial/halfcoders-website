@@ -37,7 +37,7 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
     const release = nextRelease(course, now);
 
     return (
-        <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-shadow hover:shadow-card-hover">
+        <article className="group relative flex flex-col overflow-hidden rounded-card border border-border bg-card shadow-card transition-shadow hover:shadow-card-hover">
             <div className="relative aspect-video overflow-hidden bg-secondary">
                 <SafeImage
                     src={course.thumbnail}
@@ -46,22 +46,22 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
                     sizes="(min-width: 1280px) 400px, (min-width: 640px) 50vw, 100vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
                     fallback={
-                        <span className="grid size-full place-items-center bg-brand-soft">
-                            <BookOpen className="size-8 text-primary/60" aria-hidden />
+                        <span className="editor grid size-full place-items-center bg-grid">
+                            <BookOpen className="size-8 text-syn-keyword" aria-hidden />
                         </span>
                     }
                 />
                 <p className="absolute bottom-3 left-3 flex flex-wrap gap-1.5 text-[0.6875rem] font-semibold text-white">
-                    <span className="rounded-full bg-slate-950/60 px-2 py-0.5 backdrop-blur">{course.courseType === "BOOTCAMP" ? "Bootcamp" : "Traditional"}</span>
+                    <span className="rounded-sm bg-slate-950/60 px-2 py-0.5 backdrop-blur">{course.courseType === "BOOTCAMP" ? "Bootcamp" : "Traditional"}</span>
                     {course.phase && (
-                        <span className="rounded-full bg-slate-950/60 px-2 py-0.5 backdrop-blur" title={PHASE_META[course.phase].hint}>
+                        <span className="rounded-sm bg-slate-950/60 px-2 py-0.5 backdrop-blur" title={PHASE_META[course.phase].hint}>
                             {PHASE_META[course.phase].admin}
                         </span>
                     )}
-                    <span className="rounded-full bg-slate-950/60 px-2 py-0.5 backdrop-blur">{ROLE_LABEL[course.role] ?? course.role}</span>
+                    <span className="rounded-sm bg-slate-950/60 px-2 py-0.5 backdrop-blur">{ROLE_LABEL[course.role] ?? course.role}</span>
                 </p>
                 {STATUS_LABEL[course.status] && (
-                    <span className="absolute right-3 top-3 rounded-full bg-card/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-foreground shadow-sm">
+                    <span className="absolute right-3 top-3 rounded-sm bg-card/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-foreground shadow-card">
                         {STATUS_LABEL[course.status]}
                     </span>
                 )}
@@ -70,7 +70,7 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
             <div className="flex flex-1 flex-col p-5">
                 <h2 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight">
                     {/* The whole card opens the course; the links below sit above this one. */}
-                    <Link href={routes.overview} className="outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-ring">
+                    <Link href={routes.overview} className="outline-none after:absolute after:inset-0 after:rounded-card focus-visible:after:ring-2 focus-visible:after:ring-ring">
                         {course.title}
                     </Link>
                 </h2>
@@ -94,7 +94,7 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
                         {stats.toReview > 0 ? (
                             <Link
                                 href={`/mentor/reviews?course=${course.id}`}
-                                className="relative z-10 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary transition-colors hover:bg-primary/15"
+                                className="relative z-10 inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2.5 py-1 font-semibold text-primary transition-colors hover:bg-primary/15"
                             >
                                 {stats.toReview} to review <ArrowRight className="size-3.5" aria-hidden />
                             </Link>

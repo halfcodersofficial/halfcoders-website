@@ -106,7 +106,7 @@ export default function CourseStudentPicker({
                 />
             </div>
 
-            <div className={cn("max-h-72 overflow-y-auto rounded-lg border border-border transition-opacity", isFetching && !isLoading && "opacity-70")}>
+            <div className={cn("max-h-72 overflow-y-auto rounded-md border border-border transition-opacity", isFetching && !isLoading && "opacity-70")}>
                 {isLoading ? (
                     <div className="space-y-2 p-3">
                         {Array.from({ length: 3 }).map((_, index) => (

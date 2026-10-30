@@ -11,6 +11,7 @@ import SupportStage from "@/components/mentor/dashboard/SupportStage";
 import { clock, DAY_MS, dayMonthOf, dhakaDayKey, plural, weekdayOf } from "@/components/mentor/dashboard/time";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useNow } from "@/hooks/useNow";
 import { confirmAction } from "@/lib/confirm";
 import { hasSupport } from "@/lib/courseClassification";
@@ -22,7 +23,7 @@ import type { MentorColleagueSession, MentorPastSession, MentorSupportSession } 
 import SessionFormModal from "./SessionFormModal";
 
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
-const PANEL = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
+const PANEL = "overflow-hidden rounded-card border border-border bg-card shadow-card";
 
 /** "Today", "Tomorrow", or "Saturday 18 October". */
 const dayHeading = (key: string, now: number) =>
@@ -131,7 +132,8 @@ export default function SupportDesk() {
         <div className="container-page space-y-6 py-8 sm:py-10">
             <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">Support sessions</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Support sessions</h1>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
                         Schedule a session and your students are told. When it goes live they take a number, and you work the line from its board.
                     </p>
@@ -145,11 +147,11 @@ export default function SupportDesk() {
 
             {dashboard.isLoading ? (
                 <div className="space-y-6">
-                    <Skeleton className="h-72 rounded-3xl" />
-                    <Skeleton className="h-64 rounded-2xl" />
+                    <Skeleton className="h-72 rounded-panel" />
+                    <Skeleton className="h-64 rounded-card" />
                 </div>
             ) : dashboard.isError ? (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                <div className="rounded-card border border-dashed border-border p-10 text-center">
                     <p className="font-medium">Couldn&apos;t load your sessions.</p>
                     <Button variant="outline" className="mt-4" onClick={() => dashboard.refetch()}>
                         Try again
@@ -162,7 +164,7 @@ export default function SupportDesk() {
                     </div>
 
                     <section aria-labelledby="upcoming-title" className={cn(PANEL, RISE)} style={{ animationDelay: "120ms" }}>
-                        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6">
+                        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                             <h2 id="upcoming-title" className="text-lg font-semibold tracking-tight">
                                 Coming up <span className="font-normal text-muted-foreground">{upcoming.length}</span>
                             </h2>
@@ -181,7 +183,7 @@ export default function SupportDesk() {
                             <ol>
                                 {days.map((day) => (
                                     <li key={day.key}>
-                                        <p className="border-b border-border bg-secondary/30 px-5 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground sm:px-6">
+                                        <p className="border-b border-border bg-secondary/30 px-5 py-1.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground sm:px-6">
                                             {dayHeading(day.key, now)}
                                         </p>
                                         <ul className="divide-y divide-border border-b border-border last:border-b-0">
@@ -204,7 +206,7 @@ export default function SupportDesk() {
 
                     {colleagues.length > 0 && (
                         <section aria-labelledby="colleagues-title" className={cn(PANEL, RISE)} style={{ animationDelay: "150ms" }}>
-                            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6">
+                            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                                 <h2 id="colleagues-title" className="text-lg font-semibold tracking-tight">
                                     Co-mentors&apos; sessions <span className="font-normal text-muted-foreground">{colleagues.length}</span>
                                 </h2>
@@ -219,7 +221,7 @@ export default function SupportDesk() {
                     )}
 
                     <section aria-labelledby="past-title" className={cn(PANEL, RISE)} style={{ animationDelay: "180ms" }}>
-                        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6">
+                        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                             <h2 id="past-title" className="text-lg font-semibold tracking-tight">
                                 Past sessions <span className="font-normal text-muted-foreground">{pastTotal}</span>
                             </h2>
@@ -291,12 +293,12 @@ function UpcomingRow({
                 <p className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-semibold">{session.title || "Support session"}</span>
                     {live && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                        <span className="inline-flex items-center gap-1.5 rounded-sm bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                             <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-hidden />
                             Live · {waiting} waiting
                         </span>
                     )}
-                    {!session.joinOpen && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">Sign-ups closed</span>}
+                    {!session.joinOpen && <span className="rounded-sm bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">Sign-ups closed</span>}
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span className="truncate">{session.course.title}</span>
@@ -373,7 +375,7 @@ function ColleagueRow({ session, now }: { session: MentorColleagueSession; now: 
                 <p className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium">{session.title || "Support session"}</span>
                     {live && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                        <span className="inline-flex items-center gap-1.5 rounded-sm bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                             <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-hidden />
                             Live · {session.queueStats.waiting} waiting
                         </span>
@@ -418,7 +420,7 @@ function PastRow({ session }: { session: MentorPastSession }) {
                 <span className="min-w-0">
                     <span className="flex items-center gap-2">
                         <span className={cn("truncate text-sm font-semibold", cancelled && "text-muted-foreground line-through")}>{session.title || "Support session"}</span>
-                        {cancelled && <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.6875rem] font-medium text-secondary-foreground">Cancelled</span>}
+                        {cancelled && <span className="shrink-0 rounded-sm bg-secondary px-2 py-0.5 text-[0.6875rem] font-medium text-secondary-foreground">Cancelled</span>}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                         {session.course.title} · {dayMonthOf(key)}

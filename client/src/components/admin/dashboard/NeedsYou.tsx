@@ -15,22 +15,25 @@ interface Item {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/**
- * What's waiting on an admin right now, and nothing else — each a count, why
- * it matters, and the one place to deal with it. When it's all clear it says
- * so in a line, rather than leaving an admin to scan for zeros.
- */
-export default function NeedsYou({
-    pendingOrders,
-    waitingStudents,
-    liveSessions,
-    unread,
-}: {
+interface NeedsYouProps {
     pendingOrders: { count: number; total: number };
     waitingStudents: number;
     liveSessions: number;
     unread: number;
-}) {
+}
+
+/** How many rows the list will show — for the hero's status bar. */
+export const needsYouCount = ({ pendingOrders, waitingStudents, liveSessions, unread }: NeedsYouProps) =>
+    Number(pendingOrders.count > 0) + Number(waitingStudents > 0 || liveSessions > 0) + Number(unread > 0);
+
+/**
+ * What's waiting on an admin right now, and nothing else — each a count, why
+ * it matters, and the one place to deal with it. When it's all clear it says
+ * so in a line, rather than leaving an admin to scan for zeros.
+ *
+ * Drawn for the dashboard hero's dark editor surface, under the greeting.
+ */
+export default function NeedsYou({ pendingOrders, waitingStudents, liveSessions, unread }: NeedsYouProps) {
     const items: Item[] = [];
 
     if (pendingOrders.count > 0) {
@@ -75,40 +78,40 @@ export default function NeedsYou({
     }
 
     return (
-        <section aria-labelledby="needs-you-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <h2 id="needs-you-title" className="sr-only">
+        <section aria-labelledby="needs-you-title" className="border-t border-editor-line bg-editor/60">
+            <h2 id="needs-you-title" className="px-6 pt-4 font-mono text-[0.7rem] font-semibold uppercase tracking-wider text-editor-muted sm:px-8">
                 Needs you
             </h2>
             {items.length === 0 ? (
-                <p className="flex items-center gap-3 px-5 py-4 text-sm">
-                    <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
+                <p className="flex items-center gap-3 px-6 pb-5 pt-3 text-sm sm:px-8">
+                    <CheckCircle2 className="size-5 shrink-0 text-syn-string" aria-hidden />
                     <span>
                         <span className="font-medium">Nothing needs you right now.</span>{" "}
-                        <span className="text-muted-foreground">Payments, support and notifications are all clear.</span>
+                        <span className="text-editor-muted">Payments, support and notifications are all clear.</span>
                     </span>
                 </p>
             ) : (
-                <ul className="divide-y divide-border">
+                <ul className="mt-2 divide-y divide-editor-line border-t border-editor-line">
                     {items.map((item) => (
                         <li key={item.key}>
                             <Link
                                 href={item.href}
-                                className="group relative flex items-center gap-4 px-5 py-4 transition-colors hover:bg-secondary/40"
+                                className="group relative flex items-center gap-4 px-6 py-4 transition-colors hover:bg-editor-panel sm:px-8"
                             >
-                                {item.urgent && <span className="absolute inset-y-0 left-0 w-1 bg-amber-500" aria-hidden />}
+                                {item.urgent && <span className="absolute inset-y-0 left-0 w-0.5 bg-syn-number" aria-hidden />}
                                 <span
                                     className={cn(
-                                        "grid size-10 shrink-0 place-items-center rounded-xl",
-                                        item.urgent ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
+                                        "grid size-10 shrink-0 place-items-center rounded-md border border-editor-line bg-editor-panel",
+                                        item.urgent ? "text-syn-number" : "text-syn-func",
                                     )}
                                 >
                                     <item.icon className="size-5" aria-hidden />
                                 </span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block font-semibold">{item.title}</span>
-                                    <span className="block text-sm text-muted-foreground">{item.detail}</span>
+                                    <span className="block text-sm text-editor-muted">{item.detail}</span>
                                 </span>
-                                <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
+                                <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-syn-keyword">
                                     <span className="max-sm:sr-only">{item.action}</span>
                                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
                                 </span>

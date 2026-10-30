@@ -7,6 +7,7 @@ import DataShell from "@/components/admin/DataShell";
 import { SupportCourseCard, SupportCourseRow } from "@/components/admin/support/SupportCourseCard";
 import ViewToggle, { type ViewMode } from "@/components/admin/ViewToggle";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { adminService } from "@/services/admin";
 import type { AdminSupportCourse } from "@/types/admin.types";
 
@@ -82,7 +83,8 @@ export default function AdminSupportPage() {
                 <div className="space-y-5">
                     <header className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <h1 className="text-2xl font-bold sm:text-3xl">Support sessions</h1>
+                            <ConsoleEyebrow />
+                            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Support sessions</h1>
                             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                                 Scheduled and past sessions, course by course. Pick a course to schedule one or see who
                                 joined.
@@ -90,7 +92,7 @@ export default function AdminSupportPage() {
                         </div>
                         <ViewToggle value={view} onChange={changeView} />
                     </header>
-                    {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={totals(all)} />}
+                    {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={totals(all)} />}
                 </div>
             }
             searchPlaceholder="Search courses…"
@@ -107,7 +109,7 @@ export default function AdminSupportPage() {
                 <div className="@container">
                     <div className={COURSE_GRID}>
                         {Array.from({ length: 5 }).map((_, index) => (
-                            <Skeleton key={index} className="h-72 rounded-xl" />
+                            <Skeleton key={index} className="h-72 rounded-card" />
                         ))}
                     </div>
                 </div>

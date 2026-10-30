@@ -110,7 +110,7 @@ function IssueForm({ onClose }: { onClose: () => void }) {
                                 <Skeleton className="h-16" />
                             </div>
                         ) : enrollments.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                            <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                                 {student.label} isn&apos;t enrolled in any course. Enrol them first, from the
                                 Enrolments screen.
                             </p>
@@ -124,7 +124,7 @@ function IssueForm({ onClose }: { onClose: () => void }) {
                                         <label
                                             key={enrollment.id}
                                             className={cn(
-                                                "flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors",
+                                                "flex items-start gap-3 rounded-md border p-3 text-sm transition-colors",
                                                 issued
                                                     ? "cursor-not-allowed opacity-60"
                                                     : "cursor-pointer",

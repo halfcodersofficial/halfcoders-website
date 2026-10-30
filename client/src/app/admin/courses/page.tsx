@@ -340,7 +340,7 @@ export default function AdminCoursesPage() {
                     <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {courses.map((course) => (
                             <li key={course.id}>
-                                <Card className="flex h-full flex-col overflow-hidden shadow-sm">
+                                <Card className="flex h-full flex-col overflow-hidden shadow-card">
                                     {/* The title below is the accessible link; this one is a
                                         bigger click target for the same place. */}
                                     <Link

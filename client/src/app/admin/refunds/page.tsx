@@ -87,14 +87,14 @@ export default function AdminRefundsPage() {
             >
                 <ul className="space-y-3">
                     {requests.map((request) => (
-                        <li key={request.id} className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+                        <li key={request.id} className="rounded-card border border-border bg-card p-4 shadow-card sm:p-5">
                             <div className="flex flex-wrap items-start gap-3">
                                 <Avatar src={request.student.image} name={request.student.name} size={36} />
                                 <div className="min-w-0 flex-1">
                                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <span className="font-medium">{request.student.name}</span>
                                         <span className="text-sm text-muted-foreground">{request.student.email}</span>
-                                        <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", STATUS[request.status].tone)}>{STATUS[request.status].label}</span>
+                                        <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", STATUS[request.status].tone)}>{STATUS[request.status].label}</span>
                                     </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
                                         <Link

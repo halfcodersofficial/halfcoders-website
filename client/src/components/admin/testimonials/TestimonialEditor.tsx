@@ -205,14 +205,14 @@ function EditorForm({
                                 <Input type="url" inputMode="url" spellCheck={false} placeholder="https://youtu.be/…" />
                             </FormField>
                             {videoId && !course && (
-                                <p className="flex items-start gap-2 rounded-lg bg-accent/10 p-2.5 text-xs text-foreground">
+                                <p className="flex items-start gap-2 rounded-md bg-accent/10 p-2.5 text-xs text-foreground">
                                     <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
                                     Only a course page plays the video — pick a course above, or the homepage shows the quote alone.
                                 </p>
                             )}
                         </div>
 
-                        <div className="flex items-start justify-between gap-4 rounded-xl border border-border p-4">
+                        <div className="flex items-start justify-between gap-4 rounded-card border border-border p-4">
                             <div className="min-w-0">
                                 <p className="text-sm font-medium">Live on the site</p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -281,7 +281,7 @@ function EditorForm({
 function PreviewBlock({ label, muted, children }: { label: string; muted: boolean; children: ReactNode }) {
     return (
         <div className="space-y-2">
-            <p className="truncate text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+            <p className="truncate text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{label}</p>
             <div className={cn("transition-opacity", muted && "opacity-60")}>{children}</div>
         </div>
     );

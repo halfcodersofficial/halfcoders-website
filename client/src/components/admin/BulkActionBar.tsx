@@ -36,7 +36,7 @@ export default function BulkActionBar({ count, onClear, actions, selectAll }: Bu
     return (
         <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
             <div
-                className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-card-foreground"
+                className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-card px-3 py-2 text-card-foreground"
                 style={{ boxShadow: "var(--shadow-panel)" }}
                 role="toolbar"
                 aria-label="Bulk actions"

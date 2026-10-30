@@ -11,6 +11,7 @@ import TestimonialRow, { type Placement } from "@/components/admin/testimonials/
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SortableList } from "@/components/ui/sortable";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { refreshCoursePages } from "@/lib/refreshCoursePages";
@@ -244,7 +245,8 @@ export default function AdminTestimonialsPage() {
                     <div className="space-y-5">
                         <header className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <h1 className="text-2xl font-bold sm:text-3xl">Testimonials</h1>
+                                <ConsoleEyebrow />
+                                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Testimonials</h1>
                                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
                                     What students say about Half Coders. The order here is the site&apos;s: the first{" "}
                                     {HOMEPAGE_SLOTS} live ones fill the homepage, and each course page shows its own first{" "}
@@ -254,7 +256,7 @@ export default function AdminTestimonialsPage() {
                             <div className="shrink-0">{newButton}</div>
                         </header>
                         {isLoading ? (
-                            <Skeleton className="h-24 rounded-xl" />
+                            <Skeleton className="h-24 rounded-card" />
                         ) : (
                             all.length > 0 && <StatStrip cells={totals(all, () => setFilter("DRAFT"))} />
                         )}
@@ -272,7 +274,7 @@ export default function AdminTestimonialsPage() {
                 onFilter={(value) => setFilter(value as Filter)}
                 isLoading={isLoading}
                 skeleton={
-                    <div className="space-y-px overflow-hidden rounded-xl border border-border">
+                    <div className="space-y-px overflow-hidden rounded-card border border-border">
                         {Array.from({ length: 4 }).map((_, index) => (
                             <Skeleton key={index} className="h-24 rounded-none" />
                         ))}
@@ -295,7 +297,7 @@ export default function AdminTestimonialsPage() {
                               ? `Showing ${shown.length} of ${all.length}. Clear the search and filter to reorder.`
                               : null}
                     </p>
-                    <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                    <ol className="divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card">
                         {sortable ? (
                             <SortableList
                                 ids={shown.map((testimonial) => testimonial.id)}

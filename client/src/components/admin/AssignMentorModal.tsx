@@ -118,11 +118,11 @@ function AssignMentorForm({ mentorId, onClose }: { mentorId: string; onClose: ()
                         <div className="space-y-1.5">
                             <p className="text-sm font-semibold">Currently teaching</p>
                             {mentor && mentor.mentoredCourses.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                                     Not assigned to any course yet.
                                 </p>
                             ) : (
-                                <ul className="divide-y divide-border rounded-lg border border-border">
+                                <ul className="divide-y divide-border rounded-md border border-border">
                                     {mentor?.mentoredCourses.map(({ course, role: courseRole }) => (
                                         <li key={course.id} className="flex items-center gap-3 px-3 py-2.5">
                                             <div className="min-w-0 flex-1">
@@ -149,7 +149,7 @@ function AssignMentorForm({ mentorId, onClose }: { mentorId: string; onClose: ()
                             <p className="text-sm font-semibold">Assign a new course</p>
 
                             {availableCourses.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                                     Already assigned to every course.
                                 </p>
                             ) : (

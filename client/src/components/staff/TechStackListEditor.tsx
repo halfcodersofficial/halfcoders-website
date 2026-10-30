@@ -71,7 +71,7 @@ export function TechStackListEditor() {
     return (
         <div className="space-y-3">
             {rows.length === 0 && (
-                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                     {t(
                         "No tech-stack chips yet. Add the tools and skills students will actually use — “Excel”, “Photoshop”, “React”.",
                         "এখনো কোনো টেক স্ট্যাক নেই। শিক্ষার্থীরা যে টুল ও দক্ষতা আসলেই ব্যবহার করবে সেগুলো যোগ করুন — “Excel”, “Photoshop”, “React”।",
@@ -89,10 +89,10 @@ export function TechStackListEditor() {
                         // would remount an input mid-typing.
                         <li
                             key={index}
-                            className="grid gap-2 rounded-lg border border-border bg-secondary/30 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+                            className="grid gap-2 rounded-md border border-border bg-secondary/30 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center"
                         >
                             <div className="flex items-center gap-2">
-                                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                                <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                     <Icon className="size-5" />
                                 </span>
                                 <button

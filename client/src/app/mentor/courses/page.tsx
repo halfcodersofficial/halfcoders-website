@@ -6,9 +6,11 @@ import Link from "next/link";
 import { useState } from "react";
 import MentorCourseCard from "@/components/mentor/MentorCourseCard";
 import { plural } from "@/components/mentor/dashboard/time";
+import EmptyState from "@/components/site/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useNow } from "@/hooks/useNow";
 import { dashboardService } from "@/services";
 
@@ -30,7 +32,7 @@ export default function MentorCoursesPage() {
                 <Skeleton className="h-12 w-64" />
                 <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {Array.from({ length: 3 }).map((_, index) => (
-                        <Skeleton key={index} className="h-96 rounded-2xl" />
+                        <Skeleton key={index} className="h-96 rounded-card" />
                     ))}
                 </div>
             </div>
@@ -55,7 +57,8 @@ export default function MentorCoursesPage() {
         <div className="container-page space-y-6 py-8 sm:py-10">
             <header className={`flex flex-wrap items-end justify-between gap-4 ${RISE}`}>
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">My courses</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My courses</h1>
                     <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                         {courses.length === 0 ? (
                             "Nothing assigned yet."
@@ -85,18 +88,14 @@ export default function MentorCoursesPage() {
             </header>
 
             {courses.length === 0 ? (
-                <section className={`relative isolate overflow-hidden rounded-3xl border border-border bg-brand-soft px-6 py-16 text-center ${RISE}`}>
-                    <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 -z-10 size-64 rounded-full bg-primary/10 blur-2xl" />
-                    <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-card text-primary shadow-sm ring-1 ring-border">
-                        <BookOpen className="size-6" aria-hidden />
-                    </span>
-                    <h2 className="mt-5 text-xl font-bold tracking-tight">No courses assigned yet</h2>
-                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                        An admin assigns you to the courses you teach. Each one shows up here, with its content, schedule and results a click away.
-                    </p>
-                </section>
+                <EmptyState
+                    className={RISE}
+                    icon={BookOpen}
+                    title="No courses assigned yet"
+                    description="An admin assigns you to the courses you teach. Each one shows up here, with its content, schedule and results a click away."
+                />
             ) : shown.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No course matches “{term.trim()}”.</p>
+                <EmptyState title={`No course matches “${term.trim()}”.`} description="Try a shorter word, or clear the search." />
             ) : (
                 <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {shown.map((course, index) => (

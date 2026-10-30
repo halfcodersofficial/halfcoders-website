@@ -28,6 +28,7 @@ import LivePopups, { LIVE_POPUPS_KEY } from "@/components/admin/broadcast/LivePo
 import MessageFields from "@/components/admin/broadcast/MessageFields";
 import RecipientPreview, { type PreviewView } from "@/components/admin/broadcast/RecipientPreview";
 import { FormField } from "@/components/ui/form";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useZodForm } from "@/hooks/useZodForm";
 import { confirmAction, LOGIN_POPUP_LOCK_SECONDS } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
@@ -172,7 +173,8 @@ export default function AdminPopupAlertPage() {
             <div className="space-y-8">
                 <header className={cn("flex flex-wrap items-end justify-between gap-4", RISE)}>
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold sm:text-3xl">Popup Alert</h1>
+                        <ConsoleEyebrow />
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Popup Alert</h1>
                         <p className="mt-1 max-w-xl text-sm text-muted-foreground sm:text-base">
                             A message that covers the screen when they open Half Coders — for the announcements everyone
                             genuinely has to see.
@@ -180,7 +182,7 @@ export default function AdminPopupAlertPage() {
                     </div>
                     <Link
                         href="/admin/broadcast"
-                        className="group inline-flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-sm transition-colors hover:border-primary/30"
+                        className="group inline-flex items-center gap-3 rounded-card border border-border bg-card px-3.5 py-2.5 shadow-card transition-colors hover:border-primary/30"
                     >
                         <Send className="size-4 shrink-0 text-primary" aria-hidden />
                         <span className="text-sm">

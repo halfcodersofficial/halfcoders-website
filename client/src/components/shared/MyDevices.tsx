@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { confirmAction } from "@/lib/confirm";
 import { DEVICE_ICONS, deviceLabel, MY_DEVICES_KEY } from "@/lib/device";
 import { getApiErrorMessage } from "@/lib/httpClient";
@@ -81,6 +82,7 @@ export default function MyDevices({ passwordHref }: { passwordHref: string }) {
                     <MonitorSmartphone className="size-5" aria-hidden />
                 </span>
                 <div>
+                    <ConsoleEyebrow />
                     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My devices</h1>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                         The phones, tablets and computers where you&apos;re signed in to Half Coders.

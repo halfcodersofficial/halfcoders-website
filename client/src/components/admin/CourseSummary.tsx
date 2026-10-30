@@ -146,13 +146,13 @@ export function StatStrip({ cells, embedded = false }: { cells: StatCell[]; embe
         <div
             className={cn(
                 "grid grid-cols-2 lg:grid-cols-4",
-                embedded ? "border-t border-border" : "overflow-hidden rounded-xl border border-border bg-card shadow-sm",
+                embedded ? "border-t border-border" : "overflow-hidden rounded-card border border-border bg-card shadow-card",
             )}
         >
             {cells.map((cell, index) => {
                 const body = (
                     <>
-                        <p className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <p className="flex items-center gap-1.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                             {cell.alert && <span className="size-1.5 rounded-full bg-amber-500" aria-hidden />}
                             {cell.label}
                         </p>
@@ -208,9 +208,9 @@ export function CourseSummaryHeader({
     bar: ReactNode;
 }) {
     return (
-        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <section className="overflow-hidden rounded-card border border-border bg-card shadow-card">
             <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
-                <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-secondary sm:w-52">
+                <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-card bg-secondary sm:w-52">
                     <CourseThumb course={course} sizes="(max-width: 640px) 100vw, 208px" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -254,7 +254,7 @@ export function CourseSummaryCard({
     return (
         <Link
             href={href}
-            className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-[border-color,box-shadow,translate] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-card transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
             <div className="relative aspect-video overflow-hidden bg-secondary">
                 <CourseThumb
@@ -303,9 +303,9 @@ export function CourseSummaryRow({
     return (
         <Link
             href={href}
-            className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 pr-4 shadow-sm transition-colors hover:border-primary/30 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex items-center gap-4 rounded-card border border-border bg-card p-3 pr-4 shadow-card transition-colors hover:border-primary/30 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-            <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-secondary sm:w-28">
+            <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-secondary sm:w-28">
                 <CourseThumb course={course} sizes="112px" />
             </div>
 

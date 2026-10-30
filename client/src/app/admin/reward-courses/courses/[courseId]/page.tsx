@@ -113,9 +113,9 @@ function RewardCourseRow({ bonus, mainCourseId, mainTitle }: { bonus: AdminRewar
     });
 
     return (
-        <div className="space-y-3 rounded-xl border border-border p-3">
+        <div className="space-y-3 rounded-card border border-border p-3">
             <div className="flex items-center gap-3">
-                <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-secondary">
+                <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-secondary">
                     <SafeImage
                         src={bonus.course.thumbnail}
                         alt=""

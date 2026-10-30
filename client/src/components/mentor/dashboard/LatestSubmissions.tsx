@@ -17,8 +17,8 @@ const STATUS: Record<SubmissionStatus, { label: string; tone: string }> = {
 /** The newest hand-ins across the mentor's courses, each opening on itself in the review queue. */
 export default function LatestSubmissions({ submissions }: { submissions: MentorDashboard["recentSubmissions"] }) {
     return (
-        <section aria-labelledby="latest-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <header className="border-b border-border px-5 py-4">
+        <section aria-labelledby="latest-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+            <header className="border-b border-border px-5 py-4 bg-surface">
                 <h2 id="latest-title" className="text-lg font-semibold tracking-tight">
                     Latest hand-ins
                 </h2>
@@ -37,7 +37,7 @@ export default function LatestSubmissions({ submissions }: { submissions: Mentor
                                 {/* Newest first in the queue, so it's on the first page. */}
                                 <Link
                                     href={reviewHref(submission, "&sort=desc")}
-                                    className="-mx-2 flex gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/40"
+                                    className="-mx-2 flex gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-secondary/40"
                                 >
                                     <Avatar name={submission.student.name} size={32} />
                                     <span className="min-w-0 flex-1">
@@ -49,7 +49,7 @@ export default function LatestSubmissions({ submissions }: { submissions: Mentor
                                             <time dateTime={submission.submittedAt} title={formatDateTime(submission.submittedAt)} className="shrink-0">
                                                 {formatDistanceToNowStrict(new Date(submission.submittedAt), { addSuffix: true })}
                                             </time>
-                                            <span className={cn("shrink-0 rounded-full px-2 py-px font-medium", status.tone)}>{status.label}</span>
+                                            <span className={cn("shrink-0 rounded-sm px-2 py-px font-medium", status.tone)}>{status.label}</span>
                                             <span className="truncate">{submission.assignment.course.title}</span>
                                         </span>
                                     </span>

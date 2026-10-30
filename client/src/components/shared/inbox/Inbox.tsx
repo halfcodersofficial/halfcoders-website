@@ -26,6 +26,7 @@ import { linkifyMessage } from "@/components/shared/AnnouncementsView";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -281,7 +282,8 @@ export default function Inbox({ config }: { config: InboxConfig }) {
         <div className="space-y-6">
             <header className="flex flex-wrap items-end justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-bold sm:text-3xl">{config.title}</h1>
+                    <ConsoleEyebrow />
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{config.title}</h1>
                     <p className="mt-1 text-sm text-muted-foreground sm:text-base">
                         {unreadCount > 0 ? <span className="font-medium text-foreground">{unreadCount} unread · </span> : "All caught up · "}
                         {config.blurb}
@@ -299,7 +301,7 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                 </div>
             </header>
 
-            <div role="group" aria-label="Filter" className="no-scrollbar flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-secondary/60 p-1">
+            <div role="group" aria-label="Filter" className="no-scrollbar flex w-fit max-w-full gap-1 overflow-x-auto rounded-md bg-secondary/60 p-1">
                 {config.filters.map((option) => {
                     const count = tabCount(option);
                     const active = filter.value === option.value;
@@ -311,14 +313,14 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                             onClick={() => setFilterValue(option.value)}
                             className={cn(
                                 "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                active ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                             )}
                         >
                             {option.label}
                             {count > 0 && (
                                 <span
                                     className={cn(
-                                        "min-w-5 rounded-full px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums",
+                                        "min-w-5 rounded-sm px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums",
                                         active || option.counts === "all" ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary",
                                     )}
                                 >
@@ -332,11 +334,11 @@ export default function Inbox({ config }: { config: InboxConfig }) {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
-                <div className="overflow-hidden rounded-card border border-border bg-card shadow-sm">
+                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                     {list.isLoading ? (
                         <div className="space-y-px p-2">
                             {Array.from({ length: 6 }).map((_, index) => (
-                                <Skeleton key={index} className="h-16 rounded-lg" />
+                                <Skeleton key={index} className="h-16 rounded-md" />
                             ))}
                         </div>
                     ) : list.isError && !list.data ? (
@@ -383,7 +385,7 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                     )}
                 </div>
 
-                <aside aria-label="Reading pane" className="hidden min-h-96 rounded-card border border-border bg-card shadow-sm lg:sticky lg:top-8 lg:block">
+                <aside aria-label="Reading pane" className="hidden min-h-96 rounded-card border border-border bg-card shadow-card lg:sticky lg:top-8 lg:block">
                     {current ? pane(current) : <IdlePane unreadCount={unreadCount} items={items} typeOf={typeOf} />}
                 </aside>
             </div>
@@ -419,7 +421,7 @@ function InboxRow({
             {unread && <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" aria-hidden />}
             <span
                 className={cn(
-                    "mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg",
+                    "mt-0.5 grid size-9 shrink-0 place-items-center rounded-md",
                     unread ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground",
                 )}
                 title={meta.label}
@@ -433,7 +435,7 @@ function InboxRow({
                         {notification.title}
                     </span>
                     {isFresh(notification) && (
-                        <span className="shrink-0 rounded-full bg-primary px-1.5 py-px text-[0.625rem] font-semibold uppercase tracking-wide text-primary-foreground">
+                        <span className="shrink-0 rounded-sm bg-primary px-1.5 py-px text-[0.625rem] font-semibold uppercase tracking-wide text-primary-foreground">
                             New
                         </span>
                     )}

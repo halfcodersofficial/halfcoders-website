@@ -109,7 +109,7 @@ export function LessonTypePicker({
                         aria-pressed={isActive}
                         onClick={() => onPick(isActive ? null : type)}
                         className={cn(
-                            "flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            "flex items-start gap-3 rounded-card border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                             isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-secondary/40",
                         )}
                     >
@@ -323,8 +323,8 @@ function TextLessonForm({ lesson, onSubmit, layout, isPending, submitLabel, onCa
             </FormField>
 
             {showPreview && (
-                <div className="rounded-lg border border-border bg-secondary/20 p-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="rounded-md border border-border bg-secondary/20 p-4">
+                    <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                         Preview — as students see it
                     </p>
                     <div

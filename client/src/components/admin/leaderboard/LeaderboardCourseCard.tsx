@@ -70,7 +70,7 @@ export function TopThree({ top, size = 30 }: { top: AdminLeaderboardCourse["top"
 /** "+1,240 XP this week" over a card's picture, when the board moved. */
 function ThisWeekBadge({ amount }: { amount: number }) {
     return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-card/95 px-2.5 py-1 text-xs font-semibold text-success shadow-sm">
+        <span className="inline-flex items-center gap-1 rounded-sm bg-card/95 px-2.5 py-1 text-xs font-semibold text-success shadow-card">
             <TrendingUp className="size-3.5" aria-hidden />+{xp(amount)} XP this week
         </span>
     );
@@ -93,7 +93,7 @@ export function LeaderboardCourseCard({ summary, href }: { summary: AdminLeaderb
             figure={
                 <div className="flex items-end justify-between gap-2">
                     <div className="min-w-0">
-                        <p className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">Ranked</p>
+                        <p className="text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Ranked</p>
                         <p className="text-xl font-bold tabular-nums tracking-tight">
                             {summary.ranked}
                             <span className="ml-1.5 text-[0.6875rem] font-medium tracking-normal text-muted-foreground">

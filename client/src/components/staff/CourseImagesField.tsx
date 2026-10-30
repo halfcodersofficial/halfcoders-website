@@ -146,7 +146,7 @@ export function CourseImagesField({ courseId }: { courseId: string }) {
                         <li
                             key={image}
                             className={cn(
-                                "group relative aspect-video overflow-hidden rounded-lg border bg-secondary",
+                                "group relative aspect-video overflow-hidden rounded-md border bg-secondary",
                                 index === 0 ? "border-primary ring-1 ring-primary" : "border-border",
                             )}
                         >
@@ -217,7 +217,7 @@ export function CourseImagesField({ courseId }: { courseId: string }) {
                 })}
 
                 {pendingNew.map((item) => (
-                    <li key={item.key} className="relative aspect-video overflow-hidden rounded-lg border border-border bg-secondary">
+                    <li key={item.key} className="relative aspect-video overflow-hidden rounded-md border border-border bg-secondary">
                         <UploadingPreview upload={item} />
                     </li>
                 ))}
@@ -229,7 +229,7 @@ export function CourseImagesField({ courseId }: { courseId: string }) {
                             id={field?.id}
                             onClick={() => pick(null)}
                             aria-describedby={field?.describedBy}
-                            className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                             <ImagePlus className="size-5" />
                             {images.length + pendingNew.length === 0

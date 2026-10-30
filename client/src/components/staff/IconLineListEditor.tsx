@@ -56,7 +56,7 @@ export function IconLineListEditor({ max, maxLength, itemLabel, addLabel, placeh
     return (
         <div className="space-y-3">
             {rows.length === 0 && (
-                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                     {emptyText}
                 </p>
             )}
@@ -69,7 +69,7 @@ export function IconLineListEditor({ max, maxLength, itemLabel, addLabel, placeh
                         // Index as key: rows have no id, and keying by content
                         // would remount the input mid-typing.
                         <li key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                 <Icon className="size-5" />
                             </span>
                             <select

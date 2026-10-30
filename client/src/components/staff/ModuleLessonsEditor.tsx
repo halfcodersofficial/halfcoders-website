@@ -333,7 +333,7 @@ export default function ModuleLessonsEditor({
         <div className="container-page max-w-5xl space-y-6 py-8">
             <ModuleContentHeader courseId={courseId} moduleId={moduleId} area={area} active="lessons" />
 
-            <section aria-labelledby="add-lesson-title" className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+            <section aria-labelledby="add-lesson-title" className="rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h2 id="add-lesson-title" className="font-semibold">
@@ -388,7 +388,7 @@ export default function ModuleLessonsEditor({
                                 </FormField>
 
                                 {problems.length > 0 && (
-                                    <ul className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                                    <ul className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
                                         {problems.map((problem) => (
                                             <li key={problem}>{problem}</li>
                                         ))}
@@ -426,8 +426,8 @@ export default function ModuleLessonsEditor({
                 )}
             </section>
 
-            <section aria-labelledby="lessons-title" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+            <section aria-labelledby="lessons-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5 bg-surface">
                     <h2 id="lessons-title" className="font-semibold">
                         {videos.length} lesson{videos.length === 1 ? "" : "s"} <span className="font-normal text-muted-foreground">· {publishedCount} live</span>
                     </h2>

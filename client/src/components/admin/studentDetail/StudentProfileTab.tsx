@@ -147,12 +147,12 @@ export function StudentProfileTab({ data }: { data: StudentOverview }) {
                     </Fields>
                     {profile.projects.length > 0 && (
                         <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <p className="text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                                 Projects · {profile.projects.length}
                             </p>
                             <ul className="grid gap-3 sm:grid-cols-2">
                                 {profile.projects.map((project) => (
-                                    <li key={project.id} className="rounded-xl border border-border px-4 py-3">
+                                    <li key={project.id} className="rounded-card border border-border px-4 py-3">
                                         <a
                                             href={project.url}
                                             target="_blank"
@@ -178,7 +178,7 @@ export function StudentProfileTab({ data }: { data: StudentOverview }) {
                     ) : (
                         <ul className="flex flex-wrap gap-2">
                             {profile.skills.map((skill) => (
-                                <li key={skill.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                                <li key={skill.id} className="rounded-md border border-border px-3 py-2 text-sm">
                                     <span className="font-medium">{skill.name}</span>
                                     {skill.yearsOfExperience && (
                                         <span className="text-muted-foreground"> · {skill.yearsOfExperience} yr</span>
@@ -311,7 +311,7 @@ export function StudentProfileTab({ data }: { data: StudentOverview }) {
             </div>
 
             <aside className="space-y-6 xl:sticky xl:top-6 xl:order-2 xl:self-start">
-                <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <section className="rounded-card border border-border bg-card p-5 shadow-card">
                     <div className="flex items-center gap-4">
                         <ProgressRing value={profile.completionPercent} size={64} stroke={5}>
                             <span className="text-sm">{profile.completionPercent}%</span>
@@ -346,7 +346,7 @@ export function StudentProfileTab({ data }: { data: StudentOverview }) {
                 </section>
 
                 {data.testimonials.length > 0 && (
-                    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                    <section className="rounded-card border border-border bg-card p-5 shadow-card">
                         <p className="font-semibold">What they said about Half Coders</p>
                         <ul className="mt-3 space-y-4">
                             {data.testimonials.map((testimonial) => (
@@ -379,7 +379,7 @@ export function StudentProfileTab({ data }: { data: StudentOverview }) {
 
 function Section({ icon: Icon, title, count, children }: { icon: LucideIcon; title: string; count?: number; children: ReactNode }) {
     return (
-        <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+        <section className="space-y-4 rounded-card border border-border bg-card p-5 shadow-card">
             <h3 className="flex items-center gap-2 font-semibold">
                 <Icon className="size-4 text-primary" aria-hidden />
                 {title}

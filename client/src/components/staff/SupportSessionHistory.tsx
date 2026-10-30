@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffSupportRoutes } from "@/lib/staffRoutes";
 import { clock } from "@/components/mentor/dashboard/time";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { cn, formatQueueNumber } from "@/lib/utils";
 import { supportService } from "@/services";
 import type { SupportQueueStatus } from "@/types/api.types";
@@ -69,8 +70,8 @@ export default function SupportSessionHistory({
         return (
             <div className="container-page max-w-4xl space-y-6 py-8">
                 <Skeleton className="h-12 w-64" />
-                <Skeleton className="h-24 rounded-2xl" />
-                <Skeleton className="h-72 rounded-2xl" />
+                <Skeleton className="h-24 rounded-card" />
+                <Skeleton className="h-72 rounded-card" />
             </div>
         );
     }
@@ -102,12 +103,13 @@ export default function SupportSessionHistory({
                     label={backHref ? "Course sessions" : area === "admin" ? "Support sessions" : "The queue board"}
                 />
                 <div>
+                    <ConsoleEyebrow />
                     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Attendance</h1>
                     <p className="mt-1 text-sm text-muted-foreground">Everyone who took a number, in the order they joined · Dhaka time</p>
                 </div>
             </header>
 
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card sm:grid-cols-4">
                 <Figure label="Joined" value={data.length} />
                 <Figure label="Helped" value={count("COMPLETED")} hint={count("SKIPPED") || count("LEFT") ? `${count("SKIPPED")} skipped · ${count("LEFT")} left` : undefined} />
                 <Figure label="Median wait" value={asMinutes(median(waits))} hint="From joining to being seen" />
@@ -115,12 +117,12 @@ export default function SupportSessionHistory({
             </dl>
 
             {data.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                <div className="rounded-card border border-dashed border-border px-6 py-14 text-center">
                     <Users className="mx-auto size-7 text-muted-foreground" aria-hidden />
                     <p className="mt-3 font-medium">Nobody joined this session.</p>
                 </div>
             ) : (
-                <section aria-label="Everyone in line" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                <section aria-label="Everyone in line" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                     <div role="group" aria-label="Show" className="no-scrollbar flex gap-1 overflow-x-auto border-b border-border px-4 py-2">
                         {FILTERS.map((option) => (
                             <button
@@ -182,7 +184,7 @@ function Row({ entry }: { entry: QueueHistoryEntry }) {
                 </div>
             </div>
             <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:col-start-3 sm:flex-col sm:items-end">
-                <span className={cn("rounded-full px-2 py-0.5 font-semibold", status.tone)}>{status.label}</span>
+                <span className={cn("rounded-sm px-2 py-0.5 font-semibold", status.tone)}>{status.label}</span>
                 <span className="tabular-nums">
                     joined {clock(entry.joinedAt)}
                     {waited !== null && ` · waited ${asMinutes(waited)}`}

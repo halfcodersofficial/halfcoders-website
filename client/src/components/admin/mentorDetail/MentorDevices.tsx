@@ -33,7 +33,7 @@ export function MentorDevices({ mentorId }: { mentorId: string }) {
 
     if (isError) {
         return (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <div className="rounded-md border border-dashed border-border p-8 text-center">
                 <p className="text-sm text-muted-foreground">
                     {getApiErrorMessage(error, "Couldn't get this mentor's sign-ins right now.")}
                 </p>
@@ -46,7 +46,7 @@ export function MentorDevices({ mentorId }: { mentorId: string }) {
 
     if (!data || data.length === 0) {
         return (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <div className="rounded-md border border-dashed border-border p-8 text-center">
                 <MonitorOff className="mx-auto size-6 text-muted-foreground" aria-hidden />
                 <p className="mt-3 font-medium">Not signed in anywhere right now.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -66,8 +66,8 @@ export function MentorDevices({ mentorId }: { mentorId: string }) {
                 {data.map((device, index) => {
                     const Icon = DEVICE_ICONS[device.deviceType];
                     return (
-                        <li key={device.id} className="flex gap-3 rounded-lg border border-border bg-card p-4">
-                            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <li key={device.id} className="flex gap-3 rounded-md border border-border bg-card p-4">
+                            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                                 <Icon className="size-5" aria-hidden />
                             </span>
                             <div className="min-w-0 flex-1 space-y-1">

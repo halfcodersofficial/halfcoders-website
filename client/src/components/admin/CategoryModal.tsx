@@ -144,7 +144,7 @@ function EditCategoryForm({ category, onClose }: { category: AdminCategory; onCl
     return (
         <form className={modalFormClass} noValidate onSubmit={form.handleSubmit}>
             <ModalBody className="space-y-4">
-                <div className="rounded-lg bg-secondary/40 px-3 py-2 text-sm">
+                <div className="rounded-md bg-secondary/40 px-3 py-2 text-sm">
                     <span className="text-muted-foreground">Link</span> /{category.slug}
                     <span className="text-muted-foreground">
                         {" "}· {category._count.courses} {category._count.courses === 1 ? "course" : "courses"}

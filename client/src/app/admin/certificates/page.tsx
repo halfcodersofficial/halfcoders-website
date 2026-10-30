@@ -61,7 +61,7 @@ function RevokeForm({ certificate, onClose }: { certificate: AdminCertificate; o
     return (
         <form className={modalFormClass} noValidate onSubmit={form.handleSubmit}>
             <ModalBody className="space-y-5">
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-lg bg-secondary/40 p-4 text-sm">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md bg-secondary/40 p-4 text-sm">
                     <dt className="text-muted-foreground">Certificate</dt>
                     <dd className="font-mono text-xs">{certificate.certificateNo}</dd>
                     <dt className="text-muted-foreground">Student</dt>

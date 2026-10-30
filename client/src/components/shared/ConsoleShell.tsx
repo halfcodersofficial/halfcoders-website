@@ -4,7 +4,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 import {
     Bell,
+    ChevronDown,
     ChevronRight,
+    GitBranch,
     LogOut,
     Menu,
     PanelLeftClose,
@@ -14,13 +16,24 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState, type CSSProperties, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+    type CSSProperties,
+    type FocusEvent,
+    type MouseEvent,
+    type ReactNode,
+} from "react";
 import CommandPalette, { type CommandItem } from "@/components/shared/CommandPalette";
 import Logo from "@/components/shared/Logo";
 import ThemeToggle, { ThemePicker } from "@/components/shared/ThemeToggle";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useNow } from "@/hooks/useNow";
 import { useLogout, useSession } from "@/hooks/useSession";
 import { confirmSignOut } from "@/lib/confirm";
 import { cn } from "@/lib/utils";
@@ -57,8 +70,26 @@ export interface ConsoleConfig {
 /** A count beside a nav item: `alert` is the unread red, `count` a quieter tally of work waiting. */
 export type ConsoleBadges = Record<string, { count: number; tone: "alert" | "count" } | undefined>;
 
+/** Where the page you're on sits in the console — the sidebar group it's under, for a `// group` eyebrow. */
+export interface ConsoleSection {
+    console: string;
+    group: string | null;
+    item: ConsoleNavItem | undefined;
+}
+
+const ConsoleSectionContext = createContext<ConsoleSection | null>(null);
+
+/** The section the current console page is in; null outside a console. */
+export const useConsoleSection = () => useContext(ConsoleSectionContext);
+
 /** The account's role, as a person would say it — not the enum. */
 const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super admin", ADMIN: "Admin", MENTOR: "Mentor", STUDENT: "Student" };
+
+/** The syntax colour each sidebar group's icons wear, in turn — an editor's coloured file icons. */
+const GROUP_TONES = ["text-syn-keyword", "text-syn-func", "text-syn-string", "text-syn-number", "text-syn-tag"];
+
+/** How many recently opened pages the title bar keeps as tabs. */
+const MAX_TABS = 5;
 
 export const isActivePath = (pathname: string, item: { href: string; exact?: boolean }) =>
     item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -69,14 +100,43 @@ const allItems = (config: ConsoleConfig) => [
     config.profile,
 ];
 
+/** Every item's icon tone and the group it's under, by href. */
+const indexItems = (config: ConsoleConfig) => {
+    const index = new Map<string, { item: ConsoleNavItem; group: string | null; tone: string }>();
+    config.groups.forEach((group, at) =>
+        group.items.forEach((item) => {
+            // Notifications is listed in the top group and kept there.
+            if (!index.has(item.href)) index.set(item.href, { item, group: group.label, tone: GROUP_TONES[at % GROUP_TONES.length] });
+        }),
+    );
+    [...(config.footerItems ?? []), config.profile].forEach((item) => {
+        if (!index.has(item.href)) index.set(item.href, { item, group: "Account", tone: "text-syn-comment" });
+    });
+    return index;
+};
+
+/** A page open in the title bar: the sidebar item it's under, and where in it you last were. */
+interface OpenTab {
+    href: string;
+    path: string;
+}
+
+const dhakaTime = (now: number) =>
+    new Date(now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Dhaka" });
+
 /**
- * The chrome around a staff console: the sidebar (a full list, or an icon
- * rail the admin can collapse it to), and below `lg` a slim bar with the page
- * you're on, search and notifications, opening the same sidebar as a drawer.
- * ⌘K opens the palette from anywhere.
+ * The chrome around a staff console, dressed as the code editor the public
+ * site is: the sidebar is the editor's dark explorer (a full tree of the
+ * console's pages, or an icon rail the admin can collapse it to), the pages
+ * you've opened sit as tabs in a title bar across the top, and a violet status
+ * bar runs along the foot. Below `lg` a slim bar with the page you're on,
+ * search and notifications opens the same explorer as a drawer. ⌘K opens the
+ * palette from anywhere.
  *
  * The sidebar's width is published as `--console-sidebar`, so anything fixed
- * to the viewport — a page's save bar, the rail's name tips — sits beside it.
+ * to the viewport — a page's save bar, the rail's name tips — sits beside it;
+ * the height of the title and status bars around `main` as `--console-chrome`,
+ * so a page that fills the window (the course editor) can take it off.
  */
 export default function ConsoleShell({
     config,
@@ -91,11 +151,13 @@ export default function ConsoleShell({
     children: ReactNode;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
     const { user } = useSession();
     const logout = useLogout();
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
+    const [tabs, setTabs] = useState<OpenTab[]>([]);
 
     const { data: unread } = useQuery({
         queryKey: ["notifications", "unread-count"],
@@ -107,6 +169,15 @@ export default function ConsoleShell({
         [config.notifications.href]: unreadCount > 0 ? { count: unreadCount, tone: "alert" } : undefined,
     };
 
+    const index = useMemo(() => indexItems(config), [config]);
+    const current = allItems(config).find((item) => isActivePath(pathname, item));
+    const section: ConsoleSection = useMemo(
+        () => ({ console: config.name, group: current ? (index.get(current.href)?.group ?? null) : null, item: current }),
+        [config.name, current, index],
+    );
+
+    const tabsKey = `${config.storageKey}.tabs`;
+
     // Read after mount, so the server render and the first client render agree.
     useEffect(() => {
         try {
@@ -115,6 +186,47 @@ export default function ConsoleShell({
             // Storage blocked — the full sidebar it is.
         }
     }, [config.storageKey]);
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(sessionStorage.getItem(tabsKey) ?? "[]");
+            if (Array.isArray(saved)) {
+                setTabs((open) => [
+                    ...saved.filter(
+                        (tab): tab is OpenTab =>
+                            typeof tab?.href === "string" && typeof tab?.path === "string" && !open.some((o) => o.href === tab.href),
+                    ),
+                    ...open,
+                ].slice(-MAX_TABS));
+            }
+        } catch {
+            // Nothing remembered — the tabs start from this page.
+        }
+    }, [tabsKey]);
+
+    // The page you're on is always open, as the tab of the item it's under.
+    const currentHref = current?.href;
+    useEffect(() => {
+        if (!currentHref) return;
+        setTabs((open) => {
+            const at = open.findIndex((tab) => tab.href === currentHref);
+            if (at === -1) return [...open, { href: currentHref, path: pathname }].slice(-MAX_TABS);
+            if (open[at].path === pathname) return open;
+            const next = [...open];
+            next[at] = { href: currentHref, path: pathname };
+            return next;
+        });
+    }, [currentHref, pathname]);
+
+    // Never stores an empty list: there's always a page open once one has loaded.
+    useEffect(() => {
+        if (!tabs.length) return;
+        try {
+            sessionStorage.setItem(tabsKey, JSON.stringify(tabs));
+        } catch {
+            // Not remembered past this page; the tabs still work.
+        }
+    }, [tabs, tabsKey]);
+
     const toggleCollapsed = () =>
         setCollapsed((current) => {
             try {
@@ -153,10 +265,20 @@ export default function ConsoleShell({
         })),
     ];
 
+    // Only tabs for pages this console still has (a role change drops some).
+    const openTabs = tabs.filter((tab) => index.has(tab.href));
+    const closeTab = (href: string) => {
+        const at = openTabs.findIndex((tab) => tab.href === href);
+        const rest = openTabs.filter((tab) => tab.href !== href);
+        setTabs(rest);
+        if (href === currentHref) router.push((rest[at] ?? rest[at - 1])?.path ?? config.home);
+    };
+
     const sidebarProps: SidebarProps = {
         config,
         pathname,
         badges: allBadges,
+        tones: index,
         onSearch: () => {
             setDrawerOpen(false);
             setPaletteOpen(true);
@@ -167,95 +289,223 @@ export default function ConsoleShell({
         },
         signingOut: logout.isPending,
     };
-    const current = allItems(config).find((item) => isActivePath(pathname, item));
 
     return (
-        <div className="flex min-h-dvh" style={{ "--console-sidebar": collapsed ? "4.5rem" : "16rem" } as CSSProperties}>
-            <aside
-                className={cn(
-                    "hidden shrink-0 border-r border-border bg-secondary/30 transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block",
-                    collapsed ? "w-18" : "w-64",
-                )}
+        <ConsoleSectionContext.Provider value={section}>
+            <div
+                // `--console-chrome`: the title bar (h-10) and the status bar (h-7), which only both show from lg.
+                className="flex min-h-dvh lg:[--console-chrome:4.25rem]"
+                style={{ "--console-sidebar": collapsed ? "4.5rem" : "16rem" } as CSSProperties}
             >
-                <div className="sticky top-0 h-dvh">
-                    <Sidebar {...sidebarProps} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-                </div>
-            </aside>
-
-            <div className="flex min-w-0 flex-1 flex-col">
-                {/* Below lg there's no room for the sidebar: a slim bar with the
-                    page you're on, and the same sidebar as a drawer. */}
-                <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
-                    <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
-                        <Dialog.Trigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Open the menu">
-                                <Menu className="size-5" />
-                            </Button>
-                        </Dialog.Trigger>
-                        <Dialog.Portal>
-                            <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-                            <Dialog.Content
-                                className="fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] border-r border-border bg-secondary shadow-xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left"
-                                aria-describedby={undefined}
-                                // Focus the drawer itself rather than its first control —
-                                // still inside it for a keyboard, without ringing the search box.
-                                onOpenAutoFocus={(event) => {
-                                    event.preventDefault();
-                                    (event.currentTarget as HTMLElement).focus();
-                                }}
-                                tabIndex={-1}
-                                // Sign out asks from in here: lib/confirm.ts mounts its
-                                // dialog inside, where the drawer lets it be clicked, and
-                                // Escape answers that dialog rather than closing the drawer.
-                                data-modal=""
-                                onEscapeKeyDown={(event) => {
-                                    if (document.querySelector(".swal2-container")) event.preventDefault();
-                                }}
-                            >
-                                <Dialog.Title className="sr-only">{config.name} menu</Dialog.Title>
-                                <Sidebar {...sidebarProps} />
-                                <Dialog.Close
-                                    className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-card hover:text-foreground"
-                                    aria-label="Close the menu"
-                                >
-                                    <X className="size-4" />
-                                </Dialog.Close>
-                            </Dialog.Content>
-                        </Dialog.Portal>
-                    </Dialog.Root>
-
-                    <Link href={config.home} className="flex min-w-0 items-center gap-2 font-semibold">
-                        <Logo variant="icon" height={24} className="shrink-0" />
-                        <span className="truncate">{current?.label ?? config.name}</span>
-                    </Link>
-
-                    <div className="ml-auto flex items-center gap-1">
-                        <Button variant="ghost" size="icon" aria-label="Search" title="Search" onClick={() => setPaletteOpen(true)}>
-                            <Search className="size-4" />
-                        </Button>
-                        <ThemeToggle />
-                        <Button asChild variant="ghost" size="icon" className="relative">
-                            <Link
-                                href={config.notifications.href}
-                                aria-label={unreadCount > 0 ? `${config.notifications.label}, ${unreadCount} unread` : config.notifications.label}
-                                title={config.notifications.label}
-                            >
-                                <Bell className="size-4" />
-                                {unreadCount > 0 && (
-                                    <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-destructive-foreground">
-                                        {unreadCount > 9 ? "9+" : unreadCount}
-                                    </span>
-                                )}
-                            </Link>
-                        </Button>
+                <aside
+                    className={cn(
+                        "editor hidden shrink-0 border-r border-editor-line transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block",
+                        collapsed ? "w-18" : "w-64",
+                    )}
+                >
+                    <div className="sticky top-0 h-dvh">
+                        <Sidebar {...sidebarProps} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
                     </div>
-                </header>
+                </aside>
 
-                <main className={cn("flex-1", mainClassName)}>{children}</main>
+                <div className="flex min-w-0 flex-1 flex-col">
+                    {/* Below lg there's no room for the sidebar: a slim bar with the
+                        page you're on, and the same explorer as a drawer. */}
+                    <header className="titlebar sticky top-0 z-40 flex h-14 items-center gap-2 px-3 lg:hidden">
+                        <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+                            <Dialog.Trigger asChild>
+                                <Button variant="ghost" size="icon" aria-label="Open the menu">
+                                    <Menu className="size-5" />
+                                </Button>
+                            </Dialog.Trigger>
+                            <Dialog.Portal>
+                                <Dialog.Overlay className="fixed inset-0 z-50 bg-editor/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none" />
+                                <Dialog.Content
+                                    className="editor fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] border-r border-editor-line shadow-panel outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left motion-reduce:animate-none"
+                                    aria-describedby={undefined}
+                                    // Focus the drawer itself rather than its first control —
+                                    // still inside it for a keyboard, without ringing the search box.
+                                    onOpenAutoFocus={(event) => {
+                                        event.preventDefault();
+                                        (event.currentTarget as HTMLElement).focus();
+                                    }}
+                                    tabIndex={-1}
+                                    // Sign out asks from in here: lib/confirm.ts mounts its
+                                    // dialog inside, where the drawer lets it be clicked, and
+                                    // Escape answers that dialog rather than closing the drawer.
+                                    data-modal=""
+                                    onEscapeKeyDown={(event) => {
+                                        if (document.querySelector(".swal2-container")) event.preventDefault();
+                                    }}
+                                >
+                                    <Dialog.Title className="sr-only">{config.name} menu</Dialog.Title>
+                                    <Sidebar {...sidebarProps} />
+                                    <Dialog.Close
+                                        className="absolute right-3 top-3 grid size-8 place-items-center rounded-md text-editor-muted hover:bg-editor-raised hover:text-editor-fg"
+                                        aria-label="Close the menu"
+                                    >
+                                        <X className="size-4" />
+                                    </Dialog.Close>
+                                </Dialog.Content>
+                            </Dialog.Portal>
+                        </Dialog.Root>
+
+                        <Link href={config.home} className="flex min-w-0 items-center gap-2 font-semibold">
+                            <Logo variant="icon" height={24} className="shrink-0" />
+                            <span className="truncate">{current?.label ?? config.name}</span>
+                        </Link>
+
+                        <div className="ml-auto flex items-center gap-1">
+                            <Button variant="ghost" size="icon" aria-label="Search" title="Search" onClick={() => setPaletteOpen(true)}>
+                                <Search className="size-4" />
+                            </Button>
+                            <ThemeToggle />
+                            <BellLink href={config.notifications.href} label={config.notifications.label} unread={unreadCount} />
+                        </div>
+                    </header>
+
+                    {/* From lg: the pages you've opened, as editor tabs. */}
+                    <div className="titlebar hidden h-10 items-stretch lg:flex">
+                        <ul aria-label="Recently opened" className="no-scrollbar flex min-w-0 flex-1 items-stretch overflow-x-auto">
+                            {openTabs.map((tab) => {
+                                const entry = index.get(tab.href)!;
+                                const active = tab.href === currentHref;
+                                return (
+                                    <li
+                                        key={tab.href}
+                                        data-active={active || undefined}
+                                        className={cn(
+                                            "editor-tab group/tab flex shrink-0 items-stretch border-r border-border transition-colors",
+                                            active ? "bg-background text-foreground" : "text-muted-foreground hover:bg-surface hover:text-foreground",
+                                        )}
+                                    >
+                                        <Link
+                                            // The open tab goes back to the top of its section; the others to where you left them.
+                                            href={active ? entry.item.href : tab.path}
+                                            aria-current={active ? "page" : undefined}
+                                            className={cn(
+                                                "flex items-center gap-2 text-[0.8rem] font-medium",
+                                                openTabs.length > 1 ? "pl-3.5 pr-1.5" : "px-3.5",
+                                            )}
+                                        >
+                                            <entry.item.icon className={cn("size-3.5 shrink-0", entry.tone)} aria-hidden />
+                                            {entry.item.label}
+                                        </Link>
+                                        {openTabs.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => closeTab(tab.href)}
+                                                aria-label={`Close the ${entry.item.label} tab`}
+                                                title="Close tab"
+                                                className={cn(
+                                                    "mr-2 grid size-5 place-items-center self-center rounded-sm text-muted-foreground transition-[opacity,background-color] hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100",
+                                                    active ? "opacity-100" : "opacity-0",
+                                                )}
+                                            >
+                                                <X className="size-3" aria-hidden />
+                                            </button>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+
+                        <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2 pr-3">
+                            <button
+                                type="button"
+                                onClick={() => setPaletteOpen(true)}
+                                className="flex h-7 items-center gap-2 rounded-md border border-border bg-card px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                            >
+                                <Search className="size-3.5" aria-hidden />
+                                Go to a page
+                                <kbd className="rounded-sm border border-border bg-surface px-1 font-mono text-[0.65rem]">⌘K</kbd>
+                            </button>
+                            <BellLink href={config.notifications.href} label={config.notifications.label} unread={unreadCount} small />
+                        </div>
+                    </div>
+
+                    <main className={cn("relative isolate flex-1", mainClassName)}>
+                        {/* Graph paper under the top of every page, fading out as the content goes on. */}
+                        <div
+                            aria-hidden
+                            className="bg-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 mask-[linear-gradient(to_bottom,#000,transparent)]"
+                        />
+                        {children}
+                    </main>
+
+                    <StatusBar config={config} section={section} unread={unreadCount} onSearch={() => setPaletteOpen(true)} />
+                </div>
+
+                <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={commands} />
             </div>
+        </ConsoleSectionContext.Provider>
+    );
+}
 
-            <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={commands} />
-        </div>
+/** The bell, with the unread count perched on it. */
+function BellLink({ href, label, unread, small = false }: { href: string; label: string; unread: number; small?: boolean }) {
+    return (
+        <Button asChild variant="ghost" size="icon" className={cn("relative", small && "size-8")}>
+            <Link href={href} aria-label={unread > 0 ? `${label}, ${unread} unread` : label} title={label}>
+                <Bell className="size-4" />
+                {unread > 0 && (
+                    <span className="absolute right-0.5 top-0.5 grid min-w-4 place-items-center rounded-sm bg-destructive px-1 font-mono text-[10px] font-bold leading-4 text-destructive-foreground">
+                        {unread > 9 ? "9+" : unread}
+                    </span>
+                )}
+            </Link>
+        </Button>
+    );
+}
+
+/**
+ * The editor's status bar along the foot: which console this is and where in
+ * it you are on the left; unread notifications, the quick search and the
+ * time in Bangladesh — what every schedule here is set in — on the right.
+ */
+function StatusBar({
+    config,
+    section,
+    unread,
+    onSearch,
+}: {
+    config: ConsoleConfig;
+    section: ConsoleSection;
+    unread: number;
+    onSearch: () => void;
+}) {
+    const now = useNow(30_000);
+
+    return (
+        <footer className="flex h-7 shrink-0 items-center justify-between gap-3 overflow-hidden bg-primary px-3 font-mono text-[0.68rem] text-primary-foreground">
+            <p className="flex min-w-0 items-center gap-3">
+                <Link href={config.home} className="flex shrink-0 items-center gap-1.5 hover:underline">
+                    <GitBranch className="size-3" aria-hidden />
+                    {config.name} console
+                </Link>
+                {section.item && (
+                    <span className="hidden min-w-0 truncate opacity-85 sm:inline">
+                        {section.group && `${section.group} › `}
+                        {section.item.label}
+                    </span>
+                )}
+            </p>
+            <p className="flex shrink-0 items-center gap-3">
+                {unread > 0 && (
+                    <Link href={config.notifications.href} className="flex items-center gap-1 hover:underline">
+                        <Bell className="size-3" aria-hidden />
+                        {unread} unread
+                    </Link>
+                )}
+                <button type="button" onClick={onSearch} className="hidden items-center gap-1 hover:underline md:flex">
+                    <Search className="size-3" aria-hidden />
+                    Search ⌘K
+                </button>
+                <span className="hidden sm:inline" suppressHydrationWarning>
+                    Dhaka {dhakaTime(now)}
+                </span>
+            </p>
+        </footer>
     );
 }
 
@@ -263,6 +513,7 @@ interface SidebarProps {
     config: ConsoleConfig;
     pathname: string;
     badges: ConsoleBadges;
+    tones: Map<string, { tone: string }>;
     /** The icon rail. Only the desktop sidebar collapses; the phone drawer is always full. */
     collapsed?: boolean;
     /** Omitted in the phone drawer, which closes instead. */
@@ -274,15 +525,17 @@ interface SidebarProps {
 }
 
 /**
- * Brand, search, the grouped sections, then — pinned at the foot, outside the
- * scroll — any footer items, the account card (which opens the profile), and
- * the way out: sign out. As a rail it
- * keeps every icon and shows each name on hover.
+ * The editor's explorer, on its dark surface: brand, search, the console's
+ * pages as a tree of folders, then — pinned at the foot, outside the scroll —
+ * any footer items, the theme, the account card (which opens the profile),
+ * and the way out: sign out. As a rail it keeps every icon and shows each
+ * name on hover.
  */
 function Sidebar({
     config,
     pathname,
     badges,
+    tones,
     collapsed = false,
     onToggleCollapsed,
     onSearch,
@@ -307,11 +560,13 @@ function Sidebar({
             }
             : {};
 
-    const link = (item: ConsoleNavItem) => {
+    /** `nested`: inside a folder, hung off its tree line. */
+    const link = (item: ConsoleNavItem, nested = false) => {
         const active = isActivePath(pathname, item);
         const badge = badges[item.href];
         const shown = badge && (badge.count > 9 ? "9+" : String(badge.count));
         const badgeWord = badge?.tone === "alert" ? "unread" : "waiting";
+        const tone = tones.get(item.href)?.tone ?? "text-editor-muted";
 
         return (
             <Link
@@ -320,28 +575,25 @@ function Sidebar({
                 aria-current={active ? "page" : undefined}
                 {...tipFor(badge ? `${item.label} · ${badge.count} ${badgeWord}` : item.label)}
                 className={cn(
-                    "relative flex h-8 items-center gap-3 rounded-lg text-sm font-medium transition-[background-color,color,box-shadow]",
-                    collapsed ? "justify-center px-0" : "px-2.5",
+                    "relative flex h-8 items-center gap-2.5 rounded-sm text-[0.85rem] transition-colors",
+                    collapsed ? "justify-center px-0" : nested ? "-ml-px rounded-l-none border-l-2 pl-3 pr-2" : "px-2.5",
                     active
-                        ? "bg-card font-semibold text-foreground shadow-sm ring-1 ring-border"
-                        : "text-foreground/75 hover:bg-card/70 hover:text-foreground",
+                        ? cn("bg-violet-500/20 font-medium text-editor-fg", nested && !collapsed && "border-violet-400")
+                        : cn("text-editor-muted hover:bg-editor-panel hover:text-editor-fg", nested && !collapsed && "border-transparent"),
                 )}
             >
-                <item.icon className={cn("size-4.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} aria-hidden />
+                {/* The rail marks the open page with a bar down its left edge, the tree with its line. */}
+                {collapsed && active && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-violet-400" />}
+                <item.icon className={cn("size-4 shrink-0", tone)} aria-hidden />
                 <span className={cn("flex-1 truncate", collapsed && "sr-only")}>{item.label}</span>
                 {badge && (
                     <span
                         className={cn(
-                            "grid place-items-center rounded-full font-bold",
-                            badge.tone === "alert"
-                                ? "bg-destructive text-destructive-foreground"
-                                : // A tint reads beside a label; perched on an icon it needs to be solid.
-                                  collapsed
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-primary/12 text-primary",
+                            "grid place-items-center rounded-sm font-mono font-bold",
+                            badge.tone === "alert" ? "bg-destructive text-destructive-foreground" : "bg-violet-500 text-white",
                             collapsed
-                                ? "absolute right-1.5 top-0.5 min-w-4 px-1 text-[10px] leading-4 ring-2 ring-background"
-                                : "min-w-5 px-1.5 text-[11px]",
+                                ? "absolute right-1.5 top-0.5 min-w-4 px-1 text-[10px] leading-4 ring-2 ring-editor"
+                                : "min-w-5 px-1.5 text-[0.68rem] leading-[1.15rem]",
                         )}
                     >
                         {shown}
@@ -357,13 +609,18 @@ function Sidebar({
     return (
         <div className="relative flex h-full flex-col">
             {/* Brand, and the rail toggle. */}
-            <div className={cn("flex h-14 shrink-0 items-center border-b border-border", collapsed ? "justify-center px-2" : "gap-2 px-4")}>
+            <div
+                className={cn(
+                    "flex h-14 shrink-0 items-center border-b border-editor-line bg-editor-panel",
+                    collapsed ? "justify-center px-2" : "gap-2 px-4",
+                )}
+            >
                 {/* The brand's own logo; the rail has room for the mark alone. */}
                 <Link href={config.home} className="flex min-w-0 items-center gap-2" {...tipFor(`Half Coders ${config.name.toLowerCase()}`)}>
-                    <Logo variant={collapsed ? "icon" : "compact"} height={26} className="shrink-0" />
+                    <Logo variant={collapsed ? "icon" : "compact"} height={26} onDark className="shrink-0" />
                     <span
                         className={cn(
-                            "rounded-md bg-primary/10 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-primary",
+                            "rounded-sm border border-violet-400/40 px-1.5 font-mono text-[0.65rem] font-semibold leading-5 text-syn-keyword",
                             collapsed && "sr-only",
                         )}
                     >
@@ -376,7 +633,7 @@ function Sidebar({
                         onClick={onToggleCollapsed}
                         aria-label="Collapse the sidebar"
                         title="Collapse the sidebar"
-                        className="ml-auto grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                        className="ml-auto grid size-8 place-items-center rounded-md text-editor-muted transition-colors hover:bg-editor-raised hover:text-editor-fg"
                     >
                         <PanelLeftClose className="size-4" aria-hidden />
                     </button>
@@ -390,14 +647,14 @@ function Sidebar({
                     onClick={onSearch}
                     {...tipFor("Search  ⌘K")}
                     className={cn(
-                        "flex h-9 w-full items-center gap-2.5 rounded-lg border border-border bg-card text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground",
+                        "flex h-9 w-full items-center gap-2.5 rounded-md border border-editor-line bg-editor-panel text-sm text-editor-muted transition-colors hover:border-violet-400/50 hover:text-editor-fg",
                         collapsed ? "justify-center" : "px-2.5",
                     )}
                 >
                     <Search className="size-4 shrink-0" aria-hidden />
                     <span className={cn("flex-1 text-left", collapsed && "sr-only")}>Search…</span>
                     {!collapsed && (
-                        <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+                        <kbd className="rounded-sm border border-editor-line bg-editor px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
                     )}
                 </button>
             </div>
@@ -405,31 +662,36 @@ function Sidebar({
             <nav
                 aria-label={config.name}
                 // A scrollbar only when one is needed, and only while the pointer is over the list.
-                className="min-h-0 flex-1 overflow-y-auto px-3 pb-1 [scrollbar-color:transparent_transparent] scrollbar-thin hover:[scrollbar-color:var(--border)_transparent]"
+                className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 [scrollbar-color:transparent_transparent] scrollbar-thin hover:[scrollbar-color:var(--editor-line)_transparent]"
             >
                 {config.groups.map((group) => (
-                    <div key={group.label ?? "top"} className={group.label ? "pt-2.5" : "pt-3"}>
+                    <div key={group.label ?? "top"} className="pt-3">
                         {group.label &&
                             (collapsed ? (
-                                <span className="mx-auto mb-2 block h-px w-6 bg-border" aria-hidden />
+                                <span className="mx-auto mb-2 block h-px w-6 bg-editor-line" aria-hidden />
                             ) : (
-                                <p className="px-2.5 pb-0.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                                <p className="flex items-center gap-1.5 px-1 pb-1 text-[0.68rem] font-semibold uppercase tracking-wider text-editor-muted">
+                                    <ChevronDown className="size-3.5" aria-hidden />
                                     {group.label}
                                 </p>
                             ))}
-                        <div className="space-y-0.5">{group.items.map(link)}</div>
+                        {group.label && !collapsed ? (
+                            <div className="ml-2.5 space-y-px border-l border-editor-line">{group.items.map((item) => link(item, true))}</div>
+                        ) : (
+                            <div className="space-y-px">{group.items.map((item) => link(item))}</div>
+                        )}
                     </div>
                 ))}
             </nav>
 
             {/* The foot: pinned items, the theme, who's signed in, and the ways out. */}
-            <div className="shrink-0 space-y-1.5 border-t border-border px-3 py-2.5">
-                {config.footerItems?.map(link)}
+            <div className="shrink-0 space-y-1.5 border-t border-editor-line px-3 py-2.5">
+                {config.footerItems?.map((item) => link(item))}
 
                 {collapsed ? (
-                    <ThemeToggle className="h-8 w-full rounded-lg text-muted-foreground hover:bg-card hover:text-foreground" />
+                    <ThemeToggle className="h-8 w-full rounded-md text-editor-muted hover:bg-editor-panel hover:text-editor-fg" />
                 ) : (
-                    <ThemePicker />
+                    <ThemePicker onEditor />
                 )}
 
                 <Link
@@ -437,27 +699,30 @@ function Sidebar({
                     {...tipFor(user ? `${user.name} · ${config.profile.label}` : config.profile.label)}
                     aria-current={profileActive ? "page" : undefined}
                     className={cn(
-                        "group flex items-center gap-2.5 rounded-xl p-1 transition-colors hover:bg-card",
-                        collapsed && "justify-center",
-                        profileActive && "bg-card shadow-sm ring-1 ring-border",
+                        "group flex items-center gap-2.5 rounded-card border p-1.5 transition-colors",
+                        collapsed ? "justify-center border-transparent" : "border-editor-line bg-editor-panel",
+                        profileActive ? "border-violet-400/60 bg-violet-500/15" : "hover:border-editor-gutter",
                     )}
                 >
                     <Avatar src={user?.image} name={user?.name ?? "?"} size={32} />
                     <span className={cn("min-w-0 flex-1", collapsed && "sr-only")}>
                         <span className="block truncate text-sm font-semibold">{user?.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
+                        <span className="block truncate font-mono text-[0.68rem] text-editor-muted">
                             {user ? (ROLE_LABEL[user.role] ?? user.role) : ""} · Profile
                         </span>
                     </span>
                     {!collapsed && (
-                        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                        <ChevronRight
+                            className="size-4 shrink-0 text-editor-muted transition-transform group-hover:translate-x-0.5"
+                            aria-hidden
+                        />
                     )}
                 </Link>
 
                 <Button
-                    variant="brand-outline"
+                    variant="ghost"
                     size={collapsed ? "icon" : "default"}
-                    className={cn("w-full", collapsed ? "h-10" : "h-9")}
+                    className={cn("w-full text-syn-tag hover:bg-editor-panel hover:text-syn-tag", collapsed ? "h-10" : "h-9")}
                     onClick={onSignOut}
                     isLoading={signingOut}
                     aria-label={collapsed ? "Sign out" : undefined}
@@ -473,7 +738,7 @@ function Sidebar({
                         onClick={onToggleCollapsed}
                         aria-label="Expand the sidebar"
                         {...tipFor("Expand the sidebar")}
-                        className="grid h-8 w-full place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                        className="grid h-8 w-full place-items-center rounded-md text-editor-muted transition-colors hover:bg-editor-panel hover:text-editor-fg"
                     >
                         <PanelLeftOpen className="size-4" aria-hidden />
                     </button>
@@ -483,7 +748,7 @@ function Sidebar({
             {tip && (
                 <span
                     role="tooltip"
-                    className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md animate-in fade-in zoom-in-95 duration-100"
+                    className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-sm border border-editor-line bg-editor-raised px-2 py-1 text-xs font-medium text-editor-fg shadow-panel animate-in fade-in zoom-in-95 duration-100"
                     style={{ top: tip.top, left: "calc(var(--console-sidebar, 4.5rem) + 0.5rem)" }}
                 >
                     {tip.label}

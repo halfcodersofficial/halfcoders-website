@@ -40,6 +40,7 @@ import { useNow } from "@/hooks/useNow";
 import { useZodForm, type ZodFormApi } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { classModeOptions } from "@/components/shared/CourseClassification";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { CLASS_MODES, hasCurriculumTools, marksClassMode, MODE_META } from "@/lib/courseClassification";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
@@ -344,6 +345,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                 {area === "admin" && <BackButton href={routes.courses} label="All courses" />}
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div className="min-w-0 max-w-2xl">
+                        <ConsoleEyebrow />
                         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Outline Maker</h1>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {isTraditional ? (
@@ -369,7 +371,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                                 </Link>
                             </Button>
                         )}
-                        <div role="group" aria-label="View" className="flex items-center gap-0.5 rounded-lg bg-secondary/60 p-1">
+                        <div role="group" aria-label="View" className="flex items-center gap-0.5 rounded-md bg-secondary/60 p-1">
                             {(
                                 [
                                     { value: "edit", label: "Edit", icon: Pencil },
@@ -383,7 +385,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                                     onClick={() => setView(value)}
                                     className={cn(
                                         "flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
-                                        view === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                                        view === value ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
                                     <Icon className="size-4" /> {label}
@@ -399,7 +401,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                 </div>
             </header>
 
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card sm:grid-cols-4">
                 <OutlineFigure label={`${weekLabel}s`} value={weeks.length} />
                 <OutlineFigure label="Planned items" value={itemCount} />
                 {isTraditional ? (
@@ -423,11 +425,11 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                 // The syllabus brings its own week cards, as on the student page.
                 <OutlineSchedule weeks={weeks} weekLabel={weekLabel} undated />
             ) : view === "preview" ? (
-                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+                <div className="rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
                     <OutlineSchedule weeks={weeks} weekLabel={weekLabel} />
                 </div>
             ) : weeks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                <div className="rounded-card border border-dashed border-border px-6 py-14 text-center">
                         <CalendarDays className="mx-auto size-7 text-muted-foreground" aria-hidden />
                         <p className="mt-3 font-medium">No {weekLabel.toLowerCase()}s planned yet</p>
                         <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -531,7 +533,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
                         type="button"
                         onClick={() => addWeek.mutate()}
                         disabled={addWeek.isPending}
-                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border px-4 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground disabled:opacity-60"
+                        className="flex w-full items-center justify-center gap-2 rounded-card border border-dashed border-border px-4 py-4 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground disabled:opacity-60"
                     >
                         <Plus className="size-4" aria-hidden /> Add {weekLabel.toLowerCase()}
                     </button>
@@ -682,7 +684,7 @@ function WeekCard({
             aria-busy={isSavingPosition || undefined}
             aria-label={label}
             data-outline-week={week.id}
-            className="scroll-mt-24 overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+            className="scroll-mt-24 overflow-hidden rounded-card border border-border bg-card shadow-card"
         >
             <div className={cn("px-4 py-4 sm:px-5", isOpen && "border-b border-border")}>
                 {renaming ? (
@@ -724,7 +726,7 @@ function WeekCard({
                     <div className="flex items-center gap-3 sm:gap-4">
                         {canDrag && <DragHandle label={label} isSaving={isSavingPosition} />}
                         <p className="w-12 shrink-0 text-center leading-none sm:w-14">
-                            <span className="block text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">{weekLabel}</span>
+                            <span className="block text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{weekLabel}</span>
                             <span className="mt-1 block font-mono text-2xl font-bold tabular-nums text-primary">{String(week.order).padStart(2, "0")}</span>
                         </p>
                         <button type="button" aria-expanded={isOpen} aria-controls={panelId} onClick={onToggle} className="min-w-0 flex-1 text-left">
@@ -1158,7 +1160,7 @@ function KindPicker({ form, kinds }: { form: ZodFormApi<ItemValues>; kinds: Outl
                         <label
                             key={kind}
                             className={cn(
-                                "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2.5 text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                 checked
                                     ? "border-primary bg-primary/10 font-medium text-primary"
                                     : "border-border hover:bg-secondary/60",

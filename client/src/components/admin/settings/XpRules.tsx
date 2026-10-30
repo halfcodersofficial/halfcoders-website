@@ -69,7 +69,7 @@ export default function XpRules({
         <div className="space-y-6">
             {XP_GROUPS.map((group) => (
                 <div key={group.label}>
-                    <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</p>
+                    <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{group.label}</p>
                     <ul className="mt-1 divide-y divide-border">
                         {group.sources.map((source) => {
                             const fallback = defaults[source.key];

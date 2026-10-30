@@ -57,7 +57,7 @@ export function EditorSteps({
                                 type="button"
                                 onClick={() => onChange(step.id)}
                                 aria-current={isActive ? "step" : undefined}
-                                className="group relative flex w-full flex-col items-center gap-1.5 rounded-lg pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="group relative flex w-full flex-col items-center gap-1.5 rounded-md pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
                                 {/* Opaque and raised: the line from the next step runs up to
                                     this circle's centre and must pass behind it. */}

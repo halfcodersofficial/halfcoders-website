@@ -39,6 +39,7 @@ import { DragHandle, SortableItem, SortableList } from "@/components/ui/sortable
 import { useZodForm, type ZodFormApi } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { classModeOptions } from "@/components/shared/CourseClassification";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { CLASS_MODES, hasCurriculumTools, marksClassMode, MODE_META } from "@/lib/courseClassification";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
@@ -642,9 +643,9 @@ export default function ModuleManagerPage({
         return (
             <div className="container-page max-w-5xl space-y-5 py-8">
                 <Skeleton className="h-12 w-72" />
-                <Skeleton className="h-24 rounded-2xl" />
-                <Skeleton className="h-64 rounded-2xl" />
-                <Skeleton className="h-48 rounded-2xl" />
+                <Skeleton className="h-24 rounded-card" />
+                <Skeleton className="h-64 rounded-card" />
+                <Skeleton className="h-48 rounded-card" />
             </div>
         );
     }
@@ -701,6 +702,7 @@ export default function ModuleManagerPage({
                 {area === "admin" && <BackButton href={routes.courses} label="All courses" />}
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div className="min-w-0 max-w-2xl">
+                        <ConsoleEyebrow />
                         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Module Manager</h1>
                         <p className="mt-1 text-sm text-muted-foreground">
                             The real course content. Students see only what&apos;s published
@@ -731,7 +733,7 @@ export default function ModuleManagerPage({
                 </div>
             </header>
 
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-sm sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card sm:grid-cols-4">
                 <Figure label={`${milestoneName}s`} value={milestones.length} hint={`${milestones.filter((m) => m.isPublished).length} live`} />
                 <Figure label={`${moduleName}s`} value={allModules.length} hint={`${allModules.filter((m) => m.isPublished).length} live`} />
                 <Figure label="Lessons" value={lessons} hint={`in ${plural(allModules.length, moduleLabel)}`} />
@@ -743,7 +745,7 @@ export default function ModuleManagerPage({
             </dl>
 
             {/* What this course calls its levels — "Week" and "Module", "Phase" and "Session". */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-border px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-border px-5 py-3">
                 {editingLabels ? (
                     <form className="w-full space-y-3" noValidate onSubmit={labelForm.handleSubmit}>
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -779,7 +781,7 @@ export default function ModuleManagerPage({
             </div>
 
             {milestoneForm?.mode === "add" && (
-                <section aria-label={`New ${milestoneLabel}`} className="rounded-2xl border border-primary/30 bg-card p-5 shadow-sm sm:p-6">
+                <section aria-label={`New ${milestoneLabel}`} className="rounded-card border border-primary/30 bg-card p-5 shadow-card sm:p-6">
                     <form className="space-y-4" noValidate onSubmit={milestoneFormApi.handleSubmit}>
                         <FormField form={milestoneFormApi} name="title" label={`${milestoneName} title`} required counterMax={160}>
                             <Input autoFocus placeholder={`${milestoneName} ${String(milestones.length + 1).padStart(2, "0")}`} />
@@ -807,7 +809,7 @@ export default function ModuleManagerPage({
             )}
 
             {milestones.length === 0 && !milestoneForm ? (
-                <div className="rounded-2xl border border-dashed border-border px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border px-6 py-16 text-center">
                     <Layers className="mx-auto size-7 text-muted-foreground" aria-hidden />
                     <p className="mt-3 font-medium">No {milestoneLabel}s yet</p>
                     <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
@@ -868,7 +870,7 @@ export default function ModuleManagerPage({
                                         key={milestone.id}
                                         id={milestone.id}
                                         aria-busy={isSavingPosition || undefined}
-                                        className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                                        className="overflow-hidden rounded-card border border-border bg-card shadow-card"
                                     >
                                         <div className={cn("px-4 py-4 sm:px-5", isOpen && "border-b border-border")}>
                                             {editingWeek ? (
@@ -892,7 +894,7 @@ export default function ModuleManagerPage({
                                                 <div className="flex items-center gap-3 sm:gap-4">
                                                     {milestones.length > 1 && <DragHandle label={weekName} isSaving={isSavingPosition} />}
                                                     <p className="w-12 shrink-0 text-center leading-none sm:w-14">
-                                                        <span className="block text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">{milestoneName}</span>
+                                                        <span className="block text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">{milestoneName}</span>
                                                         <span className="mt-1 block font-mono text-2xl font-bold tabular-nums text-primary">{number}</span>
                                                     </p>
                                                     <button
@@ -906,7 +908,7 @@ export default function ModuleManagerPage({
                                                             <span className="truncate font-semibold">{milestone.title}</span>
                                                             <span
                                                                 className={cn(
-                                                                    "shrink-0 rounded-full px-2 py-px text-[0.6875rem] font-semibold",
+                                                                    "shrink-0 rounded-sm px-2 py-px text-[0.6875rem] font-semibold",
                                                                     milestone.isPublished ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground",
                                                                 )}
                                                             >

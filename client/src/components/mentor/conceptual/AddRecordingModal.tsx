@@ -164,7 +164,7 @@ function AddRecordingForm({
                                     <label
                                         key={course.id}
                                         className={cn(
-                                            "flex cursor-pointer items-center gap-3 rounded-xl border p-2.5 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                            "flex cursor-pointer items-center gap-3 rounded-card border p-2.5 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                             selected ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/40",
                                         )}
                                     >
@@ -232,7 +232,7 @@ function AddRecordingForm({
                     {/* The video, as soon as the link reads as one — the quickest way to catch the wrong paste. */}
                     <div className="hidden sm:block">
                         <p className="text-sm font-medium">Preview</p>
-                        <div className="relative mt-2 aspect-video overflow-hidden rounded-lg bg-secondary ring-1 ring-border">
+                        <div className="relative mt-2 aspect-video overflow-hidden rounded-md bg-secondary ring-1 ring-border">
                             {videoId ? (
                                 <SafeImage src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} alt="The video's thumbnail" fill sizes="152px" className="object-cover" fallback={null} />
                             ) : (
@@ -251,7 +251,7 @@ function AddRecordingForm({
                     </FormField>
                 </div>
 
-                <div className="space-y-1 rounded-xl bg-secondary/40 px-4 py-3">
+                <div className="space-y-1 rounded-card bg-secondary/40 px-4 py-3">
                     <Checkbox checked={publish} onChange={(event) => setPublish(event.target.checked)} description="Students are told the first time it's live.">
                         Publish now
                     </Checkbox>
@@ -298,7 +298,7 @@ function TopicChip({
     return (
         <label
             className={cn(
-                "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                 selected ? "border-primary bg-primary/10 font-medium text-primary" : "border-border hover:bg-secondary/50",
             )}
         >

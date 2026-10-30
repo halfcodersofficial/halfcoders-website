@@ -12,6 +12,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { cn, formatBDT, formatDate, formatDateTime } from "@/lib/utils";
 import { adminService } from "@/services/admin";
 import type { AdminSummaryCourse, PromotionCourseDetail, PromotionCourseSummary, PromotionGrant } from "@/types/admin.types";
@@ -108,7 +109,7 @@ export const CONDITION_TEXT = { COURSE_COMPLETE: "Finish the course", CERTIFICAT
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 function LiveChip({ live }: { live: Live }) {
-    return <span className={cn("rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold shadow-sm", LIVE_TONE[live].tone)}>{LIVE_TONE[live].label}</span>;
+    return <span className={cn("rounded-sm px-2 py-0.5 text-[0.6875rem] font-semibold shadow-card", LIVE_TONE[live].tone)}>{LIVE_TONE[live].label}</span>;
 }
 
 /** Every course, each with its offer or reward in brief; one opens that course's setup. */
@@ -239,12 +240,13 @@ export function PromotionCoursesPage({ kind }: { kind: PromotionKind }) {
                 <div className="space-y-5">
                     <header className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <h1 className="text-2xl font-bold sm:text-3xl">{meta.title}</h1>
+                            <ConsoleEyebrow />
+                            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{meta.title}</h1>
                             <p className="mt-1 text-sm text-muted-foreground sm:text-base">{meta.description}</p>
                         </div>
                         <ViewToggle value={view} onChange={changeView} />
                     </header>
-                    {isLoading ? <Skeleton className="h-24 rounded-xl" /> : <StatStrip cells={cells} />}
+                    {isLoading ? <Skeleton className="h-24 rounded-card" /> : <StatStrip cells={cells} />}
                 </div>
             }
             searchPlaceholder="Search courses…"
@@ -261,7 +263,7 @@ export function PromotionCoursesPage({ kind }: { kind: PromotionKind }) {
                 <div className="@container">
                     <div className={COURSE_GRID}>
                         {Array.from({ length: 5 }).map((_, index) => (
-                            <Skeleton key={index} className="h-72 rounded-xl" />
+                            <Skeleton key={index} className="h-72 rounded-card" />
                         ))}
                     </div>
                 </div>
@@ -321,7 +323,7 @@ export function PromotionCourseShell({
         return (
             <div className="space-y-5">
                 <BackButton href={meta.href} label="All courses" />
-                <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
+                <div className="rounded-card border border-dashed border-border bg-card px-6 py-16 text-center">
                     <p className="font-medium">This course couldn&apos;t be found.</p>
                     <p className="mt-1 text-sm text-muted-foreground">It may have been removed. Go back to pick another course.</p>
                 </div>
@@ -332,10 +334,10 @@ export function PromotionCourseShell({
         return (
             <div className="space-y-5">
                 <BackButton href={meta.href} label="All courses" />
-                <Skeleton className="h-72 rounded-2xl" />
+                <Skeleton className="h-72 rounded-card" />
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                    <Skeleton className="h-112 rounded-2xl" />
-                    <Skeleton className="h-64 rounded-2xl" />
+                    <Skeleton className="h-112 rounded-card" />
+                    <Skeleton className="h-64 rounded-card" />
                 </div>
             </div>
         );
@@ -399,7 +401,7 @@ export function PromotionCourseShell({
                 bar={<p className="text-sm text-muted-foreground">{meta.description}</p>}
             />
             <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                <section className="@container min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">{children(data)}</section>
+                <section className="@container min-w-0 overflow-hidden rounded-card border border-border bg-card shadow-card">{children(data)}</section>
                 <GrantList grants={grants} kind={kind} action={grantAction} />
             </div>
         </div>
@@ -438,30 +440,30 @@ export function PromotionDeal({
 
     return (
         <div className="bg-surface/70 px-5 py-5 sm:px-6">
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
                 {kind === "offer" ? "The offer, as a buyer sees it" : "The reward, as a student sees it"}
             </p>
             <div className="mt-3 grid grid-cols-1 items-stretch gap-3 @2xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] @2xl:items-center">
-                <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-                    <span className="relative grid aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary">
+                <div className="flex items-center gap-3 rounded-card border border-border bg-card p-3">
+                    <span className="relative grid aspect-video w-24 shrink-0 place-items-center overflow-hidden rounded-md bg-secondary">
                         <CourseThumb course={course} sizes="96px" />
                     </span>
                     <span className="min-w-0">
-                        <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-primary">{lead}</span>
+                        <span className="block text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-primary">{lead}</span>
                         <span className="mt-0.5 line-clamp-2 block text-sm font-semibold leading-snug">{course.title}</span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">{terms}</span>
                     </span>
                 </div>
 
-                <span aria-hidden className="mx-auto grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <span aria-hidden className="mx-auto grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-card">
                     <Connector className={cn("size-4", kind === "reward" && "@max-2xl:rotate-90")} strokeWidth={2.5} />
                 </span>
 
                 {picked.length > 0 ? (
-                    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-card p-3">
+                    <div className="flex items-center gap-3 rounded-card border border-primary/30 bg-card p-3">
                         <CourseFan courses={picked} max={3} className="shrink-0" />
                         <span className="min-w-0">
-                            <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-success-ink">
+                            <span className="block text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-success-ink">
                                 {picked.length === 1 ? "Free course" : `${picked.length} free courses`}
                             </span>
                             <span className="mt-0.5 line-clamp-2 block text-sm font-semibold leading-snug">
@@ -471,7 +473,7 @@ export function PromotionDeal({
                         </span>
                     </div>
                 ) : (
-                    <div className="grid min-h-21 place-items-center rounded-xl border-[1.5px] border-dashed border-border-strong px-4 text-center text-sm text-muted-foreground">
+                    <div className="grid min-h-21 place-items-center rounded-card border-[1.5px] border-dashed border-border-strong px-4 text-center text-sm text-muted-foreground">
                         {kind === "offer" ? "Pick the free courses below." : "Pick the reward courses below."}
                     </div>
                 )}
@@ -504,14 +506,14 @@ export const PromoActions = ({ children }: { children: ReactNode }) => (
 function GrantList({ grants, kind, action }: { grants: PromotionGrant[]; kind: PromotionKind; action?: (grant: PromotionGrant) => ReactNode }) {
     const Icon = KIND[kind].icon;
     return (
-        <aside className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:sticky xl:top-6">
+        <aside className="overflow-hidden rounded-card border border-border bg-card shadow-card xl:sticky xl:top-6">
             <div className="flex items-baseline justify-between gap-3 border-b border-border px-5 py-4">
                 <h2 className="font-semibold">Given so far</h2>
                 <span className="text-xs text-muted-foreground">{grants.length ? "Latest 50, newest first" : ""}</span>
             </div>
             {grants.length === 0 ? (
                 <div className="px-6 py-10 text-center">
-                    <span className="mx-auto grid size-11 place-items-center rounded-full bg-secondary text-primary">
+                    <span className="mx-auto grid size-11 place-items-center rounded-md border border-border bg-surface text-primary">
                         <Icon className="size-5" aria-hidden />
                     </span>
                     <p className="mt-3 text-sm font-medium">Nobody yet</p>
@@ -535,7 +537,7 @@ function GrantList({ grants, kind, action }: { grants: PromotionGrant[]; kind: P
                                 </p>
                             </div>
                             {grant.revokedAt ? (
-                                <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground">Taken back</span>
+                                <span className="shrink-0 rounded-sm bg-secondary px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground">Taken back</span>
                             ) : (
                                 <span className="flex shrink-0 flex-col items-end gap-0.5">
                                     <time

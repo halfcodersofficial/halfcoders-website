@@ -48,7 +48,7 @@ interface LogoProps {
     className?: string;
     /** Load eagerly — for a logo that is the first thing on screen. */
     priority?: boolean;
-    /** The horizontal lockup's light-on-dark colours, for a dark ground. */
+    /** The horizontal and compact lockups' light-on-dark colours, for a dark ground. */
     onDark?: boolean;
 }
 
@@ -93,13 +93,15 @@ export default function Logo({ variant = "horizontal", height, className, priori
         return (
             <span className={cn("inline-flex items-center", className)} style={{ gap: Math.round(h * 0.28) }}>
                 <Art art={ART.icon} height={h} alt="" priority={priority} className="shrink-0" />
-                <Art art={ART.wordmark} height={Math.round(h * 0.46)} alt={BRAND_NAME} priority={priority} className="shrink-0 dark:hidden" />
+                {!onDark && (
+                    <Art art={ART.wordmark} height={Math.round(h * 0.46)} alt={BRAND_NAME} priority={priority} className="shrink-0 dark:hidden" />
+                )}
                 <Art
                     art={ART.wordmarkOnDark}
                     height={Math.round(h * 0.46)}
                     alt={BRAND_NAME}
                     priority={priority}
-                    className="hidden shrink-0 dark:block"
+                    className={cn("shrink-0", !onDark && "hidden dark:block")}
                 />
             </span>
         );

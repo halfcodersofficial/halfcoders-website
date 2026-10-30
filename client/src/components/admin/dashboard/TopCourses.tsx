@@ -17,8 +17,8 @@ const TYPE_LABEL = { BOOTCAMP: "Bootcamp", TRADITIONAL: "Traditional" } as const
  */
 export default function TopCourses({ courses }: { courses: AdminDashboard["topCourses"] }) {
     return (
-        <section aria-labelledby="courses-title" className="@container overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+        <section aria-labelledby="courses-title" className="@container overflow-hidden rounded-card border border-border bg-card shadow-card">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6 bg-surface">
                 <h2 id="courses-title" className="text-lg font-semibold tracking-tight">
                     Courses
                 </h2>
@@ -52,7 +52,7 @@ export default function TopCourses({ courses }: { courses: AdminDashboard["topCo
                                         className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-secondary/40 sm:px-6 @2xl:grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_6rem_1rem]"
                                     >
                                         <span className="flex min-w-0 items-center gap-3">
-                                            <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-secondary">
+                                            <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-secondary">
                                                 <SafeImage
                                                     src={course.thumbnail}
                                                     alt=""

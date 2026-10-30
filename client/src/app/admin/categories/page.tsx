@@ -144,7 +144,7 @@ export default function AdminCategoriesPage() {
             sortValue: (category) => category.title,
             cell: (category) => (
                 <div className="flex min-w-0 items-center gap-3">
-                    <CategoryTile category={category} className="size-9 rounded-lg" />
+                    <CategoryTile category={category} className="size-9 rounded-md" />
                     <div className="min-w-0">
                         <button
                             type="button"
@@ -238,13 +238,13 @@ export default function AdminCategoriesPage() {
                             <li key={category.id}>
                                 <Card
                                     className={cn(
-                                        "flex h-full flex-col shadow-sm",
+                                        "flex h-full flex-col shadow-card",
                                         !category.isActive && "bg-secondary/30",
                                     )}
                                 >
                                     <CardContent className="flex flex-1 flex-col gap-4 p-5">
                                         <div className="flex items-start justify-between gap-3">
-                                            <CategoryTile category={category} className="size-11 rounded-xl" />
+                                            <CategoryTile category={category} className="size-11 rounded-card" />
                                             <StatusBadge category={category} />
                                         </div>
 

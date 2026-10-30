@@ -92,7 +92,7 @@ export function MentorReviews({ mentorId, courses }: MentorReviewsProps) {
 
     if (isError) {
         return (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 {getApiErrorMessage(error, "Couldn't load this mentor's marks.")}
             </p>
         );
@@ -100,7 +100,7 @@ export function MentorReviews({ mentorId, courses }: MentorReviewsProps) {
 
     if (summary.length === 0) {
         return (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <div className="rounded-md border border-dashed border-border p-8 text-center">
                 <ClipboardCheck className="mx-auto size-6 text-muted-foreground" aria-hidden />
                 <p className="mt-3 font-medium">No submissions marked yet.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -171,13 +171,13 @@ export function MentorReviews({ mentorId, courses }: MentorReviewsProps) {
             </div>
 
             {reviews.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                     {filtered ? "Nothing matches these filters." : "No submissions marked yet."}
                 </p>
             ) : (
                 <ul
                     className={cn(
-                        "divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-opacity",
+                        "divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card transition-opacity",
                         isPlaceholderData && "opacity-60",
                     )}
                 >
@@ -239,7 +239,7 @@ function CourseSummary({
                             aria-pressed={active}
                             onClick={() => onSelect(course.id)}
                             className={cn(
-                                "w-full rounded-xl border bg-card p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                "w-full rounded-card border bg-card p-4 text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                 active ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40",
                             )}
                         >
@@ -322,7 +322,7 @@ function ReviewRow({ review }: { review: MentorReview }) {
 
                 <div className="grid gap-5 border-t border-border bg-secondary/20 px-4 py-4 md:grid-cols-2">
                     <div className="space-y-1.5">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feedback</p>
+                        <p className="text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">Feedback</p>
                         {review.feedback ? (
                             <p className="whitespace-pre-line text-sm wrap-break-word">{review.feedback}</p>
                         ) : (
@@ -370,7 +370,7 @@ function ReviewRow({ review }: { review: MentorReview }) {
 
                         {review.history.length > 0 && (
                             <div className="space-y-1.5">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <p className="text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                                     Marked {review.history.length} {review.history.length === 1 ? "time" : "times"}
                                 </p>
                                 <ol className="space-y-1">

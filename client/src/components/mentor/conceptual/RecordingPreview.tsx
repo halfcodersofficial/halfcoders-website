@@ -39,7 +39,7 @@ export default function RecordingPreview({
             {filed && (
                 <>
                     <ModalBody className="space-y-4">
-                        <div className="aspect-video overflow-hidden rounded-lg bg-black">
+                        <div className="aspect-video overflow-hidden rounded-md bg-black">
                             <iframe
                                 src={`https://www.youtube-nocookie.com/embed/${filed.recording.youtubeVideoId}?rel=0&modestbranding=1`}
                                 title={filed.recording.title}
@@ -51,7 +51,7 @@ export default function RecordingPreview({
                         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             <span
                                 className={cn(
-                                    "rounded-full px-2 py-0.5 font-semibold",
+                                    "rounded-sm px-2 py-0.5 font-semibold",
                                     filed.state === "live" ? "bg-success/10 text-success" : "bg-amber-500/10 text-amber-700 dark:text-amber-400",
                                 )}
                             >
@@ -67,7 +67,7 @@ export default function RecordingPreview({
                         </p>
                         {filed.recording.description && <p className="whitespace-pre-line text-sm">{filed.recording.description}</p>}
                         {filed.state === "waiting" && (
-                            <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                            <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                                 It&apos;s published, but its topic isn&apos;t — students can&apos;t see it until the topic goes live.
                             </p>
                         )}

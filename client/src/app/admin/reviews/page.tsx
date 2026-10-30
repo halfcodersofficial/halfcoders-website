@@ -91,14 +91,14 @@ function Reviews() {
         >
             <ul className="space-y-3">
                 {reviews.map((review) => (
-                    <li key={review.id} className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+                    <li key={review.id} className="rounded-card border border-border bg-card p-4 shadow-card sm:p-5">
                         <div className="flex flex-wrap items-start gap-3">
                             <Avatar src={review.student.image} name={review.student.name} size={36} />
                             <div className="min-w-0 flex-1">
                                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <span className="font-medium">{review.student.name}</span>
                                     <Stars value={review.rating} />
-                                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", TONE[review.status])}>{LABEL[review.status]}</span>
+                                    <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TONE[review.status])}>{LABEL[review.status]}</span>
                                 </p>
                                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                     <Link href={`/admin/courses/${review.course.id}`} className="hover:underline">

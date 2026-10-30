@@ -42,7 +42,7 @@ export function FaqListEditor() {
     return (
         <div className="space-y-3">
             {rows.length === 0 && (
-                <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                     {t(
                         "No questions yet — the course page shows no FAQ section until you add one.",
                         "এখনো কোনো প্রশ্ন নেই — প্রশ্ন যোগ না করা পর্যন্ত কোর্স পেজে প্রশ্নোত্তর অংশ দেখাবে না।",
@@ -54,10 +54,10 @@ export function FaqListEditor() {
                 {rows.map((row, index) => (
                     <li
                         key={index}
-                        className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3"
+                        className="space-y-2 rounded-md border border-border bg-secondary/30 p-3"
                     >
                         <div className="flex items-start gap-2">
-                            <span className="mt-2.5 shrink-0 text-xs font-bold uppercase tracking-wide text-primary">
+                            <span className="mt-2.5 shrink-0 text-xs font-bold font-mono uppercase tracking-wide text-primary">
                                 {t("Q", "প্র")}{digits(index + 1)}
                             </span>
                             <input

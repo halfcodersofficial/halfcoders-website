@@ -201,8 +201,8 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
         return (
             <div className="container-page max-w-5xl space-y-5 py-10">
                 <Skeleton className="h-9 w-48" />
-                <Skeleton className="h-64 rounded-2xl" />
-                <Skeleton className="h-48 rounded-2xl" />
+                <Skeleton className="h-64 rounded-card" />
+                <Skeleton className="h-48 rounded-card" />
             </div>
         );
     }
@@ -288,7 +288,7 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
             <LiveClassesPanel courseId={courseId} topics={topics} />
 
             {topics.length === 0 ? (
-                <section className="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                <section className="rounded-card border border-dashed border-border px-6 py-14 text-center">
                     <Video className="mx-auto size-7 text-muted-foreground" aria-hidden />
                     <h2 className="mt-3 font-semibold">No topics yet</h2>
                     <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -411,7 +411,7 @@ export default function ConceptualSessionsManager({ courseId, area }: { courseId
             >
                 {previewing && (
                     <ModalBody>
-                        <div className="aspect-video overflow-hidden rounded-lg bg-black">
+                        <div className="aspect-video overflow-hidden rounded-md bg-black">
                             <iframe
                                 src={`https://www.youtube-nocookie.com/embed/${previewing.youtubeVideoId}?rel=0&modestbranding=1&autoplay=1`}
                                 title={previewing.title}
@@ -474,14 +474,14 @@ function TopicCard({
             as="li"
             aria-busy={isSavingPosition || isPublishing || isDeleting || undefined}
             className={cn(
-                "overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-opacity",
+                "overflow-hidden rounded-card border border-border bg-card shadow-card transition-opacity",
                 isDeleting && "opacity-60",
             )}
         >
-            <header className="flex items-center gap-3 border-b border-border px-4 py-4 sm:gap-4 sm:px-5">
+            <header className="flex items-center gap-3 border-b border-border px-4 py-4 sm:gap-4 sm:px-5 bg-surface">
                 {canDrag && <DragHandle label={topic.title} isSaving={isSavingPosition} />}
                 <p className="w-12 shrink-0 text-center leading-none">
-                    <span className="block text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">Topic</span>
+                    <span className="block text-[0.625rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Topic</span>
                     <span className="mt-1 block font-mono text-2xl font-bold tabular-nums text-primary">{pad2(topic.order)}</span>
                 </p>
                 <div className="min-w-0 flex-1">
@@ -491,7 +491,7 @@ function TopicCard({
                         </button>
                         <span
                             className={cn(
-                                "shrink-0 rounded-full px-2 py-px text-[0.6875rem] font-semibold",
+                                "shrink-0 rounded-sm px-2 py-px text-[0.6875rem] font-semibold",
                                 topic.isPublished ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground",
                             )}
                         >
@@ -614,7 +614,7 @@ function RecordingRow({
                 type="button"
                 onClick={onPreview}
                 aria-label={`Preview ${recording.title}`}
-                className="group relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
                 <SafeImage
                     src={recording.thumbnail}

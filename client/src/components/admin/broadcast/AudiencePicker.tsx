@@ -65,7 +65,7 @@ export default function AudiencePicker({
             <div
                 role="radiogroup"
                 aria-label="Audience"
-                className="grid overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:grid-cols-3"
+                className="grid overflow-hidden rounded-card border border-border bg-card shadow-card sm:grid-cols-3"
             >
                 {OPTIONS.map((option, index) => {
                     const checked = value === option.value;
@@ -196,8 +196,8 @@ function CourseChooser({
 
     if (chosen && !browsing) {
         return (
-            <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/4 p-2.5 pr-3">
-                <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-secondary">
+            <div className="flex items-center gap-3 rounded-card border border-primary/30 bg-primary/4 p-2.5 pr-3">
+                <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-secondary">
                     <CourseThumb course={chosen.course} sizes="80px" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -228,7 +228,7 @@ function CourseChooser({
     return (
         <div
             className={cn(
-                "overflow-hidden rounded-xl border bg-card",
+                "overflow-hidden rounded-card border bg-card",
                 invalid ? "border-destructive" : "border-border",
             )}
             // Tabbing out of the list with a course picked folds it away, the
@@ -253,7 +253,7 @@ function CourseChooser({
             {isLoading ? (
                 <div className="space-y-px p-2">
                     {Array.from({ length: 3 }).map((_, index) => (
-                        <Skeleton key={index} className="h-14 rounded-lg" />
+                        <Skeleton key={index} className="h-14 rounded-md" />
                     ))}
                 </div>
             ) : isError ? (

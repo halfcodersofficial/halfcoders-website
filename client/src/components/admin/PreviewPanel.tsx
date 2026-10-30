@@ -41,7 +41,7 @@ export default function PreviewPanel({ title, description, fill = false, childre
                     : "xl:sticky xl:top-6 xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto"
             }
         >
-            <Card className={cn("shadow-sm", fill && open && "xl:flex xl:h-full xl:flex-col")}>
+            <Card className={cn("shadow-card", fill && open && "xl:flex xl:h-full xl:flex-col")}>
                 <CardHeader className="flex flex-row items-start justify-between gap-3">
                     <div className="min-w-0">
                         <CardTitle className="flex items-center gap-2">
