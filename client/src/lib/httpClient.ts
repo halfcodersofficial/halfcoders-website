@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import type { ApiErrorResponse } from "@/types/api.types";
 import envConfig from "./envConfig";
 import { redirectToSignIn } from "./auth";
+import { requestDone, requestStarted } from "./pendingRequests";
 
 /**
  * Single axios instance for the whole app.
@@ -14,7 +15,10 @@ import { redirectToSignIn } from "./auth";
  */
 export const httpClient = axios.create({
     baseURL: envConfig.apiBaseUrl,
-    timeout: 30_000,
+    // Two minutes: after a quiet spell the API can take a minute or two to
+    // wake, and the first request (a sign-in, say) must wait it out rather
+    // than fail. `SlowServerNotice` tells the visitor to hang on meanwhile.
+    timeout: 120_000,
     withCredentials: true,
     headers: { "Content-Type": "application/json" },
 });
@@ -26,8 +30,18 @@ declare module "axios" {
          * stale session doesn't bounce the user to /login mid-page.
          */
         _silent?: boolean;
+        /** This request's place in `pendingRequests` while it waits (reads only). */
+        _pendingTicket?: number;
     }
 }
+
+// Reads waiting on an answer, for the "getting things ready" notice.
+httpClient.interceptors.request.use((config) => {
+    if (typeof window !== "undefined" && (config.method ?? "get").toLowerCase() === "get") {
+        config._pendingTicket = requestStarted();
+    }
+    return config;
+});
 
 /**
  * Pulls the human-readable message out of an API error.
@@ -88,8 +102,12 @@ export const getSessionFailureCode = (error: unknown): SessionFailureCode | null
  * sign in and comes back afterwards.
  */
 httpClient.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        requestDone(response.config._pendingTicket);
+        return response;
+    },
     async (error: AxiosError) => {
+        requestDone(error.config?._pendingTicket);
         const status = error.response?.status;
         const isSilent = error.config?._silent === true;
 
