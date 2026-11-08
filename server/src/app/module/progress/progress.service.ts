@@ -415,33 +415,56 @@ const updateWatchPosition = async (user: IRequestUser, videoId: string, watchedS
  * one already detected, is never overwritten from here, so one viewer can't
  * change what everyone else sees.
  */
-const reportVideoDuration = async (user: IRequestUser, videoId: string, seconds: number) => {
-    const video = await prisma.video.findFirst({
-        where: { id: videoId, isPublished: true, type: LessonType.VIDEO },
+const reportVideoDurations = async (user: IRequestUser, entries: Array<{ videoId: string; seconds: number }>) => {
+    const secondsById = new Map(entries.map((entry) => [entry.videoId, Math.round(entry.seconds)]));
+    const videos = await prisma.video.findMany({
+        where: { id: { in: [...secondsById.keys()] }, isPublished: true, type: LessonType.VIDEO },
         select: { id: true, courseId: true, duration: true },
     });
-    if (!video) throw new AppError(status.NOT_FOUND, "Video not found.");
 
-    // Enrolled students, plus staff previewing the course.
-    await requireCourseAccess(user, video.courseId);
-
-    if (video.duration > 0) return { duration: video.duration, updated: false };
-
-    const duration = Math.round(seconds);
-    // `duration: 0` in the filter makes two players racing to report the same
-    // lesson harmless: the first write wins, the second matches nothing.
-    const { count } = await prisma.video.updateMany({
-        where: { id: videoId, duration: 0 },
-        data: { duration },
-    });
-
-    if (count === 0) {
-        const current = await prisma.video.findUnique({ where: { id: videoId }, select: { duration: true } });
-        return { duration: current?.duration ?? duration, updated: false };
+    // Enrolled students, plus staff previewing the course — checked once per
+    // course the batch touches (normally just the one being opened).
+    for (const courseId of new Set(videos.map((video) => video.courseId))) {
+        await requireCourseAccess(user, courseId);
     }
 
-    logger.update("Detected lesson duration", { videoId, duration });
-    return { duration, updated: true };
+    const results: Array<{ videoId: string; duration: number; updated: boolean }> = [];
+    for (const video of videos) {
+        const seconds = secondsById.get(video.id) ?? 0;
+        if (video.duration > 0 || seconds <= 0) {
+            results.push({ videoId: video.id, duration: video.duration, updated: false });
+            continue;
+        }
+        // `duration: 0` in the filter makes two viewers racing to report the
+        // same lesson harmless: the first write wins, the second matches nothing.
+        const { count } = await prisma.video.updateMany({
+            where: { id: video.id, duration: 0 },
+            data: { duration: seconds },
+        });
+        results.push({ videoId: video.id, duration: seconds, updated: count > 0 });
+    }
+
+    // Lost a race: report what's actually stored, not what this viewer measured.
+    const lost = results.filter((result) => !result.updated && result.duration === 0);
+    if (lost.length > 0) {
+        const stored = await prisma.video.findMany({
+            where: { id: { in: lost.map((result) => result.videoId) } },
+            select: { id: true, duration: true },
+        });
+        const storedById = new Map(stored.map((video) => [video.id, video.duration]));
+        for (const result of lost) result.duration = storedById.get(result.videoId) ?? 0;
+    }
+
+    const updated = results.filter((result) => result.updated).length;
+    if (updated > 0) logger.update("Detected lesson durations", { updated, reported: entries.length });
+    return results;
+};
+
+/** One lesson's running time — the batch above with a single entry. */
+const reportVideoDuration = async (user: IRequestUser, videoId: string, seconds: number) => {
+    const [result] = await reportVideoDurations(user, [{ videoId, seconds }]);
+    if (!result) throw new AppError(status.NOT_FOUND, "Video not found.");
+    return { duration: result.duration, updated: result.updated };
 };
 
 /** Undo, for a student who wants to redo a module. */
@@ -559,6 +582,7 @@ export const ProgressService = {
     markVideoIncomplete,
     updateWatchPosition,
     reportVideoDuration,
+    reportVideoDurations,
     recalculateProgress,
     recalculateCourseEnrollments,
     scheduleCourseRecalculation,

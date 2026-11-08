@@ -58,7 +58,19 @@ const reportVideoDuration = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const reportVideoDurations = catchAsync(async (req: Request, res: Response) => {
+    const result = await ProgressService.reportVideoDurations(req.user, req.body.durations);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Lesson durations saved",
+        data: result,
+    });
+});
+
 export const ProgressController = {
+    reportVideoDurations,
     markVideoComplete,
     markVideoIncomplete,
     updateWatchPosition,
