@@ -20,6 +20,7 @@ import {
     MonitorSmartphone,
     Receipt,
     RefreshCw,
+    Ticket,
     UserRound,
     type LucideIcon,
 } from "lucide-react";
@@ -68,6 +69,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         items: [
             { href: "/dashboard/profile/course-request", label: "Course Request", icon: ClipboardList },
             { href: "/dashboard/profile/order-history", label: "Order History", icon: Receipt },
+            { href: "/dashboard/profile/admission-ticket", label: "Admission Ticket", icon: Ticket },
             { href: "/dashboard/profile/certification", label: "Certification", icon: BadgeCheck },
             { href: "/dashboard/profile/course-updates", label: "Course Updates", icon: RefreshCw },
         ],

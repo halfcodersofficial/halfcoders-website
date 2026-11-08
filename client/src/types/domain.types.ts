@@ -288,12 +288,13 @@ export interface Enrollment {
     currentModule: { id: string; title: string; order: number } | null;
     currentMilestone: { id: string; title: string; order: number } | null;
     certificate?: { id: string; certificateNo: string; issuedAt: string } | null;
-    /** Dashboard payload only: the course hands this student an admission ticket. */
+    /** Dashboard payload only: the course hands this student an admission ticket (listed on /dashboard/profile/admission-ticket). */
     hasAdmissionTicket?: boolean;
     /**
-     * Dashboard payload only: the main course this one came with as a reward
-     * course, when that's how the student has it. A reward course has no
-     * certificate of its own — the main course's is the one.
+     * Dashboard payload only: the main course this one came free with — a
+     * reward course, an offer's free course, a completion reward — when
+     * that's how the student has it. (Only a reward course goes without a
+     * certificate of its own; the server decides that, not this.)
      */
     rewardWith?: { id: string; title: string; slug: string } | null;
     /** Present on the dashboard payload only — Bootcamp and Traditional
