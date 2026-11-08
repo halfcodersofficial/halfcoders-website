@@ -1,13 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Radio, Users } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSupportSocket } from "@/hooks/useSupportSocket";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffSupportRoutes } from "@/lib/staffRoutes";
 import { clock } from "@/components/mentor/dashboard/time";
@@ -54,18 +56,46 @@ export default function SupportSessionHistory({
     sessionId,
     area,
     backHref,
+    boardHref,
 }: {
     sessionId: string;
     area: StaffArea;
     /** Where "back" leads instead of the console's own support page — the course the admin came from. */
     backHref?: string;
+    /** The live queue board, with whatever the admin's back link needs carried along. */
+    boardHref?: string;
 }) {
     const routes = staffSupportRoutes(area, sessionId);
+    const queryClient = useQueryClient();
     const [filter, setFilter] = useState<SupportQueueStatus | "">("");
+
+    // Whether the session is on (calling someone or putting them back in line needs it), and its live pushes.
+    const { data: fetchedBoard } = useQuery({
+        queryKey: ["support", "board", sessionId],
+        queryFn: () => supportService.queueBoard(sessionId),
+    });
+    const { board: pushedBoard } = useSupportSocket(sessionId);
+    const isLive = Boolean((pushedBoard ?? fetchedBoard)?.isLive);
 
     const { data, isLoading, isError, error } = useQuery({
         queryKey: ["support", "history", sessionId],
         queryFn: () => supportService.sessionHistory(sessionId),
+        // While it's on, the record keeps up with the line (the socket below nudges it sooner).
+        refetchInterval: isLive ? 15_000 : false,
+    });
+
+    // The board moved (on the queue board, or a student joined or left): refresh the record.
+    useEffect(() => {
+        if (pushedBoard) void queryClient.invalidateQueries({ queryKey: ["support", "history", sessionId] });
+    }, [pushedBoard, queryClient, sessionId]);
+
+    const setStatus = useMutation({
+        mutationFn: ({ entry, status }: { entry: QueueHistoryEntry; status: SupportQueueStatus }) => supportService.setQueueStatus(entry.id, status),
+        onSuccess: (_result, { entry, status }) => {
+            toast.success(`${formatQueueNumber(entry.queueNumber)} ${entry.student.name} — ${STATUS[status].label.toLowerCase()}.`);
+            void queryClient.invalidateQueries({ queryKey: ["support"] });
+        },
+        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't change that turn.")),
     });
 
     if (isLoading) {
@@ -104,14 +134,22 @@ export default function SupportSessionHistory({
     return (
         <div className="w-full space-y-6">
             <header className="space-y-4 animate-in fade-in duration-500 motion-reduce:animate-none">
-                <BackButton
-                    href={backHref ?? routes.session}
-                    label={backHref ? "Course sessions" : area === "admin" ? "Support sessions" : "The queue board"}
-                />
-                <div>
-                    <ConsoleEyebrow />
-                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Attendance</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Everyone who took a number, in the order they joined · Dhaka time</p>
+                <BackButton href={backHref ?? routes.session} label={backHref ? "Course sessions" : "The queue board"} />
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <ConsoleEyebrow />
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Attendance</h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Everyone who took a number, in the order they joined · Dhaka time. Change anyone&apos;s turn from the list.
+                        </p>
+                    </div>
+                    {isLive && (
+                        <Button asChild variant="brand">
+                            <Link href={boardHref ?? routes.session}>
+                                <Radio /> Open the live queue board
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </header>
 
@@ -156,7 +194,13 @@ export default function SupportSessionHistory({
                     ) : (
                         <ol className="divide-y divide-border">
                             {rows.map((entry) => (
-                                <Row key={entry.id} entry={entry} />
+                                <Row
+                                    key={entry.id}
+                                    entry={entry}
+                                    isLive={isLive}
+                                    saving={setStatus.isPending && setStatus.variables?.entry.id === entry.id}
+                                    onStatus={(status) => setStatus.mutate({ entry, status })}
+                                />
                             ))}
                         </ol>
                     )}
@@ -176,7 +220,26 @@ function Figure({ label, value, hint }: { label: string; value: number | string;
     );
 }
 
-function Row({ entry }: { entry: QueueHistoryEntry }) {
+/** What a turn can be moved to by hand. Calling someone or putting them back in line needs the session on. */
+const STATUS_CHOICES: { value: SupportQueueStatus; label: string; needsLive?: boolean }[] = [
+    { value: "WAITING", label: "Waiting in line", needsLive: true },
+    { value: "SERVING", label: "Call now (being helped)", needsLive: true },
+    { value: "COMPLETED", label: "Helped" },
+    { value: "SKIPPED", label: "Skipped" },
+    { value: "LEFT", label: "Left the line" },
+];
+
+function Row({
+    entry,
+    isLive,
+    saving,
+    onStatus,
+}: {
+    entry: QueueHistoryEntry;
+    isLive: boolean;
+    saving: boolean;
+    onStatus: (status: SupportQueueStatus) => void;
+}) {
     const status = STATUS[entry.status];
     const waited = entry.servedAt ? minutesBetween(entry.joinedAt, entry.servedAt) : null;
     const helped = entry.servedAt && entry.completedAt ? minutesBetween(entry.servedAt, entry.completedAt) : null;
@@ -195,8 +258,31 @@ function Row({ entry }: { entry: QueueHistoryEntry }) {
                     <SupportFeedbackScores rating={entry.feedbackRating} solved={entry.feedbackSolved} className="mt-1.5" />
                 </div>
             </div>
-            <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:col-start-3 sm:flex-col sm:items-end">
-                <span className={cn("rounded-sm px-2 py-0.5 font-semibold", status.tone)}>{status.label}</span>
+            <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground sm:col-start-3 sm:flex-col sm:items-end">
+                <span className="flex items-center gap-2">
+                    <span className={cn("rounded-sm px-2 py-0.5 font-semibold", status.tone)}>{status.label}</span>
+                    <label className="sr-only" htmlFor={`turn-status-${entry.id}`}>
+                        Change {entry.student.name}&apos;s turn
+                    </label>
+                    <select
+                        id={`turn-status-${entry.id}`}
+                        value=""
+                        disabled={saving}
+                        onChange={(event) => {
+                            const next = event.target.value as SupportQueueStatus;
+                            if (next) onStatus(next);
+                        }}
+                        className="h-7 cursor-pointer rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    >
+                        <option value="">{saving ? "Saving…" : "Change…"}</option>
+                        {STATUS_CHOICES.filter((choice) => choice.value !== entry.status).map((choice) => (
+                            <option key={choice.value} value={choice.value} disabled={choice.needsLive && !isLive}>
+                                {choice.label}
+                                {choice.needsLive && !isLive ? " — session is off" : ""}
+                            </option>
+                        ))}
+                    </select>
+                </span>
                 <span className="tabular-nums">
                     joined {clock(entry.joinedAt)}
                     {waited !== null && ` · waited ${asMinutes(waited)}`}

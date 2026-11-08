@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Headphones, Lock, Radio, Ticket, Users } from "lucide-react";
+import { ExternalLink, Headphones, Lock, Radio, Ticket, Users, Video } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -348,9 +348,26 @@ function NowServingBoard({
                 </dl>
             </div>
 
-            <p className="mt-8 flex items-center gap-1.5 border-t border-white/10 pt-4 text-xs text-white/50">
+            <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-white/10 pt-5">
+                {meetingLink ? (
+                    <>
+                        <Button asChild size="lg" className="rounded-full bg-emerald-500 px-6 text-white hover:bg-emerald-400">
+                            <a href={meetingLink} target="_blank" rel="noopener noreferrer">
+                                <Video /> {meetingLabel(meetingLink)}
+                            </a>
+                        </Button>
+                        <p className="min-w-0 flex-1 basis-56 text-xs leading-relaxed text-white/60">
+                            Open the room whenever you need — as many times as you like. Your mentor talks to each number in turn.
+                        </p>
+                    </>
+                ) : (
+                    <p className="text-sm text-white/60">The meeting link isn&apos;t up yet — it shows here as soon as your mentor adds it.</p>
+                )}
+            </div>
+
+            <p className="mt-5 flex items-center gap-1.5 text-xs text-white/50">
                 <Radio className={cn("size-3.5", isConnected && "text-emerald-300")} />
-                {isConnected ? "Live — the number updates by itself" : "Reconnecting…"}
+                {isConnected ? "Live — the number updates by itself" : "Updating every few seconds"}
             </p>
         </section>
     );
@@ -450,7 +467,7 @@ function TheLine({ board, myNumber, waitingCount }: { board: QueueBoard | null; 
 
             {!board || board.waiting.length === 0 ? (
                 <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                    {board ? "No one is waiting." : "Connecting to the queue…"}
+                    {board ? "No one is waiting." : "Loading the line…"}
                 </p>
             ) : (
                 <ol className="max-h-112 divide-y divide-border overflow-y-auto">

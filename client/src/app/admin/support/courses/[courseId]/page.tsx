@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { CalendarPlus, ChevronRight, Clock, Lock, Users } from "lucide-react";
+import { CalendarPlus, ChevronRight, Clock, Lock, Radio, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -358,11 +358,20 @@ function SessionRow({ session, phase, courseId }: { session: AdminSupportSession
                 </p>
             </div>
 
-            <Button asChild variant="outline" size="sm">
-                <Link href={`/admin/support/${session.id}/history?course=${courseId}`}>
-                    Attendance <ChevronRight />
-                </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+                {phase !== "cancelled" && (
+                    <Button asChild variant={phase === "live" ? "brand" : "outline"} size="sm">
+                        <Link href={`/admin/support/${session.id}?course=${courseId}`}>
+                            <Radio /> {phase === "live" ? "Run the queue" : "Queue board"}
+                        </Link>
+                    </Button>
+                )}
+                <Button asChild variant="outline" size="sm">
+                    <Link href={`/admin/support/${session.id}/history?course=${courseId}`}>
+                        Attendance <ChevronRight />
+                    </Link>
+                </Button>
+            </div>
         </div>
     );
 }
