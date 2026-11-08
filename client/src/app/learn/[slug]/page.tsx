@@ -880,7 +880,11 @@ export default function LearnPage() {
                             key={activeVideo.id}
                             youtubeVideoId={activeVideo.youtubeVideoId}
                             title={activeVideo.title}
-                            subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${activeVideo.duration > 0 ? ` · ${activeVideo.durationLabel}` : ""}`}
+                            prev={
+                                prevVideo && canOpen(prevVideo.id)
+                                    ? { title: prevVideo.title, onSelect: () => goTo(prevVideo.id) }
+                                    : null
+                            }
                             next={nextVideo && nextOpens ? { title: nextVideo.title, onSelect: advance } : null}
                             watermark={user?.email}
                             onDuration={
@@ -959,17 +963,16 @@ export default function LearnPage() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
+                                    {/* A matching pair: "Previous" outlined, "Next" filled. */}
                                     {prevVideo && (
                                         <Button
                                             variant="outline"
-                                            size="icon"
-                                            className="rounded-full"
-                                            aria-label="Previous lesson"
-                                            title="Previous lesson"
+                                            className="rounded-full pl-4 pr-5"
+                                            title={`Previous: ${prevVideo.title}`}
                                             disabled={!canOpen(prevVideo.id)}
                                             onClick={() => goTo(prevVideo.id)}
                                         >
-                                            <ChevronLeft className="size-4" />
+                                            <ChevronLeft className="size-4" /> Previous
                                         </Button>
                                     )}
 
