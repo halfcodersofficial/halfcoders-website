@@ -272,8 +272,8 @@ export const TEAM = {
         { name: "Tariq M Nasim", role: "Chief Executive Officer", short: "CEO", advisor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Tariq_M_Nasim.png" },
         { name: "Md Habibur Rahman", role: "Chief Product Officer", short: "CPO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171972/Habibur_Rahman.jpg" },
         { name: "Mohammad Yusuf", role: "Chief Operating Officer", short: "COO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Mohammad_Yusuf.jpg" },
-        { name: "Antick Chandra Kuri", role: "Chief Marketing Officer", short: "CTO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Antick_Chandra_Kuri.png" },
-        { name: "Imran Pasha", role: "Chief Technology Officer", short: "CMO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171972/Imran_Pasha.jpg" },
+        { name: "Antick Chandra Kuri", role: "Chief Marketing Officer", short: "CMO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171973/Antick_Chandra_Kuri.png" },
+        { name: "Imran Pasha", role: "Chief Technology Officer", short: "CTO", mentor: true, photo: "https://res.cloudinary.com/psabkoto/image/upload/v1793171972/Imran_Pasha.jpg" },
     ] satisfies TeamMember[] as TeamMember[],
 };
 

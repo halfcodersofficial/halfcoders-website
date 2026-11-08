@@ -20,6 +20,8 @@ import {
 import { pageMetadata } from "@/lib/seo";
 
 const FACEBOOK = SOCIAL_LINKS.find((social) => social.network === "facebook")!;
+const YOUTUBE = SOCIAL_LINKS.find((social) => social.network === "youtube")!;
+const GITHUB = SOCIAL_LINKS.find((social) => social.network === "github")!;
 
 export const metadata: Metadata = pageMetadata({
     title: "যোগাযোগ ও সাপোর্ট",
@@ -189,7 +191,15 @@ export default function ContactPage() {
                             <a href={FACEBOOK.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
                                 Facebook পেজ
                             </a>{" "}
-                            ফলো করুন। প্রশ্ন থাকলে সেখানে মেসেজও দিতে পারেন।
+                            ফলো করুন। প্রশ্ন থাকলে সেখানে মেসেজও দিতে পারেন। ভিডিও দেখতে আমাদের{" "}
+                            <a href={YOUTUBE.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
+                                YouTube চ্যানেল
+                            </a>{" "}
+                            আর কোড দেখতে{" "}
+                            <a href={GITHUB.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
+                                GitHub
+                            </a>{" "}
+                            ঘুরে আসুন।
                         </p>
                     </section>
                 </div>

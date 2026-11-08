@@ -149,97 +149,100 @@ function StudentHero({ data, onEnroll }: { data: StudentOverview; onEnroll: () =
                 <span className="bg-grid bg-grid-fade absolute inset-0" />
                 <p className="relative px-6 pt-4 text-right font-mono text-xs text-syn-comment">{"// "}Student profile</p>
             </div>
-            <CardContent className="-mt-16 flex flex-col gap-5 p-6 pt-0 sm:-mt-18 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end lg:flex-1">
-                    {/* The photo sits in their profile's completion ring, as on the student's own profile. */}
-                    <div className="relative w-fit shrink-0">
-                        <span className="grid rounded-full bg-card p-1.5 shadow-card">
-                            <ProgressRing value={profile.completionPercent} size={136} stroke={5} fillIn>
-                                <Avatar src={student.image} name={student.name} size={116} />
-                            </ProgressRing>
-                        </span>
-                        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-card px-2 py-0.5 text-[11px] font-semibold shadow-card">
-                            Profile {profile.completionPercent}%
-                        </span>
-                    </div>
-
-                    <div className="min-w-0 space-y-2 sm:pb-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h1 className="text-2xl font-bold wrap-break-word sm:text-3xl">{student.name}</h1>
-                            <StatusPill kind="user" value={student.status} />
-                            {!student.emailVerified && <Badge variant="warning">Email unverified</Badge>}
-                        </div>
-
-                        {student.studentId && (
-                            <button
-                                type="button"
-                                onClick={() => void copyId()}
-                                title="Copy student ID"
-                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                                {student.studentId}
-                                <Copy className="size-3 text-muted-foreground" aria-hidden />
-                            </button>
-                        )}
-
-                        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                            {student.email && (
-                                <Fact icon={Mail}>
-                                    <a href={`mailto:${student.email}`} className="truncate hover:text-foreground hover:underline">
-                                        {student.email}
-                                    </a>
-                                </Fact>
-                            )}
-                            {student.phone && (
-                                <Fact icon={Phone}>
-                                    <a href={`tel:${student.phone}`} className="hover:text-foreground hover:underline">
-                                        {student.phone}
-                                    </a>
-                                </Fact>
-                            )}
-                            {student.whatsapp && <Fact icon={MessageCircle}>WhatsApp {student.whatsapp}</Fact>}
-                            <Fact icon={CalendarDays}>Joined {formatDate(student.createdAt)}</Fact>
-                            <Fact icon={Clock}>
-                                {stats.lastActivityAt
-                                    ? `Last active ${formatDistanceToNow(new Date(stats.lastActivityAt), { addSuffix: true })}`
-                                    : "No learning activity yet"}
-                            </Fact>
-                        </p>
-                    </div>
+            <CardContent className="flex flex-col gap-5 p-6 pt-0 sm:flex-row sm:items-start sm:gap-6">
+                {/* Only the photo rises into the banner — in their profile's completion ring, as on the student's own profile. */}
+                <div className="relative z-10 -mt-16 w-fit shrink-0 sm:-mt-18">
+                    <span className="grid rounded-full bg-card p-1.5 shadow-card">
+                        <ProgressRing value={profile.completionPercent} size={136} stroke={5} fillIn>
+                            <Avatar src={student.image} name={student.name} size={116} />
+                        </ProgressRing>
+                    </span>
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-card px-2 py-0.5 text-[11px] font-semibold shadow-card">
+                        Profile {profile.completionPercent}%
+                    </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2 lg:shrink-0 lg:justify-end xl:flex-nowrap">
-                    <Button size="sm" onClick={onEnroll} disabled={!isActive}>
-                        <UserPlus /> Enrol in a course
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        isLoading={actions.isResetting(student.id)}
-                        onClick={() => void actions.resetPassword(student)}
-                    >
-                        <KeyRound /> Reset password
-                    </Button>
-                    {isActive ? (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            isLoading={actions.isChangingStatus(student.id)}
-                            onClick={() => void actions.block(student)}
-                        >
-                            <Ban /> Block
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            isLoading={actions.isChangingStatus(student.id)}
-                            onClick={() => actions.reactivate(student)}
-                        >
-                            <CheckCircle2 /> Reactivate
-                        </Button>
-                    )}
+                {/* Name, ID and actions start under the banner, so nothing hides behind it. */}
+                <div className="min-w-0 flex-1 space-y-3 sm:pt-5">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-2xl font-bold wrap-break-word sm:text-3xl">{student.name}</h1>
+                                <StatusPill kind="user" value={student.status} />
+                                {!student.emailVerified && <Badge variant="warning">Email unverified</Badge>}
+                            </div>
+
+                            {student.studentId && (
+                                <button
+                                    type="button"
+                                    onClick={() => void copyId()}
+                                    title="Copy student ID"
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/50 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                >
+                                    {student.studentId}
+                                    <Copy className="size-3 text-muted-foreground" aria-hidden />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 xl:shrink-0 xl:justify-end">
+                            <Button size="sm" onClick={onEnroll} disabled={!isActive}>
+                                <UserPlus /> Enrol in a course
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                isLoading={actions.isResetting(student.id)}
+                                onClick={() => void actions.resetPassword(student)}
+                            >
+                                <KeyRound /> Reset password
+                            </Button>
+                            {isActive ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    isLoading={actions.isChangingStatus(student.id)}
+                                    onClick={() => void actions.block(student)}
+                                >
+                                    <Ban /> Block
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    isLoading={actions.isChangingStatus(student.id)}
+                                    onClick={() => actions.reactivate(student)}
+                                >
+                                    <CheckCircle2 /> Reactivate
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        {student.email && (
+                            <Fact icon={Mail}>
+                                <a href={`mailto:${student.email}`} className="truncate hover:text-foreground hover:underline">
+                                    {student.email}
+                                </a>
+                            </Fact>
+                        )}
+                        {student.phone && (
+                            <Fact icon={Phone}>
+                                <a href={`tel:${student.phone}`} className="hover:text-foreground hover:underline">
+                                    {student.phone}
+                                </a>
+                            </Fact>
+                        )}
+                        {student.whatsapp && <Fact icon={MessageCircle}>WhatsApp {student.whatsapp}</Fact>}
+                        <Fact icon={CalendarDays}>Joined {formatDate(student.createdAt)}</Fact>
+                        <Fact icon={Clock}>
+                            {stats.lastActivityAt
+                                ? `Last active ${formatDistanceToNow(new Date(stats.lastActivityAt), { addSuffix: true })}`
+                                : "No learning activity yet"}
+                        </Fact>
+                    </p>
                 </div>
             </CardContent>
 

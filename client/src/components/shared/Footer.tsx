@@ -2,7 +2,7 @@ import { Mail, Phone, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import type { IconType } from "react-icons/lib";
 // SiInstagram, SiX (react-icons/si) and FaLinkedin (@/lib/techStackVendorIcons) come back with those pages.
-import { SiFacebook, SiWhatsapp } from "react-icons/si";
+import { SiFacebook, SiGithub, SiWhatsapp, SiYoutube } from "react-icons/si";
 import { BackToTop, BangladeshTime, CopyButton } from "@/components/shared/FooterBits";
 import Logo from "@/components/shared/Logo";
 import { FileIcon } from "@/components/site/EditorWindow";
@@ -38,6 +38,8 @@ const LEGAL_LINKS = [
 
 const SOCIAL_ICON: Record<(typeof SOCIAL_LINKS)[number]["network"], IconType> = {
     facebook: SiFacebook,
+    youtube: SiYoutube,
+    github: SiGithub,
     whatsapp: SiWhatsapp,
     // Uncomment with their links in lib/brand.ts (SOCIAL_LINKS).
     // instagram: SiInstagram,
