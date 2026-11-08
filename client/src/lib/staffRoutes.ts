@@ -47,8 +47,8 @@ export const staffCourseRoutes = (area: StaffArea, courseId: string) => {
 };
 
 export const staffSupportRoutes = (area: StaffArea, sessionId: string) => ({
-    /** Only mentors run a live queue; admins get the attendance record. */
-    session: area === "admin" ? "/admin/support" : `/mentor/support/${sessionId}`,
+    /** The live queue board — mentors and admins both run it. */
+    session: `/${area}/support/${sessionId}`,
     history: `/${area}/support/${sessionId}/history`,
     home: area === "admin" ? "/admin/support" : "/mentor/support",
 });

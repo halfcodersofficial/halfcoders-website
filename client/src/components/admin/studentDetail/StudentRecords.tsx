@@ -4,6 +4,7 @@ import { Headphones, ListChecks, Receipt } from "lucide-react";
 import type { ReactNode } from "react";
 import DataTable, { type Column } from "@/components/admin/DataTable";
 import { StatusPill } from "@/components/admin/StatusPill";
+import { SupportFeedbackScores } from "@/components/shared/SupportFeedback";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatBDT, formatDateTime, formatQueueNumber } from "@/lib/utils";
@@ -230,6 +231,16 @@ export function StudentSupport({ visits }: { visits: Visit[] }) {
             id: "status",
             header: "Result",
             cell: (visit) => <StatusPill kind="supportQueue" value={visit.status} />,
+        },
+        {
+            id: "feedback",
+            header: "Their feedback",
+            cell: (visit) =>
+                visit.feedbackRating !== null && visit.feedbackSolved !== null ? (
+                    <SupportFeedbackScores rating={visit.feedbackRating} solved={visit.feedbackSolved} />
+                ) : (
+                    <span className="text-xs text-muted-foreground">{visit.status === "COMPLETED" ? "Not given yet" : "—"}</span>
+                ),
         },
     ];
 

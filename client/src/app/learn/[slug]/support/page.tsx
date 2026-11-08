@@ -1,11 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Headphones, Lock, Radio, Ticket, Users } from "lucide-react";
+import { ExternalLink, Headphones, Lock, Radio, Ticket, Users, Video } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { DayLeaf, relativeTime } from "@/components/shared/OutlineSchedule";
+import { SupportFeedbackForm } from "@/components/shared/SupportFeedback";
 import { Avatar } from "@/components/ui/avatar";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -46,7 +48,17 @@ export default function SupportPage() {
 
     // The live session is the only one worth watching; there is at most one.
     const liveSession = sessions?.find((session) => session.isLive) ?? null;
-    const { board, isConnected } = useSupportSocket(liveSession?.id ?? null);
+    const { board: pushedBoard, isConnected } = useSupportSocket(liveSession?.id ?? null);
+    // The board itself: fetched for the first paint (the socket only pushes on
+    // a change) and polled while the socket is down; the socket's push wins
+    // while it's connected.
+    const { data: fetchedBoard } = useQuery({
+        queryKey: ["support", "student-board", liveSession?.id],
+        queryFn: () => supportService.studentBoard(liveSession!.id),
+        enabled: Boolean(liveSession),
+        refetchInterval: isConnected ? 60_000 : 10_000,
+    });
+    const board = (isConnected ? pushedBoard : null) ?? fetchedBoard ?? pushedBoard ?? null;
 
     const { data: position } = useQuery({
         queryKey: ["support", "position", liveSession?.id],
@@ -55,6 +67,12 @@ export default function SupportPage() {
         // Socket pushes are the primary signal; this poll is the fallback for
         // when the handshake failed, so it can be slow.
         refetchInterval: isConnected ? 60_000 : 10_000,
+    });
+
+    // A finished turn is rated before the next number — on any course, so asked here whatever's live.
+    const { data: pendingFeedback } = useQuery({
+        queryKey: ["support", "feedback", "pending"],
+        queryFn: supportService.pendingFeedback,
     });
 
     const invalidate = () => {
@@ -95,6 +113,27 @@ export default function SupportPage() {
     // which mirrors how the mentor can close sign-ups mid-session (plan §23).
     const joinOpen = board?.joinOpen ?? liveSession?.joinOpen ?? true;
     const myNumber = position?.myQueueNumber ?? null;
+    // While the session is on, the room is open to every student on the course, as often as they like.
+    const meetingLink = board?.meetingLink ?? liveSession?.meetingLink ?? null;
+    // Had a turn in this session already: another number goes to the back of the line.
+    const hadTurnHere = Boolean(position && !position.inQueue && position.myStatus);
+
+    // The board is pushed to everyone the moment a number is called or finished.
+    // When that's about this student — called up, or out of the line — refresh
+    // their own standing now rather than at the next poll, so "It's your turn"
+    // and, after it, the feedback form show straight away.
+    const inLine = Boolean(position?.inQueue);
+    const boardServesMe = board && myNumber !== null ? board.nowServing?.queueNumber === myNumber : null;
+    const boardHasMe = board && myNumber !== null ? boardServesMe || board.waiting.some((entry) => entry.queueNumber === myNumber) : null;
+    const servingNow = position?.myStatus === "SERVING";
+    useEffect(() => {
+        if (!inLine) return;
+        if (boardHasMe === false || (boardServesMe === true && !servingNow)) {
+            void queryClient.invalidateQueries({ queryKey: ["support"] });
+        }
+    }, [inLine, boardHasMe, boardServesMe, servingNow, queryClient]);
+
+    const feedbackCard = pendingFeedback ? <SupportFeedbackForm turn={pendingFeedback} /> : null;
 
     return (
         <div className="min-h-dvh bg-background">
@@ -129,7 +168,10 @@ export default function SupportPage() {
                         <Skeleton className="h-80 rounded-2xl" />
                     </div>
                 ) : !sessions || sessions.length === 0 ? (
-                    <NoSessions previous={course?.phase === "PREVIOUS"} />
+                    <div className="space-y-6">
+                        {feedbackCard && <div className={cn(RISE, "mx-auto max-w-xl")}>{feedbackCard}</div>}
+                        <NoSessions previous={course?.phase === "PREVIOUS"} />
+                    </div>
                 ) : liveSession ? (
                     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
                         <div className="min-w-0 space-y-6">
@@ -139,6 +181,7 @@ export default function SupportPage() {
                                     nowServing={nowServing}
                                     waitingCount={waitingCount}
                                     isConnected={isConnected}
+                                    meetingLink={meetingLink}
                                 />
                             </div>
 
@@ -149,11 +192,13 @@ export default function SupportPage() {
                                             <Headphones className="size-7" />
                                         </span>
                                         <p className="mt-4 text-2xl font-bold tracking-tight text-success">It&apos;s your turn</p>
-                                        <p className="mt-1 text-muted-foreground">Join the meeting now — your mentor is waiting.</p>
-                                        {liveSession.meetingLink && (
+                                        <p className="mt-1 text-muted-foreground">
+                                            {meetingLink ? "Join the meeting now — your mentor is waiting." : "Your mentor will reach you in a moment."}
+                                        </p>
+                                        {meetingLink && (
                                             <Button asChild size="lg" className="mt-5 rounded-full px-8">
-                                                <a href={liveSession.meetingLink} target="_blank" rel="noopener noreferrer">
-                                                    <ExternalLink /> Join meeting
+                                                <a href={meetingLink} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink /> {meetingLabel(meetingLink)}
                                                 </a>
                                             </Button>
                                         )}
@@ -168,6 +213,8 @@ export default function SupportPage() {
                                         onLeave={() => leave.mutate()}
                                         isLeaving={leave.isPending}
                                     />
+                                ) : feedbackCard ? (
+                                    feedbackCard
                                 ) : !joinOpen ? (
                                     <section className="rounded-3xl border border-border bg-card p-6 text-center shadow-card sm:p-8">
                                         <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-secondary text-muted-foreground">
@@ -189,11 +236,11 @@ export default function SupportPage() {
                                                 <Ticket className="size-5" />
                                             </span>
                                             <div>
-                                                <h2 className="text-lg font-bold tracking-tight">Take a number</h2>
+                                                <h2 className="text-lg font-bold tracking-tight">{hadTurnHere ? "Need more help? Take another number" : "Take a number"}</h2>
                                                 <p className="text-sm text-muted-foreground">
                                                     {waitingCount === 0
                                                         ? "No one's waiting — you'll be next."
-                                                        : `${waitingCount} ${waitingCount === 1 ? "person is" : "people are"} waiting.`}
+                                                        : `${waitingCount} ${waitingCount === 1 ? "person is" : "people are"} waiting${hadTurnHere ? " — you'll join after them" : ""}.`}
                                                 </p>
                                             </div>
                                         </div>
@@ -220,27 +267,36 @@ export default function SupportPage() {
                         </div>
                     </div>
                 ) : (
-                    <UpcomingSessions sessions={sessions} />
+                    <div className="space-y-6">
+                        {feedbackCard && <div className={cn(RISE, "mx-auto max-w-xl")}>{feedbackCard}</div>}
+                        <UpcomingSessions sessions={sessions} />
+                    </div>
                 )}
             </div>
         </div>
     );
 }
 
+/** "Join Google Meet" for a Meet room, "Join the meeting" for anything else (Zoom…). */
+const meetingLabel = (link: string) => (/meet\.google\.com/i.test(link) ? "Join Google Meet" : "Join the meeting");
+
 /**
  * The counter's display: the number being served, large, re-keyed so it
- * drops in fresh each time the mentor calls the next one.
+ * drops in fresh each time the mentor calls the next one — and the way into
+ * the session's meeting room, open to every student while it's on.
  */
 function NowServingBoard({
     session,
     nowServing,
     waitingCount,
     isConnected,
+    meetingLink,
 }: {
     session: SupportSessionCard;
     nowServing: number | null;
     waitingCount: number;
     isConnected: boolean;
+    meetingLink: string | null;
 }) {
     return (
         <section className="relative isolate overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-panel sm:p-8">
@@ -257,13 +313,22 @@ function NowServingBoard({
             <div className="mt-8 grid gap-8 sm:grid-cols-[auto_1fr] sm:items-end">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-300">Now serving</p>
-                    <p
-                        key={nowServing ?? "none"}
-                        aria-live="polite"
-                        className="mt-2 animate-in fade-in zoom-in-75 bg-linear-to-b from-white to-sky-200 bg-clip-text font-mono text-7xl font-bold leading-none tracking-tight text-transparent duration-500 motion-reduce:animate-none sm:text-8xl"
-                    >
-                        {nowServing ? formatQueueNumber(nowServing) : "—"}
-                    </p>
+                    {nowServing ? (
+                        <p
+                            key={nowServing}
+                            aria-live="polite"
+                            className="mt-2 animate-in fade-in zoom-in-75 bg-linear-to-b from-white to-sky-200 bg-clip-text font-mono text-7xl font-bold leading-none tracking-tight text-transparent duration-500 motion-reduce:animate-none sm:text-8xl"
+                        >
+                            {formatQueueNumber(nowServing)}
+                        </p>
+                    ) : (
+                        <div aria-live="polite" className="mt-3">
+                            <p className="text-2xl font-bold tracking-tight sm:text-3xl">Nobody yet</p>
+                            <p className="mt-1 text-sm text-white/60">
+                                {waitingCount > 0 ? "Your mentor will call the first number soon." : "Take a number and you'll be first."}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <dl className="grid grid-cols-2 gap-6 sm:justify-self-end">
@@ -283,9 +348,26 @@ function NowServingBoard({
                 </dl>
             </div>
 
-            <p className="mt-8 flex items-center gap-1.5 border-t border-white/10 pt-4 text-xs text-white/50">
+            <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-white/10 pt-5">
+                {meetingLink ? (
+                    <>
+                        <Button asChild size="lg" className="rounded-full bg-emerald-500 px-6 text-white hover:bg-emerald-400">
+                            <a href={meetingLink} target="_blank" rel="noopener noreferrer">
+                                <Video /> {meetingLabel(meetingLink)}
+                            </a>
+                        </Button>
+                        <p className="min-w-0 flex-1 basis-56 text-xs leading-relaxed text-white/60">
+                            Open the room whenever you need — as many times as you like. Your mentor talks to each number in turn.
+                        </p>
+                    </>
+                ) : (
+                    <p className="text-sm text-white/60">The meeting link isn&apos;t up yet — it shows here as soon as your mentor adds it.</p>
+                )}
+            </div>
+
+            <p className="mt-5 flex items-center gap-1.5 text-xs text-white/50">
                 <Radio className={cn("size-3.5", isConnected && "text-emerald-300")} />
-                {isConnected ? "Live — the number updates by itself" : "Reconnecting…"}
+                {isConnected ? "Live — the number updates by itself" : "Updating every few seconds"}
             </p>
         </section>
     );
@@ -385,7 +467,7 @@ function TheLine({ board, myNumber, waitingCount }: { board: QueueBoard | null; 
 
             {!board || board.waiting.length === 0 ? (
                 <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-                    {board ? "No one is waiting." : "Connecting to the queue…"}
+                    {board ? "No one is waiting." : "Loading the line…"}
                 </p>
             ) : (
                 <ol className="max-h-112 divide-y divide-border overflow-y-auto">

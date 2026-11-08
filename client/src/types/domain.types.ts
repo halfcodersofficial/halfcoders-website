@@ -556,6 +556,28 @@ export interface SupportSessionCard {
     myQueue: { queueNumber: number; status: SupportQueueStatus } | null;
 }
 
+/** A student's feedback on a finished support turn: how it went and how far it solved the problem, 1–5 each. */
+export interface SupportFeedbackScores {
+    feedbackRating: number | null;
+    feedbackSolved: number | null;
+    feedbackAt: string | null;
+}
+
+/** The finished support turn a student still has to rate before taking another number. */
+export interface PendingSupportFeedback {
+    id: string;
+    queueNumber: number;
+    topic: string | null;
+    completedAt: string | null;
+    session: {
+        id: string;
+        title: string | null;
+        startTime: string;
+        mentor: { id: string; name: string; image: string | null };
+        course: { id: string; title: string; slug: string };
+    };
+}
+
 export interface MyQueuePosition {
     inQueue: boolean;
     myStatus: SupportQueueStatus | null;

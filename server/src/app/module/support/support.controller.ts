@@ -104,6 +104,43 @@ const getSessionsForStudent = catchAsync(async (req: Request, res: Response) => 
     });
 });
 
+const setQueueStatus = catchAsync(async (req: Request, res: Response) => {
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Turn updated",
+        data: await SupportService.setQueueStatus(req.user, req.params.queueId as string, req.body.status, req.body.mentorNote),
+    });
+});
+
+const getBoardForStudent = catchAsync(async (req: Request, res: Response) => {
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Queue board fetched successfully",
+        data: await SupportService.getBoardForStudent(req.user, req.params.sessionId as string),
+    });
+});
+
+/** The finished turn the student still has to rate before their next number, or null. */
+const getPendingFeedback = catchAsync(async (req: Request, res: Response) => {
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Pending support feedback fetched successfully",
+        data: await SupportService.getPendingFeedback(req.user),
+    });
+});
+
+const submitFeedback = catchAsync(async (req: Request, res: Response) => {
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Thanks for your feedback",
+        data: await SupportService.submitFeedback(req.user, req.params.queueId as string, req.body),
+    });
+});
+
 const joinQueue = catchAsync(async (req: Request, res: Response) => {
     const result = await SupportService.joinQueue(
         req.user,
@@ -245,6 +282,10 @@ export const SupportController = {
     joinQueue,
     leaveQueue,
     getMyQueuePosition,
+    getPendingFeedback,
+    submitFeedback,
+    setQueueStatus,
+    getBoardForStudent,
     getQueue,
     serveNext,
     completeCurrent,

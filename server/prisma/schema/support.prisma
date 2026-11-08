@@ -50,12 +50,22 @@ model SupportQueue {
   servedAt    DateTime?
   completedAt DateTime?
   mentorNote  String?
+  /// The student's feedback on a finished turn (COMPLETED), asked before
+  /// they can take a number again: how it went, 1–5…
+  feedbackRating Int?
+  /// …how far it solved their problem, 1–5…
+  feedbackSolved Int?
+  /// …and when they gave it. Null = not given yet.
+  feedbackAt     DateTime?
 
   session SupportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   student User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, queueNumber])
-  @@unique([sessionId, studentId])
+  /// Not unique: once a turn is over (and rated, if they were helped), a
+  /// student may take another number in the same session — at the back of
+  /// the line. Only one of theirs is ever waiting or being served.
+  @@index([sessionId, studentId])
   @@index([sessionId, status])
   @@index([studentId])
   @@map("support_queue")
