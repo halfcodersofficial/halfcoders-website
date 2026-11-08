@@ -423,7 +423,7 @@ export default function OutlineMakerPage({ courseId, area }: { courseId: string;
 
             {view === "preview" && isTraditional ? (
                 // The syllabus brings its own week cards, as on the student page.
-                <OutlineSchedule weeks={weeks} weekLabel={weekLabel} undated />
+                <OutlineSchedule weeks={weeks} weekLabel={weekLabel} moduleLabel={course?.moduleLabel} undated />
             ) : view === "preview" ? (
                 <div className="rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
                     <OutlineSchedule weeks={weeks} weekLabel={weekLabel} />

@@ -1,8 +1,9 @@
 "use client";
 
 import { BookOpen, CalendarOff, CalendarRange, Check, ChevronLeft, ChevronRight, Dumbbell, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
+import OutlineSyllabus, { buildSyllabus, plural, weekLabelFor } from "@/components/shared/OutlineSyllabus";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNow } from "@/hooks/useNow";
@@ -28,8 +29,7 @@ export const outlineItemStatus = (item: OutlineItem, now: number) => {
         : { label: "Upcoming", variant: "warning" as const };
 };
 
-export const weekLabelFor = (week: Pick<OutlineWeek, "order">, label: string) =>
-    `${label} ${String(week.order).padStart(2, "0")}`;
+export { weekLabelFor };
 
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
@@ -67,8 +67,6 @@ const initialWeekIndex = (weeks: OutlineWeek[], now: number) => {
     if (upcoming !== -1) return upcoming;
     return Math.max(0, weeks.length - 1);
 };
-
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 const isReleased = (item: OutlineItem, now: number) =>
     Boolean(item.scheduledAt) && new Date(item.scheduledAt!).getTime() <= now;
@@ -143,19 +141,27 @@ function EmptyOutline({ undated }: { undated: boolean }) {
  * A bootcamp outline is a strip of weeks, then the selected week as a
  * day-by-day timeline — the student wants "this week". `undated` is a
  * traditional (self-paced) course's outline: no dates and no "this week", so
- * it reads as a whole syllabus instead — see `Syllabus`.
+ * it reads as a whole syllabus instead — see `OutlineSyllabus`.
  */
 export default function OutlineSchedule({
     weeks,
     weekLabel,
+    moduleLabel,
     undated = false,
 }: {
     weeks: OutlineWeek[];
     weekLabel: string;
+    /** The course's word for a module; the syllabus uses it in its counts. */
+    moduleLabel?: string;
     undated?: boolean;
 }) {
-    if (weeks.length === 0) return <EmptyOutline undated={undated} />;
-    return undated ? <Syllabus weeks={weeks} weekLabel={weekLabel} /> : <DatedSchedule weeks={weeks} weekLabel={weekLabel} />;
+    if (undated) {
+        const syllabus = buildSyllabus(weeks);
+        if (syllabus.modules.length === 0) return <EmptyOutline undated />;
+        return <OutlineSyllabus syllabus={syllabus} weekLabel={weekLabel} moduleLabel={moduleLabel} />;
+    }
+    if (weeks.length === 0) return <EmptyOutline undated={false} />;
+    return <DatedSchedule weeks={weeks} weekLabel={weekLabel} />;
 }
 
 function DatedSchedule({ weeks, weekLabel }: { weeks: OutlineWeek[]; weekLabel: string }) {
@@ -411,190 +417,5 @@ function ScheduleRow({ item, now }: { item: OutlineItem; now: number }) {
                 </Badge>
             )}
         </li>
-    );
-}
-
-const WEEK_ANCHOR = "outline-week-";
-
-/**
- * A traditional (self-paced) outline: there is no "this week" to land on, so
- * every week is on the page at once, like a syllabus — each as a numbered
- * route of its items, the number keeping the hand-dragged order readable.
- * When there's room, a sticky index of the weeks runs alongside, lighting up
- * the one being read (the same `IntersectionObserver` approach as
- * `CourseSectionNav`).
- *
- * Students only ever receive published items and never a no-module day (a
- * bootcamp thing); staff previewing get everything, so the same filter runs
- * here to keep the preview honest.
- */
-function Syllabus({ weeks, weekLabel }: { weeks: OutlineWeek[]; weekLabel: string }) {
-    const sections = weeks.map((week) => ({
-        week,
-        items: week.items.filter((item) => item.isPublished && item.kind !== "NO_MODULE"),
-    }));
-    const total = sections.reduce((sum, section) => sum + section.items.length, 0);
-    const [activeId, setActiveId] = useState(weeks[0]?.id ?? "");
-
-    const weekIds = weeks.map((week) => week.id).join(",");
-    const hasItems = total > 0;
-    useEffect(() => {
-        if (!hasItems) return;
-        const elements = weekIds
-            .split(",")
-            .map((id) => document.getElementById(`${WEEK_ANCHOR}${id}`))
-            .filter((element): element is HTMLElement => element !== null);
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                const visible = entries
-                    .filter((entry) => entry.isIntersecting)
-                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-                if (visible[0]) setActiveId(visible[0].target.id.slice(WEEK_ANCHOR.length));
-            },
-            { rootMargin: "-80px 0px -55% 0px", threshold: 0 },
-        );
-        elements.forEach((element) => observer.observe(element));
-        return () => observer.disconnect();
-    }, [weekIds, hasItems]);
-
-    if (!hasItems) return <EmptyOutline undated />;
-
-    const jumpTo = (weekId: string) => {
-        setActiveId(weekId);
-        document.getElementById(`${WEEK_ANCHOR}${weekId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-
-    // Container queries, not viewport ones: the same component sits full-width
-    // on the student page and inside the admin console beside its sidebar.
-    return (
-        <div className="@container/syllabus">
-            <div className="grid gap-6 @4xl/syllabus:grid-cols-[15rem_minmax(0,1fr)] @4xl/syllabus:gap-8">
-                <nav aria-label={`${weekLabel}s`} className="hidden @4xl/syllabus:block">
-                    <div className="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-card">
-                        <p className="px-3 pb-2 pt-2 text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-                            {plural(weeks.length, weekLabel.toLowerCase())} · {plural(total, "item")}
-                        </p>
-                        <ol className="space-y-0.5">
-                            {sections.map(({ week, items }) => {
-                                const isActive = week.id === activeId;
-                                return (
-                                    <li key={week.id}>
-                                        <button
-                                            type="button"
-                                            aria-current={isActive ? "true" : undefined}
-                                            onClick={() => jumpTo(week.id)}
-                                            className={cn(
-                                                "flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition-colors",
-                                                isActive ? "bg-primary/10" : "hover:bg-secondary/60",
-                                            )}
-                                        >
-                                            <span
-                                                className={cn(
-                                                    "mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-xs font-bold tabular-nums",
-                                                    isActive ? "bg-brand text-white" : "bg-secondary text-muted-foreground",
-                                                )}
-                                                aria-hidden
-                                            >
-                                                {week.order}
-                                            </span>
-                                            <span className="min-w-0">
-                                                <span
-                                                    className={cn(
-                                                        "line-clamp-2 text-sm font-medium",
-                                                        isActive ? "text-primary" : "text-foreground",
-                                                    )}
-                                                >
-                                                    {week.title ?? weekLabelFor(week, weekLabel)}
-                                                </span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {items.length > 0 ? plural(items.length, "item") : "Coming soon"}
-                                                </span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                );
-                            })}
-                        </ol>
-                    </div>
-                </nav>
-
-                <div className="min-w-0 space-y-5">
-                    {sections.map(({ week, items }) => (
-                        <SyllabusWeek key={week.id} week={week} items={items} weekLabel={weekLabel} />
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function SyllabusWeek({ week, items, weekLabel }: { week: OutlineWeek; items: OutlineItem[]; weekLabel: string }) {
-    const label = weekLabelFor(week, weekLabel);
-    const headingId = `${WEEK_ANCHOR}${week.id}-heading`;
-    const modules = items.filter((item) => item.kind === "MODULE").length;
-    const practiceDays = items.filter((item) => item.kind === "PRACTICE").length;
-    const summary = [
-        modules > 0 && plural(modules, "module"),
-        practiceDays > 0 && plural(practiceDays, "practice day"),
-    ].filter(Boolean);
-
-    return (
-        <section
-            id={`${WEEK_ANCHOR}${week.id}`}
-            aria-labelledby={headingId}
-            className="scroll-mt-24 overflow-hidden rounded-2xl border border-border bg-card shadow-card"
-        >
-            <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b border-border px-5 pb-4 pt-5">
-                <div className="min-w-0">
-                    {week.title && (
-                        <p className="text-[0.6875rem] font-bold uppercase tracking-wider text-primary">{label}</p>
-                    )}
-                    <h2 id={headingId} className="text-lg font-bold tracking-tight">
-                        {week.title ?? label}
-                    </h2>
-                </div>
-                {summary.length > 0 && <p className="text-xs text-muted-foreground">{summary.join(" · ")}</p>}
-            </header>
-
-            {items.length === 0 ? (
-                <p className="px-5 py-5 text-sm text-muted-foreground">Coming soon.</p>
-            ) : (
-                <ol className="py-3">
-                    {items.map((item, index) => {
-                        const meta = OUTLINE_KIND_META[item.kind];
-                        const Icon = meta.icon;
-                        return (
-                            <li key={item.id} className="relative flex items-start gap-3.5 px-5 py-2.5">
-                                {/* The route between numbers. */}
-                                {index < items.length - 1 && (
-                                    <span aria-hidden className="absolute bottom-0 left-9 top-10 w-0.5 -translate-x-1/2 bg-border" />
-                                )}
-                                <span
-                                    className="relative grid size-8 shrink-0 place-items-center rounded-full border-2 border-primary/30 bg-card text-xs font-bold tabular-nums text-primary"
-                                    aria-hidden
-                                >
-                                    {index + 1}
-                                </span>
-                                <div className="min-w-0 flex-1 pt-1">
-                                    <p className="text-sm font-semibold leading-snug">{item.title}</p>
-                                    <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                        <Icon className="size-3.5" aria-hidden />
-                                        {meta.label}
-                                        {item.mode && (
-                                            <>
-                                                <span aria-hidden>·</span>
-                                                <ClassModeTag mode={item.mode} />
-                                            </>
-                                        )}
-                                    </p>
-                                    {item.note && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{item.note}</p>}
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ol>
-            )}
-        </section>
     );
 }
