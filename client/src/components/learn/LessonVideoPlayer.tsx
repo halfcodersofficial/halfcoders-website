@@ -23,84 +23,19 @@ import {
     useState,
     type ButtonHTMLAttributes,
     type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
-
-/* ---- The slice of YouTube's IFrame Player API this player uses ---------- */
-
-interface YTPlayer {
-    playVideo(): void;
-    pauseVideo(): void;
-    seekTo(seconds: number, allowSeekAhead: boolean): void;
-    mute(): void;
-    unMute(): void;
-    isMuted(): boolean;
-    setVolume(volume: number): void;
-    getVolume(): number;
-    getDuration(): number;
-    getCurrentTime(): number;
-    getVideoLoadedFraction(): number;
-    getPlayerState(): number;
-    setPlaybackRate(rate: number): void;
-    getPlaybackRate(): number;
-    getAvailablePlaybackRates(): number[];
-    destroy(): void;
-}
-
-interface YTEvent {
-    target: YTPlayer;
-    data: number;
-}
-
-interface YTNamespace {
-    Player: new (
-        element: HTMLElement,
-        options: {
-            host?: string;
-            videoId: string;
-            width?: string;
-            height?: string;
-            playerVars?: Record<string, string | number>;
-            events?: Partial<
-                Record<"onReady" | "onStateChange" | "onError" | "onPlaybackRateChange", (event: YTEvent) => void>
-            >;
-        },
-    ) => YTPlayer;
-}
-
-declare global {
-    interface Window {
-        YT?: YTNamespace;
-        onYouTubeIframeAPIReady?: () => void;
-    }
-}
-
-const YT_STATE = { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } as const;
-
-let apiPromise: Promise<YTNamespace> | null = null;
-
-/** Loads YouTube's player script once per page, however many players ask for it. */
-function loadYouTubeApi(): Promise<YTNamespace> {
-    if (window.YT?.Player) return Promise.resolve(window.YT);
-    if (apiPromise) return apiPromise;
-
-    apiPromise = new Promise<YTNamespace>((resolve, reject) => {
-        const previous = window.onYouTubeIframeAPIReady;
-        window.onYouTubeIframeAPIReady = () => {
-            previous?.();
-            if (window.YT) resolve(window.YT);
-        };
-        const script = document.createElement("script");
-        script.src = "https://www.youtube.com/iframe_api";
-        script.async = true;
-        script.onerror = () => {
-            apiPromise = null;
-            reject(new Error("Couldn't load the video player."));
-        };
-        document.head.appendChild(script);
-    });
-    return apiPromise;
-}
+import {
+    loadYouTubeApi,
+    QUALITY_CHOICES,
+    QUALITY_FRAME_HEIGHT,
+    QUALITY_LABEL,
+    YT_HOST,
+    YT_STATE,
+    type QualityChoice,
+    type YTPlayer,
+} from "@/lib/youtube";
 
 /* ---- Small helpers ------------------------------------------------------ */
 
@@ -119,7 +54,7 @@ const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
 // Volume and speed carry over from one lesson to the next — someone who
 // watches at 1.5× shouldn't have to pick it again on every video.
 const PREFS_KEY = "hc-lesson-player";
-type PlayerPrefs = { volume?: number; rate?: number };
+type PlayerPrefs = { volume?: number; rate?: number; quality?: QualityChoice | "auto" };
 
 const readPrefs = (): PlayerPrefs => {
     try {
@@ -162,11 +97,12 @@ interface LessonVideoPlayerProps {
  * The lesson video, played through YouTube but never looking like it.
  *
  * YouTube's own controls are switched off and every control here is ours.
- * The YouTube frame itself can't be clicked, tapped or tabbed into (`inert`),
- * so its title, channel link and logo can't take a student off to YouTube.
- * The frame is also three times as tall as the box it sits in, and only its
- * middle third shows: YouTube draws the video there, while its title bar,
- * logo and pause/end suggestions sit at the frame's edges, out of view.
+ * The YouTube frame itself can't be clicked, tapped, hovered or tabbed into
+ * (`inert`), so its title, channel link and logo can't take a student off to
+ * YouTube. Measured in a real browser: with controls off and no pointer over
+ * it, YouTube draws none of its own UI while a video is ready, playing or
+ * paused — only its end screen, which our "You finished this video" screen
+ * covers — so the frame needs no cropping and plays at full quality.
  */
 export default function LessonVideoPlayer({
     youtubeVideoId,
@@ -212,6 +148,12 @@ export default function LessonVideoPlayer({
     const [rate, setRate] = useState(1);
     const [rates, setRates] = useState<number[]>([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
     const [menuOpen, setMenuOpen] = useState(false);
+    const stageRef = useRef<HTMLDivElement>(null);
+    const [stageWidth, setStageWidth] = useState(0);
+    const [pixelRatio, setPixelRatio] = useState(1);
+    const [quality, setQuality] = useState<QualityChoice | "auto">("auto");
+    const [availableQualities, setAvailableQualities] = useState<string[]>([]);
+    const [currentQuality, setCurrentQuality] = useState("");
     const [chromeAwake, setChromeAwake] = useState(true);
     const [nativeFullscreen, setNativeFullscreen] = useState(false);
     const [canNativeFullscreen, setCanNativeFullscreen] = useState(true);
@@ -265,7 +207,7 @@ export default function LessonVideoPlayer({
             .then((YT) => {
                 if (cancelled) return;
                 playerRef.current = new YT.Player(target, {
-                    host: "https://www.youtube-nocookie.com",
+                    host: YT_HOST,
                     videoId: youtubeVideoId,
                     width: "100%",
                     height: "100%",
@@ -309,6 +251,10 @@ export default function LessonVideoPlayer({
                                 setStatus("playing");
                                 setDuration(player.getDuration());
                                 reportDuration(player.getDuration());
+                                // Only known once playback has begun.
+                                const levels = player.getAvailableQualityLevels();
+                                if (levels?.length) setAvailableQualities(levels);
+                                setCurrentQuality(player.getPlaybackQuality());
                             } else if (data === YT_STATE.BUFFERING) {
                                 setStatus("buffering");
                             } else if (data === YT_STATE.PAUSED) {
@@ -320,6 +266,7 @@ export default function LessonVideoPlayer({
                             }
                         },
                         onPlaybackRateChange: ({ data }) => !cancelled && setRate(data),
+                        onPlaybackQualityChange: ({ data }) => !cancelled && setCurrentQuality(data),
                         onError: () => !cancelled && setFailed(true),
                     },
                 });
@@ -346,6 +293,7 @@ export default function LessonVideoPlayer({
             if (!player) return;
             setCurrent(player.getCurrentTime());
             setBuffered(player.getVideoLoadedFraction());
+            setCurrentQuality(player.getPlaybackQuality());
         }, 250);
         return () => window.clearInterval(id);
     }, [active]);
@@ -353,6 +301,27 @@ export default function LessonVideoPlayer({
     useEffect(() => {
         if (started) poke();
     }, [started, poke]);
+
+    // The chosen quality carries over between lessons, like volume and speed.
+    useEffect(() => {
+        const saved = readPrefs().quality;
+        if (saved === "auto" || (saved && saved in QUALITY_FRAME_HEIGHT)) setQuality(saved);
+    }, []);
+
+    // The stage's width (full screen, a resized window) and the screen's
+    // pixel density decide how a chosen quality's frame is scaled to fit.
+    useEffect(() => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        const measure = () => {
+            setStageWidth(stage.clientWidth);
+            setPixelRatio(window.devicePixelRatio || 1);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(stage);
+        return () => observer.disconnect();
+    }, []);
 
     // Real full screen where the browser allows it on an element; iPhones
     // don't, so there the player fills the window instead.
@@ -452,6 +421,12 @@ export default function LessonVideoPlayer({
         }
     };
 
+    const changeQuality = (next: QualityChoice | "auto") => {
+        setQuality(next);
+        writePrefs({ quality: next });
+        setMenuOpen(false);
+    };
+
     const changeRate = (next: number) => {
         const player = readyPlayer();
         if (!player) return;
@@ -531,6 +506,26 @@ export default function LessonVideoPlayer({
         poke();
     };
 
+    // Quality choices this video actually has, best first. Before it has
+    // played, YouTube hasn't said yet, so the usual three are offered.
+    const qualityOptions = availableQualities.length
+        ? QUALITY_CHOICES.filter((choice) => availableQualities.includes(choice))
+        : (["hd1080", "hd720", "large"] as QualityChoice[]);
+    // A saved choice above this video's best simply plays its best.
+    const shownQuality: QualityChoice | "auto" =
+        quality === "auto" || qualityOptions.includes(quality)
+            ? quality
+            : (qualityOptions.find((choice) => QUALITY_FRAME_HEIGHT[choice] < QUALITY_FRAME_HEIGHT[quality]) ?? "auto");
+
+    // "Auto" fills the stage at its real size; a chosen quality draws the frame
+    // at the size YouTube plays that quality at, then scales it to fit.
+    const frameStyle = (() => {
+        if (quality === "auto" || stageWidth === 0) return undefined;
+        const height = QUALITY_FRAME_HEIGHT[quality] / pixelRatio;
+        const width = (height * 16) / 9;
+        return { width, height, transform: `scale(${stageWidth / width})` };
+    })();
+
     const shownTime = scrubTime ?? current;
     const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
 
@@ -557,6 +552,7 @@ export default function LessonVideoPlayer({
         >
             {/* The stage: always 16:9, letterboxed when full screen isn't. */}
             <div
+                ref={stageRef}
                 className={cn(
                     "relative aspect-video overflow-hidden",
                     isFullscreen ? "w-[min(100%,calc(100dvh*16/9))]" : "w-full",
@@ -566,7 +562,11 @@ export default function LessonVideoPlayer({
                     ref={hostRef}
                     inert
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 -top-full h-[300%] [&>iframe]:pointer-events-none [&>iframe]:size-full"
+                    style={frameStyle}
+                    className={cn(
+                        "pointer-events-none absolute left-0 top-0 origin-top-left [&>iframe]:pointer-events-none [&>iframe]:size-full",
+                        !frameStyle && "size-full",
+                    )}
                 />
 
                 {/* Inside the stage, so it only ever moves over the picture —
@@ -768,24 +768,35 @@ export default function LessonVideoPlayer({
                     aria-label="Video settings"
                     className="absolute bottom-16 right-2 z-30 max-h-[calc(100%-4.5rem)] w-64 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border border-white/10 bg-black/90 p-3 text-sm shadow-2xl backdrop-blur-md sm:bottom-17 sm:right-4"
                 >
-                    <p className="mb-2 text-xs font-semibold text-white/60">Playback speed</p>
+                    <p className="mb-2 flex items-baseline justify-between gap-2 text-xs font-semibold text-white/60">
+                        Quality
+                        {QUALITY_LABEL[currentQuality] && (
+                            <span className="font-normal text-white/50">Playing now: {QUALITY_LABEL[currentQuality]}</span>
+                        )}
+                    </p>
+                    <div className="grid grid-cols-4 gap-1">
+                        {(["auto", ...qualityOptions] as const).map((choice) => (
+                            <MenuChip
+                                key={choice}
+                                selected={choice === shownQuality}
+                                onClick={() => changeQuality(choice)}
+                            >
+                                {choice === "auto" ? "Auto" : QUALITY_LABEL[choice]}
+                            </MenuChip>
+                        ))}
+                    </div>
+                    <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
+                        The highest it will play. On a slow connection YouTube may go lower.
+                    </p>
+
+                    <p className="mb-2 mt-3 border-t border-white/10 pt-2.5 text-xs font-semibold text-white/60">
+                        Playback speed
+                    </p>
                     <div className="grid grid-cols-4 gap-1">
                         {rates.map((option) => (
-                            <button
-                                key={option}
-                                type="button"
-                                role="menuitemradio"
-                                aria-checked={option === rate}
-                                onClick={() => changeRate(option)}
-                                className={cn(
-                                    "relative rounded-lg px-1 py-1.5 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                                    option === rate
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-white/5 text-white/85 hover:bg-white/15",
-                                )}
-                            >
+                            <MenuChip key={option} selected={option === rate} onClick={() => changeRate(option)}>
                                 {rateLabel(option)}
-                            </button>
+                            </MenuChip>
                         ))}
                     </div>
 
@@ -901,6 +912,32 @@ function MovingWatermark({ text }: { text: string }) {
                 {text}
             </span>
         </span>
+    );
+}
+
+/** One choice in the settings menu — a quality or a speed. */
+function MenuChip({
+    selected,
+    onClick,
+    children,
+}: {
+    selected: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={selected}
+            onClick={onClick}
+            className={cn(
+                "relative rounded-lg px-1 py-1.5 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                selected ? "bg-primary text-primary-foreground" : "bg-white/5 text-white/85 hover:bg-white/15",
+            )}
+        >
+            {children}
+        </button>
     );
 }
 

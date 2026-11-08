@@ -58,6 +58,7 @@ import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { useSession } from "@/hooks/useSession";
+import { measureYouTubeDurations } from "@/lib/youtube";
 import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
 import {
     assignmentService,
@@ -156,7 +157,18 @@ export default function LearnPage() {
     // "Next" completions waiting to reach the server, kept in order (see queueComplete).
     const completionQueueRef = useRef<Promise<unknown>>(Promise.resolve());
     const pendingCompletionsRef = useRef(0);
+    // Lesson running times measured in the browser (see the collector below):
+    // which lessons are done, which wait to be saved, and the one background job.
     const reportedDurationsRef = useRef(new Set<string>());
+    const pendingDurationsRef = useRef<Array<{ videoId: string; seconds: number }>>([]);
+    const durationFlushTimerRef = useRef<number | undefined>(undefined);
+    const durationJobRef = useRef({
+        queue: [] as string[],
+        queued: new Set<string>(),
+        lessonsByYoutubeId: new Map<string, string[]>(),
+        running: false,
+    });
+    const isMountedRef = useRef(false);
     const { user } = useSession();
     const [noteDraft, setNoteDraft] = useState("");
     const [sidebarSearch, setSidebarSearch] = useState("");
@@ -177,6 +189,24 @@ export default function LearnPage() {
             ) ?? [],
         [data],
     );
+
+    // Lessons open one at a time: every finished lesson, plus the first
+    // unfinished one — where the student is in the course. Everything after
+    // it stays shut until they get there with "Next". Staff previewing the
+    // course can open anything.
+    const reachableIds = useMemo(() => {
+        if (!data || data.isPreview) return null;
+        const ids = new Set<string>();
+        let reachedCurrent = false;
+        for (const video of allVideos) {
+            if (!reachedCurrent || video.isCompleted) ids.add(video.id);
+            if (!video.isCompleted) reachedCurrent = true;
+        }
+        return ids;
+    }, [data, allVideos]);
+    const canOpen = (videoId: string) => !reachableIds || reachableIds.has(videoId);
+    /** The first unfinished lesson — the furthest a student can open. */
+    const currentLesson = allVideos.find((video) => !video.isCompleted && !video.isLocked) ?? null;
 
     // A lesson, assignment or quiz reached via the Course Outline page or a
     // notification link ("?video=<id>" / "?assignment=<id>" / "?quiz=<id>")
@@ -209,6 +239,12 @@ export default function LearnPage() {
 
         const requested = searchParams.get("video");
         const requestedVideo = requested ? allVideos.find((v) => v.id === requested && !v.isLocked) : null;
+        // A link to a lesson the student hasn't reached yet lands them on
+        // their current lesson instead (the resume pick below).
+        if (requestedVideo && reachableIds && !reachableIds.has(requestedVideo.id)) {
+            toast.info("That lesson opens once you finish the ones before it.");
+            return;
+        }
         if (requestedVideo) {
             setActiveVideoId(requestedVideo.id);
             const owningMilestone = data.curriculum.find((m) =>
@@ -216,7 +252,7 @@ export default function LearnPage() {
             );
             if (owningMilestone) setOpenMilestones(new Set([owningMilestone.id]));
         }
-    }, [data, initialisedFromQuery, searchParams, allVideos]);
+    }, [data, initialisedFromQuery, searchParams, allVideos, reachableIds]);
 
     // Open the student's current milestone and start on the first unwatched
     // lesson, so returning to the page resumes rather than restarts.
@@ -247,25 +283,33 @@ export default function LearnPage() {
     }, [data, activeVideoId]);
     const activeLessonNumber = allVideos.findIndex((video) => video.id === activeVideoId) + 1;
 
-    // The module holding whatever is open — a lesson, or a module's quiz.
-    const activeModuleId = useMemo(() => {
+    // The module (and its milestone) holding whatever is open — a lesson, or a module's quiz.
+    const activePlace = useMemo(() => {
         if (!data || activeAssignmentId) return null;
         for (const milestone of data.curriculum) {
             for (const courseModule of milestone.modules) {
                 if (activeQuizId ? courseModule.quiz?.id === activeQuizId : courseModule.videos.some((v) => v.id === activeVideoId)) {
-                    return courseModule.id;
+                    return { moduleId: courseModule.id, milestoneId: milestone.id };
                 }
             }
         }
         return null;
     }, [data, activeVideoId, activeQuizId, activeAssignmentId]);
+    const activeModuleId = activePlace?.moduleId ?? null;
+    const activeMilestoneId = activePlace?.milestoneId ?? null;
 
-    // Moving into another module (Next, a link, the sidebar) opens it, so the
-    // row being studied is never hidden inside a collapsed module.
+    // Moving into another module or milestone (Next, a link, the sidebar)
+    // opens it, so the row being studied is never hidden inside a collapsed one.
     useEffect(() => {
         if (!activeModuleId) return;
         setOpenModules((current) => (current.has(activeModuleId) ? current : new Set(current).add(activeModuleId)));
     }, [activeModuleId]);
+    useEffect(() => {
+        if (!activeMilestoneId) return;
+        setOpenMilestones((current) =>
+            current.has(activeMilestoneId) ? current : new Set(current).add(activeMilestoneId),
+        );
+    }, [activeMilestoneId]);
 
     /* Prev/next walk the *unlocked* lessons only. Stepping onto a locked one
        would land the student on the padlock screen with no way forward, which
@@ -284,7 +328,8 @@ export default function LearnPage() {
     const blockingLesson =
         activeCourseIndex > 0 ? allVideos.slice(0, activeCourseIndex).find((video) => !video.isCompleted) ?? null : null;
 
-    const goTo = (videoId: string) => {
+    /** Shows a lesson, no questions asked — callers have checked it may open. */
+    const openLesson = (videoId: string) => {
         setActiveVideoId(videoId);
         setActiveAssignmentId(null);
         setActiveQuizId(null);
@@ -293,6 +338,30 @@ export default function LearnPage() {
         // phone, so a lesson change has to bring it back into view.
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
+
+    /** Opens a lesson the student has reached; for a later one, says what to finish first. */
+    const goTo = (videoId: string) => {
+        if (!canOpen(videoId)) {
+            toast.info(
+                currentLesson
+                    ? `Finish "${currentLesson.title}" first — lessons open one at a time.`
+                    : "This lesson isn't open yet.",
+            );
+            return;
+        }
+        openLesson(videoId);
+    };
+
+    // Should the open lesson ever be one the student hasn't reached — a
+    // "Next" whose save the server turned down — take them back to their
+    // current lesson. Not while saves are still on their way: the page
+    // already counts those lessons as done.
+    useEffect(() => {
+        if (!activeVideoId || !reachableIds || reachableIds.has(activeVideoId)) return;
+        if (pendingCompletionsRef.current > 0) return;
+        const current = allVideos.find((video) => !video.isCompleted && !video.isLocked);
+        if (current && current.id !== activeVideoId) setActiveVideoId(current.id);
+    }, [activeVideoId, reachableIds, allVideos]);
 
     const goToAssignment = (assignmentId: string) => {
         setActiveAssignmentId(assignmentId);
@@ -365,21 +434,97 @@ export default function LearnPage() {
             .catch(() => undefined);
     };
 
+    /** Sends the measured running times waiting to be saved, in one request. */
+    const flushDurations = () => {
+        window.clearTimeout(durationFlushTimerRef.current);
+        const batch = pendingDurationsRef.current.splice(0, 200);
+        if (batch.length === 0) return;
+        progressService
+            .reportDurations(batch)
+            .then((stored) => {
+                // Someone else's measurement may have landed first — show what's kept.
+                for (const { videoId, duration } of stored) {
+                    if (duration > 0) {
+                        patchLessonInCache(videoId, (video) =>
+                            video.duration === duration
+                                ? video
+                                : { ...video, duration, durationLabel: formatDuration(duration) },
+                        );
+                    }
+                }
+            })
+            .catch(() => undefined);
+        if (pendingDurationsRef.current.length > 0) flushDurations();
+    };
+
     /**
-     * Saves a running time the player measured, for a lesson stored without
-     * one — once per lesson per visit. The server keeps the first value it
-     * gets, and the sidebar shows it straight away.
+     * A running time measured in the browser, for a lesson stored without one
+     * — once per lesson per visit. The sidebar shows it at once; saving waits
+     * a moment to go up with others, so a whole course takes a few requests
+     * rather than one per lesson (the API allows 120 a minute).
      */
     const saveDetectedDuration = (videoId: string, seconds: number) => {
         if (reportedDurationsRef.current.has(videoId)) return;
         reportedDurationsRef.current.add(videoId);
-        progressService
-            .reportDuration(videoId, seconds)
-            .then(({ duration }) =>
-                patchLessonInCache(videoId, (video) => ({ ...video, duration, durationLabel: formatDuration(duration) })),
-            )
-            .catch(() => undefined);
+        const duration = Math.round(seconds);
+        patchLessonInCache(videoId, (video) => ({ ...video, duration, durationLabel: formatDuration(duration) }));
+        pendingDurationsRef.current.push({ videoId, seconds });
+        window.clearTimeout(durationFlushTimerRef.current);
+        if (pendingDurationsRef.current.length >= 25) flushDurations();
+        else durationFlushTimerRef.current = window.setTimeout(flushDurations, 1500);
     };
+
+    // The background job below outlives renders, so it reaches these through refs.
+    const saveDurationRef = useRef(saveDetectedDuration);
+    saveDurationRef.current = saveDetectedDuration;
+    const flushDurationsRef = useRef(flushDurations);
+    flushDurationsRef.current = flushDurations;
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            // Leaving the page: save what was measured so far.
+            flushDurationsRef.current();
+        };
+    }, []);
+
+    // Every lesson's running time as soon as the course opens. Lessons stored
+    // without one are measured by one invisible player in the background — a
+    // few seconds for a whole course, no video downloaded — and saved for
+    // everyone, so it only happens once per lesson. Lessons that open later
+    // (a module unlocking) join the queue of the job already running.
+    useEffect(() => {
+        const job = durationJobRef.current;
+        for (const video of allVideos) {
+            const youtubeId = video.youtubeVideoId;
+            if (video.type !== "VIDEO" || !youtubeId || video.duration > 0) continue;
+            if (reportedDurationsRef.current.has(video.id)) continue;
+            const lessons = job.lessonsByYoutubeId.get(youtubeId) ?? [];
+            if (!lessons.includes(video.id)) job.lessonsByYoutubeId.set(youtubeId, [...lessons, video.id]);
+            if (!job.queued.has(youtubeId)) {
+                job.queued.add(youtubeId);
+                job.queue.push(youtubeId);
+            }
+        }
+        if (job.running || job.queue.length === 0) return;
+
+        job.running = true;
+        void measureYouTubeDurations(
+            () => job.queue.shift(),
+            (youtubeId, seconds) => {
+                for (const lessonId of job.lessonsByYoutubeId.get(youtubeId) ?? []) {
+                    saveDurationRef.current(lessonId, seconds);
+                }
+            },
+            () => !isMountedRef.current,
+        )
+            .catch(() => undefined)
+            .finally(() => {
+                job.running = false;
+                flushDurationsRef.current();
+            });
+    }, [allVideos]);
 
     // ---- Notes / bookmark / reaction — the active lesson's own state. -----
 
@@ -567,9 +712,15 @@ export default function LearnPage() {
     );
 
     /** "Next": counts the open lesson as done, then moves on. */
+    // Finishing this lesson is what opens the next one, so "Next" works from
+    // the current lesson as well as from any finished one.
+    const nextOpens = Boolean(nextVideo && (canOpen(nextVideo.id) || canComplete));
+
     const advance = () => {
         if (activeVideo && canComplete) queueComplete(activeVideo.id);
-        if (nextVideo) goTo(nextVideo.id);
+        // The page's lesson list doesn't yet show this lesson as done, so open
+        // the next one directly rather than through goTo's check.
+        if (nextVideo && nextOpens) openLesson(nextVideo.id);
     };
 
     const openNotes = () => {
@@ -616,6 +767,7 @@ export default function LearnPage() {
         bookmarksLoading,
         bookmarkedVideoIds,
         onToggleRowBookmark: (videoId, bookmarked) => toggleRowBookmark.mutate({ videoId, bookmarked }),
+        canOpenLesson: canOpen,
     };
 
     return (
@@ -729,7 +881,7 @@ export default function LearnPage() {
                             youtubeVideoId={activeVideo.youtubeVideoId}
                             title={activeVideo.title}
                             subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${activeVideo.duration > 0 ? ` · ${activeVideo.durationLabel}` : ""}`}
-                            next={nextVideo ? { title: nextVideo.title, onSelect: advance } : null}
+                            next={nextVideo && nextOpens ? { title: nextVideo.title, onSelect: advance } : null}
                             watermark={user?.email}
                             onDuration={
                                 activeVideo.duration > 0
@@ -814,6 +966,7 @@ export default function LearnPage() {
                                             className="rounded-full"
                                             aria-label="Previous lesson"
                                             title="Previous lesson"
+                                            disabled={!canOpen(prevVideo.id)}
                                             onClick={() => goTo(prevVideo.id)}
                                         >
                                             <ChevronLeft className="size-4" />
@@ -823,7 +976,12 @@ export default function LearnPage() {
                                     {nextVideo ? (
                                         <Button
                                             className="rounded-full pl-5 pr-4"
-                                            title={`Next: ${nextVideo.title}`}
+                                            title={
+                                                nextOpens
+                                                    ? `Next: ${nextVideo.title}`
+                                                    : "Finish the lessons before this one first"
+                                            }
+                                            disabled={!nextOpens}
                                             onClick={advance}
                                         >
                                             Next <ChevronRight className="size-4" />
@@ -1176,6 +1334,8 @@ interface CurriculumSidebarProps {
     bookmarksLoading: boolean;
     bookmarkedVideoIds: Set<string>;
     onToggleRowBookmark: (videoId: string, bookmarked: boolean) => void;
+    /** False for a lesson past the student's current one — shown shut, not clickable. */
+    canOpenLesson: (videoId: string) => boolean;
 }
 
 /**
@@ -1207,6 +1367,7 @@ function CurriculumSidebar({
     bookmarksLoading,
     bookmarkedVideoIds,
     onToggleRowBookmark,
+    canOpenLesson,
 }: CurriculumSidebarProps) {
     const query = search.trim().toLowerCase();
 
@@ -1315,13 +1476,23 @@ function CurriculumSidebar({
                                     <button
                                         type="button"
                                         onClick={() => goTo(bookmark.videoId)}
+                                        disabled={!canOpenLesson(bookmark.videoId)}
+                                        title={
+                                            canOpenLesson(bookmark.videoId)
+                                                ? undefined
+                                                : "Opens once you finish the lessons before it"
+                                        }
                                         aria-current={activeVideoId === bookmark.videoId ? "true" : undefined}
                                         className={cn(
-                                            "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary/60",
+                                            "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
                                             activeVideoId === bookmark.videoId && "bg-primary/10 text-primary",
                                         )}
                                     >
-                                        <BookmarkCheck className="size-4 shrink-0" />
+                                        {canOpenLesson(bookmark.videoId) ? (
+                                            <BookmarkCheck className="size-4 shrink-0" />
+                                        ) : (
+                                            <Lock className="size-4 shrink-0" />
+                                        )}
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate">{bookmark.title}</span>
                                             <span className="block truncate text-xs text-muted-foreground">
@@ -1407,6 +1578,7 @@ function CurriculumSidebar({
                                         goToQuiz={goToQuiz}
                                         bookmarkedVideoIds={bookmarkedVideoIds}
                                         onToggleRowBookmark={onToggleRowBookmark}
+                                        canOpenLesson={canOpenLesson}
                                     />
                                 )}
                             </div>
@@ -1505,7 +1677,9 @@ function WeekRoute({
     goToQuiz,
     bookmarkedVideoIds,
     onToggleRowBookmark,
+    canOpenLesson,
 }: {
+    canOpenLesson: (videoId: string) => boolean;
     milestone: LearningMilestone;
     /** The course's word for a module ("Module", "Chapter", …). */
     moduleLabel: string;
@@ -1645,22 +1819,30 @@ function WeekRoute({
                             const { video, courseModule } = item;
                             const isActive = activeVideoId === video.id;
                             const isBookmarked = bookmarkedVideoIds.has(video.id);
+                            // Shut: its module is locked, or it comes after the
+                            // student's current lesson (lessons open one at a time).
+                            const notReached = !courseModule.isLocked && !canOpenLesson(video.id);
+                            const isShut = courseModule.isLocked || notReached;
                             return (
-                                <div className={cn("relative flex items-center", isActive && "bg-primary/6")}>
+                                <div
+                                    className={cn("relative flex items-center", isActive && "bg-primary/6")}
+                                    // On the row, not the disabled button — a disabled button shows no tooltip.
+                                    title={notReached ? "Opens once you finish the lessons before it" : undefined}
+                                >
                                     {isActive && <Marker />}
                                     <button
                                         type="button"
-                                        disabled={courseModule.isLocked}
+                                        disabled={isShut}
                                         onClick={() => goTo(video.id)}
                                         aria-current={isActive ? "true" : undefined}
                                         className={cn(
                                             rowClass,
-                                            "flex-1 disabled:cursor-not-allowed disabled:opacity-60",
+                                            "flex-1 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
                                             isActive && "hover:bg-transparent",
                                         )}
                                     >
                                         <Stop
-                                            state={courseModule.isLocked ? "locked" : isActive ? "active" : video.isCompleted ? "done" : "open"}
+                                            state={isShut ? "locked" : isActive ? "active" : video.isCompleted ? "done" : "open"}
                                             done={video.isCompleted}
                                             icon={video.type === "TEXT" ? FileText : video.type === "RESOURCE" ? LinkIcon : PlayCircle}
                                         />
