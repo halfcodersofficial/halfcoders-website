@@ -152,6 +152,10 @@ interface LessonVideoPlayerProps {
     /** Under the title on the cover, e.g. "Lesson 3 of 12 · 8:40". */
     subtitle?: string;
     next?: { title: string; onSelect: () => void } | null;
+    /** The viewer's email, drifting over the video so a screen recording names who made it. */
+    watermark?: string;
+    /** Called once with the video's running time, as soon as the player knows it. */
+    onDuration?: (seconds: number) => void;
 }
 
 /**
@@ -164,7 +168,14 @@ interface LessonVideoPlayerProps {
  * middle third shows: YouTube draws the video there, while its title bar,
  * logo and pause/end suggestions sit at the frame's edges, out of view.
  */
-export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, next }: LessonVideoPlayerProps) {
+export default function LessonVideoPlayer({
+    youtubeVideoId,
+    title,
+    subtitle,
+    next,
+    watermark,
+    onDuration,
+}: LessonVideoPlayerProps) {
     const rootRef = useRef<HTMLDivElement>(null);
     const hostRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<YTPlayer | null>(null);
@@ -172,6 +183,19 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
     const pendingPlayRef = useRef(false);
     const lastPointerRef = useRef("mouse");
     const hideTimerRef = useRef<number | undefined>(undefined);
+    const onDurationRef = useRef(onDuration);
+    const durationReportedRef = useRef(false);
+
+    useEffect(() => {
+        onDurationRef.current = onDuration;
+    }, [onDuration]);
+
+    /** Passes the running time up once, the first time it's known. */
+    const reportDuration = useCallback((seconds: number) => {
+        if (durationReportedRef.current || !(seconds > 0)) return;
+        durationReportedRef.current = true;
+        onDurationRef.current?.(seconds);
+    }, []);
 
     const [ready, setReady] = useState(false);
     const [failed, setFailed] = useState(false);
@@ -264,6 +288,7 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                             setVolume(prefs.volume ?? player.getVolume());
                             setMuted(player.isMuted());
                             setDuration(player.getDuration());
+                            reportDuration(player.getDuration());
                             const available = player.getAvailablePlaybackRates();
                             if (available?.length) setRates(available);
                             setReady(true);
@@ -283,6 +308,7 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                                 }
                                 setStatus("playing");
                                 setDuration(player.getDuration());
+                                reportDuration(player.getDuration());
                             } else if (data === YT_STATE.BUFFERING) {
                                 setStatus("buffering");
                             } else if (data === YT_STATE.PAUSED) {
@@ -310,7 +336,7 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
             playerRef.current = null;
             host.replaceChildren();
         };
-    }, [youtubeVideoId, beginPlayback]);
+    }, [youtubeVideoId, beginPlayback, reportDuration]);
 
     // The time and the buffered stretch of the seek bar, while playing.
     useEffect(() => {
@@ -519,7 +545,9 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
             onPointerLeave={() => active && !menuOpen && setChromeAwake(false)}
             onContextMenu={(event) => event.preventDefault()}
             className={cn(
-                "relative mx-auto w-full max-w-6xl select-none overflow-hidden bg-black text-white outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                // `isolate`: the player's layers stack among themselves, never
+                // over the page's sticky header as it scrolls past.
+                "relative isolate mx-auto w-full max-w-6xl select-none overflow-hidden bg-black text-white outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 isFullscreen
                     ? "flex items-center justify-center"
                     : "aspect-video rounded-2xl shadow-panel ring-1 ring-border",
@@ -540,6 +568,10 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                     aria-hidden
                     className="pointer-events-none absolute inset-x-0 -top-full h-[300%] [&>iframe]:pointer-events-none [&>iframe]:size-full"
                 />
+
+                {/* Inside the stage, so it only ever moves over the picture —
+                    and above every other layer, cover included. */}
+                {watermark && <MovingWatermark text={watermark} />}
             </div>
 
             {/* Clicks land here, never on YouTube: tap to play or pause,
@@ -583,8 +615,8 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
 
             {/* Fully opaque: it also hides YouTube's "more videos" end screen. */}
             {status === "ended" && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center">
-                    <p className="text-base font-semibold sm:text-lg">You finished this video</p>
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-black px-4 text-center sm:gap-4 sm:px-6">
+                    <p className="text-sm font-semibold sm:text-lg">You finished this video</p>
                     <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
                             type="button"
@@ -695,8 +727,13 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
 
                     <span className="flex-1" />
 
+                    {/* Phones have the page's own "Next" right under the video. */}
                     {next && (
-                        <ControlButton label={`Next lesson: ${next.title}`} onClick={next.onSelect}>
+                        <ControlButton
+                            label={`Next lesson: ${next.title}`}
+                            onClick={next.onSelect}
+                            className="hidden sm:grid"
+                        >
                             <SkipForward className="fill-current" />
                         </ControlButton>
                     )}
@@ -729,7 +766,7 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                 <div
                     role="menu"
                     aria-label="Video settings"
-                    className="absolute bottom-17 right-2 z-30 w-64 max-w-[calc(100%-1rem)] rounded-xl border border-white/10 bg-black/90 p-3 text-sm shadow-2xl backdrop-blur-md sm:right-4"
+                    className="absolute bottom-16 right-2 z-30 max-h-[calc(100%-4.5rem)] w-64 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border border-white/10 bg-black/90 p-3 text-sm shadow-2xl backdrop-blur-md sm:bottom-17 sm:right-4"
                 >
                     <p className="mb-2 text-xs font-semibold text-white/60">Playback speed</p>
                     <div className="grid grid-cols-4 gap-1">
@@ -760,19 +797,18 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                 </div>
             )}
 
+            {/* Before the first play: the video's own picture with a play
+                button on it. It's ours, not YouTube's waiting screen, so it
+                carries no YouTube title or link. */}
             {!started && !failed && (
                 <button
                     type="button"
                     onClick={start}
                     aria-label={`Play ${title}`}
-                    className="group absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-6 text-center text-white sm:gap-5"
+                    className="group absolute inset-0 z-40 overflow-hidden bg-black text-left text-white"
                 >
-                    {/* A soft brand glow behind the button — the cover stays opaque. */}
-                    <span
-                        aria-hidden
-                        className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
-                    />
-                    <span className="relative grid size-14 shrink-0 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105 sm:size-20">
+                    <VideoThumbnail videoId={youtubeVideoId} />
+                    <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/15 transition-transform duration-300 group-hover:scale-105 sm:size-20">
                         {starting ? (
                             <LoaderCircle className="size-6 animate-spin sm:size-8" aria-hidden />
                         ) : (
@@ -781,9 +817,10 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
                             </svg>
                         )}
                     </span>
-                    <span className="relative max-w-xl space-y-1.5">
-                        <span className="line-clamp-2 text-base font-semibold leading-snug sm:text-xl">{title}</span>
-                        {subtitle && <span className="block text-sm tabular-nums text-white/60">{subtitle}</span>}
+                    {/* A light fade at the bottom only, so the title reads on any picture. */}
+                    <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent px-4 pb-3 pt-12 sm:px-6 sm:pb-5">
+                        <span className="line-clamp-1 block text-sm font-semibold sm:text-lg">{title}</span>
+                        {subtitle && <span className="block text-xs tabular-nums text-white/75 sm:text-sm">{subtitle}</span>}
                     </span>
                 </button>
             )}
@@ -804,6 +841,69 @@ export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, nex
     );
 }
 
+// Biggest first. Not every upload has the large sizes: YouTube then answers
+// with a 120px-wide grey placeholder (or an error), and the next one is tried.
+const THUMBNAIL_SIZES = ["maxresdefault", "sddefault", "hqdefault"] as const;
+
+/** The video's picture from YouTube's image server, filling the frame. */
+function VideoThumbnail({ videoId }: { videoId: string }) {
+    const [index, setIndex] = useState(0);
+    const hasSmaller = index < THUMBNAIL_SIZES.length - 1;
+
+    return (
+        // A plain <img>: the fallback above needs the real image's width,
+        // which the optimised next/image would hide behind its own resize.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={`https://i.ytimg.com/vi/${videoId}/${THUMBNAIL_SIZES[index]}.jpg`}
+            alt=""
+            draggable={false}
+            onLoad={(event) => {
+                if (event.currentTarget.naturalWidth <= 120 && hasSmaller) setIndex(index + 1);
+            }}
+            onError={() => hasSmaller && setIndex(index + 1)}
+            className="absolute inset-0 size-full object-cover"
+        />
+    );
+}
+
+/**
+ * The viewer's email over the video, jumping to a new spot every 2 seconds —
+ * always, playing or not — so a screen recording shows whose account made
+ * it. Positioned within the picture only, never the letterbox around it.
+ */
+function MovingWatermark({ text }: { text: string }) {
+    // Fixed first spot, so the server and browser render the same thing.
+    const [spot, setSpot] = useState({ x: 8, y: 10, key: 0 });
+
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            setSpot((previous) => ({
+                x: Math.round(Math.random() * 100),
+                y: 6 + Math.round(Math.random() * 82),
+                key: previous.key + 1,
+            }));
+        }, 2000);
+        return () => window.clearInterval(id);
+    }, []);
+
+    return (
+        <span
+            aria-hidden
+            className="pointer-events-none absolute z-50 select-none"
+            // translate by the same percentage keeps the text inside the frame at either edge.
+            style={{ left: `${spot.x}%`, top: `${spot.y}%`, transform: `translate(-${spot.x}%, -${spot.y}%)` }}
+        >
+            <span
+                key={spot.key}
+                className="block whitespace-nowrap text-xs font-semibold text-[#ff4d4f]/85 duration-500 animate-in fade-in [text-shadow:0_1px_2px_rgb(0_0_0/0.5)] sm:text-sm"
+            >
+                {text}
+            </span>
+        </span>
+    );
+}
+
 function ControlButton({
     label,
     className,
@@ -816,7 +916,8 @@ function ControlButton({
             aria-label={label}
             title={label}
             className={cn(
-                "relative grid size-9 shrink-0 place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&>svg]:size-5",
+                // A little smaller on phones, so the whole row fits a 360px screen.
+                "relative grid size-8 shrink-0 place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9 [&>svg]:size-4.5 sm:[&>svg]:size-5",
                 className,
             )}
             {...props}

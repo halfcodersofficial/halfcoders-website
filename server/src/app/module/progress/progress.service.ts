@@ -1,9 +1,14 @@
 import status from "http-status";
-import { EnrollmentStatus, RewardCondition, XpSource } from "../../../generated/prisma/enums";
+import { EnrollmentStatus, LessonType, RewardCondition, XpSource } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
-import { assertEarlierLessonsComplete, assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
+import {
+    assertEarlierLessonsComplete,
+    assertModuleUnlocked,
+    requireCourseAccess,
+    requireEnrollment,
+} from "../../utils/courseAccess";
 import { grantCompletionReward, rewardMainCourse } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { awardXp } from "../leaderboard/leaderboard.service";
@@ -401,6 +406,44 @@ const updateWatchPosition = async (user: IRequestUser, videoId: string, watchedS
     });
 };
 
+/**
+ * Fills in a lesson's running time from the player, the first time anyone's
+ * player learns it. Mentors often leave the duration blank, and without a
+ * YouTube API key the browser is the only place that can measure it.
+ *
+ * Only a missing (0) duration is ever filled — a value a mentor typed in, or
+ * one already detected, is never overwritten from here, so one viewer can't
+ * change what everyone else sees.
+ */
+const reportVideoDuration = async (user: IRequestUser, videoId: string, seconds: number) => {
+    const video = await prisma.video.findFirst({
+        where: { id: videoId, isPublished: true, type: LessonType.VIDEO },
+        select: { id: true, courseId: true, duration: true },
+    });
+    if (!video) throw new AppError(status.NOT_FOUND, "Video not found.");
+
+    // Enrolled students, plus staff previewing the course.
+    await requireCourseAccess(user, video.courseId);
+
+    if (video.duration > 0) return { duration: video.duration, updated: false };
+
+    const duration = Math.round(seconds);
+    // `duration: 0` in the filter makes two players racing to report the same
+    // lesson harmless: the first write wins, the second matches nothing.
+    const { count } = await prisma.video.updateMany({
+        where: { id: videoId, duration: 0 },
+        data: { duration },
+    });
+
+    if (count === 0) {
+        const current = await prisma.video.findUnique({ where: { id: videoId }, select: { duration: true } });
+        return { duration: current?.duration ?? duration, updated: false };
+    }
+
+    logger.update("Detected lesson duration", { videoId, duration });
+    return { duration, updated: true };
+};
+
 /** Undo, for a student who wants to redo a module. */
 const markVideoIncomplete = async (user: IRequestUser, videoId: string) => {
     const video = await prisma.video.findFirst({
@@ -515,6 +558,7 @@ export const ProgressService = {
     markVideoComplete,
     markVideoIncomplete,
     updateWatchPosition,
+    reportVideoDuration,
     recalculateProgress,
     recalculateCourseEnrollments,
     scheduleCourseRecalculation,

@@ -360,6 +360,16 @@ export const progressService = {
         httpClient
             .patch(`/progress/videos/${videoId}/position`, { watchedSeconds }, { _silent: true })
             .then(() => undefined),
+
+    /** The player's measured running time, for a lesson whose stored one is missing. */
+    reportDuration: (videoId: string, seconds: number) =>
+        httpClient
+            .patch<ApiResponse<{ duration: number; updated: boolean }>>(
+                `/progress/videos/${videoId}/duration`,
+                { seconds },
+                { _silent: true },
+            )
+            .then(unwrap),
 };
 
 // ---------------------------------------------------------------------------
