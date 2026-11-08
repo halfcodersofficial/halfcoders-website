@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronDown, GraduationCap, LogOut, MonitorSmartphone, PanelLeft, User, X, Zap } from "lucide-react";
+import { BookOpen, ChevronDown, GraduationCap, Headphones, LogOut, MonitorSmartphone, PanelLeft, User, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -127,6 +127,7 @@ export default function Navbar() {
     const isActive = (href: string) => (href === "/dashboard" || href === "/" ? pathname === href : pathname.startsWith(href));
     const unreadCount = unread?.count ?? 0;
     const totalXp = dashboard?.summary.totalXp;
+    const supportLive = dashboard?.upcomingSupport.some((session) => session.isLive) ?? false;
     const signedIn = !isLoading && isAuthenticated && user;
     const dark = tone === "dark";
 
@@ -187,6 +188,30 @@ export default function Navbar() {
                                         <GraduationCap className="size-4" aria-hidden />
                                         My Learning
                                     </Link>
+                                )}
+
+                                {/* Support sessions: picks the course, then its support page. Dotted green while one is live. */}
+                                {isStudent && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSupportOpen(true)}
+                                        aria-label={supportLive ? "Support Session — a session is live now" : "Support Session"}
+                                        className={cn(
+                                            "relative hidden h-9 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors xl:inline-flex",
+                                            dark
+                                                ? "border-editor-line hover:border-editor-gutter hover:bg-editor-panel"
+                                                : "border-border hover:border-border-strong hover:bg-surface",
+                                        )}
+                                    >
+                                        <Headphones className="size-4" aria-hidden />
+                                        Support<span className="hidden 2xl:inline">&nbsp;Session</span>
+                                        {supportLive && (
+                                            <span aria-hidden className="absolute -right-1 -top-1 flex size-2.5">
+                                                <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60 motion-reduce:animate-none" />
+                                                <span className="relative size-2.5 rounded-full bg-success ring-2 ring-background" />
+                                            </span>
+                                        )}
+                                    </button>
                                 )}
 
                                 {/* Earned XP, always in view on a wide screen. */}
@@ -399,7 +424,7 @@ export default function Navbar() {
 
             {isStudent && (
                 <>
-                    {/* Opened from the avatar's menu on wide screens (the explorer has its own). */}
+                    {/* Opened from the bar's Support button and the avatar's menu on wide screens (the explorer has its own). */}
                     <SupportSessionModal dashboard={dashboard} variant="none" open={supportOpen} onOpenChange={setSupportOpen} />
                     <XpHistoryPanel open={xpOpen} onOpenChange={setXpOpen} totalXp={totalXp} />
                 </>
