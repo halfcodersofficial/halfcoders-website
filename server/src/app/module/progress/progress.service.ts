@@ -3,7 +3,7 @@ import { EnrollmentStatus, RewardCondition, XpSource } from "../../../generated/
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
-import { assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
+import { assertEarlierLessonsComplete, assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
 import { grantCompletionReward, rewardMainCourse } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
 import { awardXp } from "../leaderboard/leaderboard.service";
@@ -289,6 +289,7 @@ const markVideoComplete = async (user: IRequestUser, videoId: string) => {
 
     const enrollment = await requireEnrollment(user, video.courseId);
     await assertModuleUnlocked(enrollment.id, video.moduleId);
+    await assertEarlierLessonsComplete(enrollment.id, videoId);
     logger.update("Marking video complete", { videoId, studentId: user.userId });
 
     // Written first and on its own: `recalculateProgress` reads these rows back

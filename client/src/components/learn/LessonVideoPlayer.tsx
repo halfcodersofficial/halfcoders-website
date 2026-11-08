@@ -1,0 +1,942 @@
+"use client";
+
+import {
+    AlertTriangle,
+    ChevronRight,
+    LoaderCircle,
+    Maximize,
+    Minimize,
+    Pause,
+    Play,
+    RotateCcw,
+    RotateCw,
+    Settings,
+    SkipForward,
+    Volume1,
+    Volume2,
+    VolumeX,
+} from "lucide-react";
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type ButtonHTMLAttributes,
+    type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { cn } from "@/lib/utils";
+
+/* ---- The slice of YouTube's IFrame Player API this player uses ---------- */
+
+interface YTPlayer {
+    playVideo(): void;
+    pauseVideo(): void;
+    seekTo(seconds: number, allowSeekAhead: boolean): void;
+    mute(): void;
+    unMute(): void;
+    isMuted(): boolean;
+    setVolume(volume: number): void;
+    getVolume(): number;
+    getDuration(): number;
+    getCurrentTime(): number;
+    getVideoLoadedFraction(): number;
+    getPlayerState(): number;
+    setPlaybackRate(rate: number): void;
+    getPlaybackRate(): number;
+    getAvailablePlaybackRates(): number[];
+    destroy(): void;
+}
+
+interface YTEvent {
+    target: YTPlayer;
+    data: number;
+}
+
+interface YTNamespace {
+    Player: new (
+        element: HTMLElement,
+        options: {
+            host?: string;
+            videoId: string;
+            width?: string;
+            height?: string;
+            playerVars?: Record<string, string | number>;
+            events?: Partial<
+                Record<"onReady" | "onStateChange" | "onError" | "onPlaybackRateChange", (event: YTEvent) => void>
+            >;
+        },
+    ) => YTPlayer;
+}
+
+declare global {
+    interface Window {
+        YT?: YTNamespace;
+        onYouTubeIframeAPIReady?: () => void;
+    }
+}
+
+const YT_STATE = { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } as const;
+
+let apiPromise: Promise<YTNamespace> | null = null;
+
+/** Loads YouTube's player script once per page, however many players ask for it. */
+function loadYouTubeApi(): Promise<YTNamespace> {
+    if (window.YT?.Player) return Promise.resolve(window.YT);
+    if (apiPromise) return apiPromise;
+
+    apiPromise = new Promise<YTNamespace>((resolve, reject) => {
+        const previous = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+            previous?.();
+            if (window.YT) resolve(window.YT);
+        };
+        const script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        script.async = true;
+        script.onerror = () => {
+            apiPromise = null;
+            reject(new Error("Couldn't load the video player."));
+        };
+        document.head.appendChild(script);
+    });
+    return apiPromise;
+}
+
+/* ---- Small helpers ------------------------------------------------------ */
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const formatTime = (totalSeconds: number) => {
+    const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = String(safe % 60).padStart(2, "0");
+    return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+};
+
+const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
+
+// Volume and speed carry over from one lesson to the next — someone who
+// watches at 1.5× shouldn't have to pick it again on every video.
+const PREFS_KEY = "hc-lesson-player";
+type PlayerPrefs = { volume?: number; rate?: number };
+
+const readPrefs = (): PlayerPrefs => {
+    try {
+        return (JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as PlayerPrefs) ?? {};
+    } catch {
+        return {};
+    }
+};
+
+const writePrefs = (patch: PlayerPrefs) => {
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify({ ...readPrefs(), ...patch }));
+    } catch {
+        // Private mode or blocked storage — the setting just won't carry over.
+    }
+};
+
+type FullscreenDocument = Document & {
+    webkitFullscreenEnabled?: boolean;
+    webkitFullscreenElement?: Element | null;
+    webkitExitFullscreen?: () => void;
+};
+type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+
+type Status = "idle" | "playing" | "paused" | "buffering" | "ended";
+
+interface LessonVideoPlayerProps {
+    youtubeVideoId: string;
+    title: string;
+    /** Under the title on the cover, e.g. "Lesson 3 of 12 · 8:40". */
+    subtitle?: string;
+    next?: { title: string; onSelect: () => void } | null;
+}
+
+/**
+ * The lesson video, played through YouTube but never looking like it.
+ *
+ * YouTube's own controls are switched off and every control here is ours.
+ * The YouTube frame itself can't be clicked, tapped or tabbed into (`inert`),
+ * so its title, channel link and logo can't take a student off to YouTube.
+ * The frame is also three times as tall as the box it sits in, and only its
+ * middle third shows: YouTube draws the video there, while its title bar,
+ * logo and pause/end suggestions sit at the frame's edges, out of view.
+ */
+export default function LessonVideoPlayer({ youtubeVideoId, title, subtitle, next }: LessonVideoPlayerProps) {
+    const rootRef = useRef<HTMLDivElement>(null);
+    const hostRef = useRef<HTMLDivElement>(null);
+    const playerRef = useRef<YTPlayer | null>(null);
+    const startedRef = useRef(false);
+    const pendingPlayRef = useRef(false);
+    const lastPointerRef = useRef("mouse");
+    const hideTimerRef = useRef<number | undefined>(undefined);
+
+    const [ready, setReady] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const [status, setStatus] = useState<Status>("idle");
+    const [started, setStarted] = useState(false);
+    const [starting, setStarting] = useState(false);
+    const [current, setCurrent] = useState(0);
+    const [scrubTime, setScrubTime] = useState<number | null>(null);
+    const [duration, setDuration] = useState(0);
+    const [buffered, setBuffered] = useState(0);
+    const [volume, setVolume] = useState(100);
+    const [muted, setMuted] = useState(false);
+    const [soundBlocked, setSoundBlocked] = useState(false);
+    const [rate, setRate] = useState(1);
+    const [rates, setRates] = useState<number[]>([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [chromeAwake, setChromeAwake] = useState(true);
+    const [nativeFullscreen, setNativeFullscreen] = useState(false);
+    const [canNativeFullscreen, setCanNativeFullscreen] = useState(true);
+    const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+
+    const isFullscreen = nativeFullscreen || pseudoFullscreen;
+    const active = status === "playing" || status === "buffering";
+    const controlsShown = started && !failed && (!active || menuOpen || chromeAwake || scrubTime !== null);
+
+    /** Shows the controls, then hides them again after a moment of no movement. */
+    const poke = useCallback(() => {
+        setChromeAwake(true);
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = window.setTimeout(() => setChromeAwake(false), 2500);
+    }, []);
+
+    useEffect(() => () => window.clearTimeout(hideTimerRef.current), []);
+
+    /**
+     * Starts playback from our play button. Browsers may refuse to start a
+     * video with sound when the click happened outside the video frame
+     * (iPhones mostly) — then it starts muted, and a "turn sound on" button
+     * shows instead of nothing happening.
+     */
+    const beginPlayback = useCallback((player: YTPlayer) => {
+        pendingPlayRef.current = false;
+        player.playVideo();
+        window.setTimeout(() => {
+            if (startedRef.current || playerRef.current !== player) return;
+            const state = player.getPlayerState();
+            if (state === YT_STATE.UNSTARTED || state === YT_STATE.CUED) {
+                player.mute();
+                setMuted(true);
+                setSoundBlocked(true);
+                player.playVideo();
+            }
+        }, 1500);
+    }, []);
+
+    // One YouTube player per video. YouTube swaps the element it's given for
+    // its iframe, so that element is made here rather than by React — React
+    // would otherwise trip over a node it no longer recognises on unmount.
+    useEffect(() => {
+        const host = hostRef.current;
+        if (!host) return;
+        let cancelled = false;
+        const target = document.createElement("div");
+        host.appendChild(target);
+
+        loadYouTubeApi()
+            .then((YT) => {
+                if (cancelled) return;
+                playerRef.current = new YT.Player(target, {
+                    host: "https://www.youtube-nocookie.com",
+                    videoId: youtubeVideoId,
+                    width: "100%",
+                    height: "100%",
+                    playerVars: {
+                        controls: 0,
+                        disablekb: 1,
+                        fs: 0,
+                        iv_load_policy: 3,
+                        modestbranding: 1,
+                        playsinline: 1,
+                        rel: 0,
+                        enablejsapi: 1,
+                        origin: window.location.origin,
+                    },
+                    events: {
+                        onReady: ({ target: player }) => {
+                            if (cancelled) return;
+                            const prefs = readPrefs();
+                            if (typeof prefs.volume === "number") player.setVolume(prefs.volume);
+                            setVolume(prefs.volume ?? player.getVolume());
+                            setMuted(player.isMuted());
+                            setDuration(player.getDuration());
+                            const available = player.getAvailablePlaybackRates();
+                            if (available?.length) setRates(available);
+                            setReady(true);
+                            if (pendingPlayRef.current) beginPlayback(player);
+                        },
+                        onStateChange: ({ target: player, data }) => {
+                            if (cancelled) return;
+                            if (data === YT_STATE.PLAYING) {
+                                if (!startedRef.current) {
+                                    startedRef.current = true;
+                                    setStarted(true);
+                                    setStarting(false);
+                                    const savedRate = readPrefs().rate;
+                                    if (savedRate && savedRate !== player.getPlaybackRate()) {
+                                        player.setPlaybackRate(savedRate);
+                                    }
+                                }
+                                setStatus("playing");
+                                setDuration(player.getDuration());
+                            } else if (data === YT_STATE.BUFFERING) {
+                                setStatus("buffering");
+                            } else if (data === YT_STATE.PAUSED) {
+                                setStatus("paused");
+                                setCurrent(player.getCurrentTime());
+                            } else if (data === YT_STATE.ENDED) {
+                                setStatus("ended");
+                                setCurrent(player.getDuration());
+                            }
+                        },
+                        onPlaybackRateChange: ({ data }) => !cancelled && setRate(data),
+                        onError: () => !cancelled && setFailed(true),
+                    },
+                });
+            })
+            .catch(() => !cancelled && setFailed(true));
+
+        return () => {
+            cancelled = true;
+            try {
+                playerRef.current?.destroy();
+            } catch {
+                // Already gone with the page.
+            }
+            playerRef.current = null;
+            host.replaceChildren();
+        };
+    }, [youtubeVideoId, beginPlayback]);
+
+    // The time and the buffered stretch of the seek bar, while playing.
+    useEffect(() => {
+        if (!active) return;
+        const id = window.setInterval(() => {
+            const player = playerRef.current;
+            if (!player) return;
+            setCurrent(player.getCurrentTime());
+            setBuffered(player.getVideoLoadedFraction());
+        }, 250);
+        return () => window.clearInterval(id);
+    }, [active]);
+
+    useEffect(() => {
+        if (started) poke();
+    }, [started, poke]);
+
+    // Real full screen where the browser allows it on an element; iPhones
+    // don't, so there the player fills the window instead.
+    useEffect(() => {
+        const doc = document as FullscreenDocument;
+        setCanNativeFullscreen(Boolean(document.fullscreenEnabled || doc.webkitFullscreenEnabled));
+        const sync = () => {
+            const element = document.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+            setNativeFullscreen(element !== null && element === rootRef.current);
+        };
+        document.addEventListener("fullscreenchange", sync);
+        document.addEventListener("webkitfullscreenchange", sync);
+        return () => {
+            document.removeEventListener("fullscreenchange", sync);
+            document.removeEventListener("webkitfullscreenchange", sync);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!pseudoFullscreen) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = previous;
+        };
+    }, [pseudoFullscreen]);
+
+    /* ---- Actions --------------------------------------------------------- */
+
+    const readyPlayer = () => (ready ? playerRef.current : null);
+
+    const start = () => {
+        if (starting || started) return;
+        setStarting(true);
+        const player = playerRef.current;
+        if (player && ready) beginPlayback(player);
+        else pendingPlayRef.current = true;
+    };
+
+    const togglePlay = () => {
+        const player = readyPlayer();
+        if (!player) return;
+        if (status === "ended") {
+            player.seekTo(0, true);
+            player.playVideo();
+        } else if (active) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+        }
+    };
+
+    const seekTo = (seconds: number) => {
+        const player = readyPlayer();
+        if (!player) return;
+        const target = clamp(seconds, 0, duration || player.getDuration());
+        player.seekTo(target, true);
+        setCurrent(target);
+    };
+
+    const seekBy = (delta: number) => {
+        const player = readyPlayer();
+        if (player) seekTo(player.getCurrentTime() + delta);
+    };
+
+    const changeVolume = (next: number) => {
+        const player = readyPlayer();
+        if (!player) return;
+        const value = Math.round(clamp(next, 0, 100));
+        player.setVolume(value);
+        setVolume(value);
+        if (value === 0) {
+            player.mute();
+            setMuted(true);
+        } else {
+            if (player.isMuted()) player.unMute();
+            setMuted(false);
+            setSoundBlocked(false);
+            writePrefs({ volume: value });
+        }
+    };
+
+    const toggleMute = () => {
+        const player = readyPlayer();
+        if (!player) return;
+        if (muted || volume === 0) {
+            player.unMute();
+            if (volume === 0) {
+                player.setVolume(50);
+                setVolume(50);
+            }
+            setMuted(false);
+            setSoundBlocked(false);
+        } else {
+            player.mute();
+            setMuted(true);
+        }
+    };
+
+    const changeRate = (next: number) => {
+        const player = readyPlayer();
+        if (!player) return;
+        player.setPlaybackRate(next);
+        setRate(next);
+        writePrefs({ rate: next });
+        setMenuOpen(false);
+    };
+
+    const toggleFullscreen = () => {
+        const root = rootRef.current as FullscreenElement | null;
+        if (!root) return;
+        if (!canNativeFullscreen) {
+            setPseudoFullscreen((value) => !value);
+            return;
+        }
+        const doc = document as FullscreenDocument;
+        if (document.fullscreenElement ?? doc.webkitFullscreenElement) {
+            if (document.exitFullscreen) void document.exitFullscreen().catch(() => undefined);
+            else doc.webkitExitFullscreen?.();
+        } else if (root.requestFullscreen) {
+            void root.requestFullscreen().catch(() => setPseudoFullscreen(true));
+        } else {
+            root.webkitRequestFullscreen?.();
+        }
+    };
+
+    const exitPseudoFullscreen = () => setPseudoFullscreen(false);
+
+    const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
+        // A focused button or slider handles its own Space/Enter.
+        if ((event.key === " " || event.key === "Enter") && event.target !== event.currentTarget) return;
+
+        if (!started) {
+            if (event.key === " " || event.key === "Enter") {
+                event.preventDefault();
+                start();
+            }
+            return;
+        }
+
+        switch (event.key.toLowerCase()) {
+            case " ":
+            case "k":
+                togglePlay();
+                break;
+            case "arrowleft":
+            case "j":
+                seekBy(-10);
+                break;
+            case "arrowright":
+            case "l":
+                seekBy(10);
+                break;
+            case "arrowup":
+                changeVolume((muted ? 0 : volume) + 10);
+                break;
+            case "arrowdown":
+                changeVolume((muted ? 0 : volume) - 10);
+                break;
+            case "m":
+                toggleMute();
+                break;
+            case "f":
+                toggleFullscreen();
+                break;
+            case "escape":
+                if (menuOpen) setMenuOpen(false);
+                else if (pseudoFullscreen) exitPseudoFullscreen();
+                else return;
+                break;
+            default:
+                return;
+        }
+        event.preventDefault();
+        poke();
+    };
+
+    const shownTime = scrubTime ?? current;
+    const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
+
+    return (
+        <div
+            ref={rootRef}
+            role="region"
+            aria-label={`Video player: ${title}`}
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            onPointerMove={(event) => event.pointerType === "mouse" && poke()}
+            onPointerLeave={() => active && !menuOpen && setChromeAwake(false)}
+            onContextMenu={(event) => event.preventDefault()}
+            className={cn(
+                "relative mx-auto w-full max-w-6xl select-none overflow-hidden bg-black text-white outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                isFullscreen
+                    ? "flex items-center justify-center"
+                    : "aspect-video rounded-2xl shadow-panel ring-1 ring-border",
+                pseudoFullscreen && "fixed inset-0 z-100 h-dvh max-w-none rounded-none",
+                isFullscreen && !controlsShown && "cursor-none",
+            )}
+        >
+            {/* The stage: always 16:9, letterboxed when full screen isn't. */}
+            <div
+                className={cn(
+                    "relative aspect-video overflow-hidden",
+                    isFullscreen ? "w-[min(100%,calc(100dvh*16/9))]" : "w-full",
+                )}
+            >
+                <div
+                    ref={hostRef}
+                    inert
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 -top-full h-[300%] [&>iframe]:pointer-events-none [&>iframe]:size-full"
+                />
+            </div>
+
+            {/* Clicks land here, never on YouTube: tap to play or pause,
+                double-click for full screen. */}
+            <div
+                aria-hidden
+                className="absolute inset-0"
+                onPointerDown={(event) => {
+                    lastPointerRef.current = event.pointerType;
+                }}
+                onClick={() => {
+                    if (!started) return;
+                    if (menuOpen) {
+                        setMenuOpen(false);
+                        return;
+                    }
+                    // On a phone, the first tap brings the controls back.
+                    if (lastPointerRef.current === "touch" && !controlsShown) {
+                        poke();
+                        return;
+                    }
+                    togglePlay();
+                    poke();
+                }}
+                onDoubleClick={() => started && toggleFullscreen()}
+            />
+
+            {started && status === "buffering" && (
+                <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+                    <LoaderCircle className="size-10 animate-spin text-white/80" aria-hidden />
+                </div>
+            )}
+
+            {started && status === "paused" && scrubTime === null && (
+                <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+                    <span className="grid size-14 place-items-center rounded-full bg-black/55 ring-1 ring-white/15 backdrop-blur-sm sm:size-16">
+                        <Play className="ml-0.5 size-6 fill-white sm:size-7" aria-hidden />
+                    </span>
+                </div>
+            )}
+
+            {/* Fully opaque: it also hides YouTube's "more videos" end screen. */}
+            {status === "ended" && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center">
+                    <p className="text-base font-semibold sm:text-lg">You finished this video</p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                            type="button"
+                            onClick={togglePlay}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/25 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                            <RotateCcw className="size-4" aria-hidden /> Watch again
+                        </button>
+                        {next && (
+                            <button
+                                type="button"
+                                onClick={next.onSelect}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                            >
+                                Next lesson <ChevronRight className="size-4" aria-hidden />
+                            </button>
+                        )}
+                    </div>
+                    {next && <p className="line-clamp-1 max-w-md text-sm text-white/60">Up next: {next.title}</p>}
+                </div>
+            )}
+
+            {isFullscreen && (
+                <div
+                    className={cn(
+                        "pointer-events-none absolute inset-x-0 top-0 z-20 bg-linear-to-b from-black/80 to-transparent px-4 pb-10 pt-3 transition-opacity duration-200 sm:px-6 sm:pt-4",
+                        controlsShown ? "opacity-100" : "opacity-0",
+                    )}
+                >
+                    <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
+                </div>
+            )}
+
+            {started && soundBlocked && (
+                <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full bg-black/75 px-3 py-1.5 text-xs font-medium ring-1 ring-white/20 transition-colors hover:bg-black/90 sm:text-sm"
+                >
+                    <VolumeX className="size-4" aria-hidden /> Sound is off — tap to turn it on
+                </button>
+            )}
+
+            {/* Controls */}
+            <div
+                onFocusCapture={poke}
+                className={cn(
+                    "absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-black/85 via-black/45 to-transparent px-2 pb-1.5 pt-10 transition-opacity duration-200 sm:px-4 sm:pb-2",
+                    controlsShown ? "opacity-100" : "pointer-events-none opacity-0",
+                )}
+            >
+                <Slider
+                    label="Seek"
+                    value={shownTime}
+                    max={duration}
+                    step={5}
+                    buffered={buffered}
+                    valueText={`${formatTime(shownTime)} of ${formatTime(duration)}`}
+                    hoverLabel={formatTime}
+                    onScrub={setScrubTime}
+                    onCommit={(seconds) => {
+                        setScrubTime(null);
+                        seekTo(seconds);
+                    }}
+                    className="mx-1"
+                />
+
+                <div className="mt-0.5 flex items-center gap-0.5 sm:gap-1.5">
+                    <ControlButton label={active ? "Pause (K)" : "Play (K)"} onClick={togglePlay}>
+                        {active ? <Pause className="fill-current" /> : <Play className="fill-current" />}
+                    </ControlButton>
+
+                    <ControlButton label="Back 10 seconds (←)" onClick={() => seekBy(-10)}>
+                        <RotateCcw />
+                        <span aria-hidden className="absolute inset-0 grid place-items-center pt-px text-[0.5rem] font-bold">
+                            10
+                        </span>
+                    </ControlButton>
+                    <ControlButton label="Forward 10 seconds (→)" onClick={() => seekBy(10)}>
+                        <RotateCw />
+                        <span aria-hidden className="absolute inset-0 grid place-items-center pt-px text-[0.5rem] font-bold">
+                            10
+                        </span>
+                    </ControlButton>
+
+                    <div className="group/volume flex items-center">
+                        <ControlButton label={muted || volume === 0 ? "Unmute (M)" : "Mute (M)"} onClick={toggleMute}>
+                            <VolumeIcon />
+                        </ControlButton>
+                        <div className="hidden w-0 overflow-hidden transition-[width] duration-200 group-hover/volume:w-22 group-focus-within/volume:w-22 sm:block">
+                            <Slider
+                                label="Volume"
+                                value={muted ? 0 : volume}
+                                max={100}
+                                step={5}
+                                valueText={`${muted ? 0 : volume}%`}
+                                onScrub={changeVolume}
+                                onCommit={changeVolume}
+                                className="mx-2 w-18"
+                            />
+                        </div>
+                    </div>
+
+                    <span className="ml-1 whitespace-nowrap text-xs tabular-nums sm:text-sm">
+                        {formatTime(shownTime)}
+                        <span className="text-white/55"> / {formatTime(duration)}</span>
+                    </span>
+
+                    <span className="flex-1" />
+
+                    {next && (
+                        <ControlButton label={`Next lesson: ${next.title}`} onClick={next.onSelect}>
+                            <SkipForward className="fill-current" />
+                        </ControlButton>
+                    )}
+
+                    <ControlButton
+                        label="Settings"
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                        onClick={() => setMenuOpen((open) => !open)}
+                        className={cn(menuOpen && "bg-white/15")}
+                    >
+                        <Settings className={cn("transition-transform duration-200", menuOpen && "rotate-45")} />
+                        {rate !== 1 && (
+                            <span className="absolute -right-0.5 -top-0.5 rounded-sm bg-primary px-1 text-[0.5625rem] font-bold leading-tight text-primary-foreground">
+                                {rate}×
+                            </span>
+                        )}
+                    </ControlButton>
+
+                    <ControlButton
+                        label={isFullscreen ? "Exit full screen (F)" : "Full screen (F)"}
+                        onClick={toggleFullscreen}
+                    >
+                        {isFullscreen ? <Minimize /> : <Maximize />}
+                    </ControlButton>
+                </div>
+            </div>
+
+            {menuOpen && controlsShown && (
+                <div
+                    role="menu"
+                    aria-label="Video settings"
+                    className="absolute bottom-17 right-2 z-30 w-64 max-w-[calc(100%-1rem)] rounded-xl border border-white/10 bg-black/90 p-3 text-sm shadow-2xl backdrop-blur-md sm:right-4"
+                >
+                    <p className="mb-2 text-xs font-semibold text-white/60">Playback speed</p>
+                    <div className="grid grid-cols-4 gap-1">
+                        {rates.map((option) => (
+                            <button
+                                key={option}
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={option === rate}
+                                onClick={() => changeRate(option)}
+                                className={cn(
+                                    "relative rounded-lg px-1 py-1.5 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                                    option === rate
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-white/5 text-white/85 hover:bg-white/15",
+                                )}
+                            >
+                                {rateLabel(option)}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="mt-3 hidden border-t border-white/10 pt-2.5 text-xs leading-relaxed text-white/55 sm:block">
+                        <p className="mb-1 font-semibold text-white/60">Keyboard shortcuts</p>
+                        <p>Space — play / pause · ← → — 10 seconds</p>
+                        <p>↑ ↓ — volume · M — mute · F — full screen</p>
+                    </div>
+                </div>
+            )}
+
+            {!started && !failed && (
+                <button
+                    type="button"
+                    onClick={start}
+                    aria-label={`Play ${title}`}
+                    className="group absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-6 text-center text-white sm:gap-5"
+                >
+                    {/* A soft brand glow behind the button — the cover stays opaque. */}
+                    <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
+                    />
+                    <span className="relative grid size-14 shrink-0 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105 sm:size-20">
+                        {starting ? (
+                            <LoaderCircle className="size-6 animate-spin sm:size-8" aria-hidden />
+                        ) : (
+                            <svg viewBox="0 0 24 24" className="ml-1 size-6 fill-white sm:size-8" aria-hidden>
+                                <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+                            </svg>
+                        )}
+                    </span>
+                    <span className="relative max-w-xl space-y-1.5">
+                        <span className="line-clamp-2 text-base font-semibold leading-snug sm:text-xl">{title}</span>
+                        {subtitle && <span className="block text-sm tabular-nums text-white/60">{subtitle}</span>}
+                    </span>
+                </button>
+            )}
+
+            {failed && (
+                <div className="absolute inset-0 z-40 grid place-items-center bg-black px-6 text-center">
+                    <div className="max-w-sm space-y-2">
+                        <AlertTriangle className="mx-auto size-8 text-warning" aria-hidden />
+                        <p className="font-semibold">This video can&apos;t play right now</p>
+                        <p className="text-sm text-white/60">
+                            Check your internet connection and refresh the page. If it keeps happening, let us know
+                            from Support.
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ControlButton({
+    label,
+    className,
+    children,
+    ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+    return (
+        <button
+            type="button"
+            aria-label={label}
+            title={label}
+            className={cn(
+                "relative grid size-9 shrink-0 place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&>svg]:size-5",
+                className,
+            )}
+            {...props}
+        >
+            {children}
+        </button>
+    );
+}
+
+interface SliderProps {
+    label: string;
+    value: number;
+    max: number;
+    step: number;
+    valueText: string;
+    /** The stretch already downloaded, 0–1 — the seek bar's lighter fill. */
+    buffered?: number;
+    /** A tooltip over the pointer, e.g. the time you'd jump to. */
+    hoverLabel?: (value: number) => string;
+    /** While dragging. */
+    onScrub: (value: number) => void;
+    /** On release, or a key press. */
+    onCommit: (value: number) => void;
+    className?: string;
+}
+
+/** A drag-or-click bar (seek, volume) that also works with the arrow keys. */
+function Slider({
+    label,
+    value,
+    max,
+    step,
+    valueText,
+    buffered,
+    hoverLabel,
+    onScrub,
+    onCommit,
+    className,
+}: SliderProps) {
+    const trackRef = useRef<HTMLDivElement>(null);
+    const [dragging, setDragging] = useState(false);
+    const [hover, setHover] = useState<number | null>(null);
+
+    const fractionAt = (clientX: number) => {
+        const rect = trackRef.current?.getBoundingClientRect();
+        return rect && rect.width > 0 ? clamp((clientX - rect.left) / rect.width, 0, 1) : 0;
+    };
+    const percent = max > 0 ? clamp(value / max, 0, 1) * 100 : 0;
+
+    return (
+        <div
+            ref={trackRef}
+            role="slider"
+            tabIndex={0}
+            aria-label={label}
+            aria-valuemin={0}
+            aria-valuemax={Math.round(max)}
+            aria-valuenow={Math.round(value)}
+            aria-valuetext={valueText}
+            onPointerDown={(event) => {
+                if (event.button !== 0 || max <= 0) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setDragging(true);
+                onScrub(fractionAt(event.clientX) * max);
+            }}
+            onPointerMove={(event) => {
+                const fraction = fractionAt(event.clientX);
+                if (event.pointerType === "mouse") setHover(fraction);
+                if (dragging) onScrub(fraction * max);
+            }}
+            onPointerUp={(event) => {
+                if (!dragging) return;
+                setDragging(false);
+                onCommit(fractionAt(event.clientX) * max);
+            }}
+            onPointerCancel={() => {
+                if (!dragging) return;
+                setDragging(false);
+                onCommit(value);
+            }}
+            onPointerLeave={() => setHover(null)}
+            onKeyDown={(event) => {
+                let next: number | null = null;
+                if (event.key === "ArrowRight" || event.key === "ArrowUp") next = value + step;
+                else if (event.key === "ArrowLeft" || event.key === "ArrowDown") next = value - step;
+                else if (event.key === "Home") next = 0;
+                else if (event.key === "End") next = max;
+                if (next === null) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onCommit(clamp(next, 0, max));
+            }}
+            className={cn(
+                "group/slider relative flex h-4 cursor-pointer touch-none items-center outline-none",
+                className,
+            )}
+        >
+            <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-150 group-hover/slider:h-1.5 group-focus-visible/slider:h-1.5">
+                {buffered !== undefined && (
+                    <div className="absolute inset-y-0 left-0 bg-white/35" style={{ width: `${clamp(buffered, 0, 1) * 100}%` }} />
+                )}
+                <div className="absolute inset-y-0 left-0 bg-primary" style={{ width: `${percent}%` }} />
+            </div>
+            <span
+                aria-hidden
+                className={cn(
+                    "absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow transition-transform duration-150 group-hover/slider:scale-100 group-focus-visible/slider:scale-100 group-focus-visible/slider:ring-2 group-focus-visible/slider:ring-white",
+                    dragging ? "scale-100" : "scale-0",
+                )}
+                style={{ left: `${percent}%` }}
+            />
+            {hoverLabel && hover !== null && max > 0 && (
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute bottom-full mb-2 -translate-x-1/2 rounded-md bg-black/90 px-1.5 py-0.5 text-xs tabular-nums text-white ring-1 ring-white/10"
+                    style={{ left: `clamp(1.5rem, ${hover * 100}%, calc(100% - 1.5rem))` }}
+                >
+                    {hoverLabel(hover * max)}
+                </span>
+            )}
+        </div>
+    );
+}

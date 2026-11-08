@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
 import LessonQuestions from "@/components/learn/LessonQuestions";
+import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import RateCourse from "@/components/learn/RateCourse";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import QuizPane from "@/components/shared/QuizPane";
@@ -141,16 +142,13 @@ export default function LearnPage() {
     const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
     const [openMilestones, setOpenMilestones] = useState<Set<string>>(new Set());
     const [initialisedFromQuery, setInitialisedFromQuery] = useState(false);
-    // Gates the very first play — the embed sits under an opaque overlay
-    // until this flips, so the paused thumbnail's own clickable title and
-    // "Watch on YouTube" link (YouTube's chrome, not ours) can't be reached.
-    const [videoStarted, setVideoStarted] = useState(false);
 
     const [mobileCurriculumOpen, setMobileCurriculumOpen] = useState(false);
+    // Notes and the copyright notice share one panel under the lesson.
+    const [lessonPanel, setLessonPanel] = useState<"notes" | "copyright">("notes");
     const [notesTab, setNotesTab] = useState<"write" | "preview">("write");
     const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
     const [rewardOpen, setRewardOpen] = useState(false);
-    const [copyrightOpen, setCopyrightOpen] = useState(false);
     const [noteDraft, setNoteDraft] = useState("");
     const [sidebarSearch, setSidebarSearch] = useState("");
     const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
@@ -250,6 +248,13 @@ export default function LearnPage() {
         activeIndex >= 0 && activeIndex < playable.length - 1 ? playable[activeIndex + 1] : null;
     const completedCount = allVideos.filter((video) => video.isCompleted).length;
 
+    // Lessons are completed in course order — every earlier one first. This
+    // is the earliest unfinished lesson before the open one, if any (the
+    // server enforces the same rule).
+    const activeCourseIndex = allVideos.findIndex((video) => video.id === activeVideoId);
+    const blockingLesson =
+        activeCourseIndex > 0 ? allVideos.slice(0, activeCourseIndex).find((video) => !video.isCompleted) ?? null : null;
+
     const goTo = (videoId: string) => {
         setActiveVideoId(videoId);
         setActiveAssignmentId(null);
@@ -313,12 +318,6 @@ export default function LearnPage() {
         queryFn: () => lessonService.state(activeVideoId as string),
         enabled: Boolean(activeVideoId) && !data?.isPreview,
     });
-
-    // Every lesson change starts back at the play-gate overlay, whichever of
-    // the several places that change a lesson triggered it.
-    useEffect(() => {
-        setVideoStarted(false);
-    }, [activeVideoId]);
 
     useEffect(() => {
         setNoteDraft(lessonState?.note ?? "");
@@ -473,6 +472,11 @@ export default function LearnPage() {
 
     const reaction = lessonState?.reaction ?? null;
 
+    const openNotes = () => {
+        setLessonPanel("notes");
+        document.getElementById("lesson-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
     // A reaction is a one-shot vote, not a toggle — once given it can't be
     // changed to the other option or cleared, so a repeat click just
     // explains why instead of silently doing nothing.
@@ -500,7 +504,6 @@ export default function LearnPage() {
         toggleMilestone,
         allMilestonesOpen,
         toggleAllMilestones,
-        completedCount,
         totalCount: allVideos.length,
         search: sidebarSearch,
         onSearchChange: setSidebarSearch,
@@ -539,16 +542,7 @@ export default function LearnPage() {
                             labelled row under the video, just always in reach. */}
                         {!data.isPreview && !activeAssignmentId && activeVideo && !activeVideo.isLocked && (
                             <>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label="Jump to notes"
-                                    onClick={() =>
-                                        document
-                                            .getElementById("lesson-notes")
-                                            ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                                    }
-                                >
+                                <Button variant="ghost" size="icon" aria-label="Jump to notes" onClick={openNotes}>
                                     <NotebookPen className="size-4" />
                                 </Button>
                                 <Button
@@ -624,51 +618,16 @@ export default function LearnPage() {
                             </div>
                         </div>
                     ) : activeVideo?.youtubeVideoId ? (
-                        <div className="relative mx-auto aspect-video w-full max-w-6xl overflow-hidden rounded-2xl bg-black shadow-panel ring-1 ring-border">
-                            <iframe
-                                key={activeVideo.id}
-                                src={`https://www.youtube-nocookie.com/embed/${activeVideo.youtubeVideoId}?rel=0&modestbranding=1&disablekb=1${videoStarted ? "&autoplay=1" : ""}`}
-                                title={activeVideo.title}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                className="size-full"
-                            />
-                            {/* Fully opaque, not just tinted — the paused thumbnail's
-                                own clickable title and "Watch on YouTube" link (both
-                                YouTube's cross-origin chrome, so they can't be styled
-                                or removed) sit underneath and must be completely
-                                covered, not merely darkened, until the student
-                                chooses to play. Right-click is blocked here too; once
-                                playing, clicks reach the iframe's native controls
-                                directly and this can no longer intercept them. */}
-                            {!videoStarted && (
-                                <button
-                                    type="button"
-                                    onClick={() => setVideoStarted(true)}
-                                    onContextMenu={(e) => e.preventDefault()}
-                                    aria-label={`Play ${activeVideo.title}`}
-                                    className="group absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-6 text-center text-white sm:gap-5"
-                                >
-                                    {/* A soft brand glow behind the button — the cover stays opaque. */}
-                                    <span
-                                        aria-hidden
-                                        className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
-                                    />
-                                    <span className="relative grid size-14 shrink-0 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105 sm:size-20">
-                                        <svg viewBox="0 0 24 24" className="ml-1 size-6 fill-white sm:size-8" aria-hidden>
-                                            <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-                                        </svg>
-                                    </span>
-                                    <span className="relative max-w-xl space-y-1.5">
-                                        <span className="line-clamp-2 text-base font-semibold leading-snug sm:text-xl">{activeVideo.title}</span>
-                                        <span className="block text-sm tabular-nums text-white/60">
-                                            Lesson {activeLessonNumber} of {allVideos.length}
-                                            {activeVideo.durationLabel && ` · ${activeVideo.durationLabel}`}
-                                        </span>
-                                    </span>
-                                </button>
-                            )}
-                        </div>
+                        // Our own controls over a YouTube frame that can't be
+                        // clicked into — see LessonVideoPlayer. Keyed per lesson
+                        // so each one starts fresh at its play cover.
+                        <LessonVideoPlayer
+                            key={activeVideo.id}
+                            youtubeVideoId={activeVideo.youtubeVideoId}
+                            title={activeVideo.title}
+                            subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${activeVideo.durationLabel ? ` · ${activeVideo.durationLabel}` : ""}`}
+                            next={nextVideo ? { title: nextVideo.title, onSelect: () => goTo(nextVideo.id) } : null}
+                        />
                     ) : (
                         <div className="relative grid aspect-video place-items-center overflow-hidden rounded-2xl border border-border bg-brand-soft text-center">
                             <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-primary/10 blur-2xl" />
@@ -762,8 +721,14 @@ export default function LearnPage() {
                                                 className="rounded-full px-5"
                                                 onClick={() => complete.mutate(activeVideo.id)}
                                                 isLoading={complete.isPending}
+                                                disabled={Boolean(blockingLesson)}
+                                                title={
+                                                    blockingLesson
+                                                        ? `Complete "${blockingLesson.title}" first`
+                                                        : undefined
+                                                }
                                             >
-                                                <Check className="size-4" />
+                                                {blockingLesson ? <Lock className="size-4" /> : <Check className="size-4" />}
                                                 Mark as complete
                                             </Button>
                                         )
@@ -782,30 +747,63 @@ export default function LearnPage() {
                                 </div>
                             </div>
 
+                            {/* Why "Mark as complete" is greyed out, and the way to fix it. */}
+                            {!data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && blockingLesson && (
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+                                    <Lock className="size-4 shrink-0 text-warning-ink" aria-hidden />
+                                    <p className="min-w-0 flex-1 text-foreground">
+                                        To mark this lesson complete, first complete the lessons before it. Start with{" "}
+                                        <span className="font-semibold">&ldquo;{blockingLesson.title}&rdquo;</span>.
+                                    </p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="rounded-full"
+                                        onClick={() => goTo(blockingLesson.id)}
+                                    >
+                                        Go to that lesson <ChevronRight className="size-4" />
+                                    </Button>
+                                </div>
+                            )}
+
                             {activeVideo.description && (
                                 <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
                                     {activeVideo.description}
                                 </p>
                             )}
 
-                            {/* Lesson action bar — notes, bookmark, reward, copyright
-                                notice and a like/dislike reaction, all real state
-                                against this lesson rather than decorative buttons. */}
+                            {/* Lesson action bar — the Notes / Copyright switch for
+                                the panel below, a bookmark and a like/dislike
+                                reaction, all real state against this lesson. */}
                             {!data.isPreview && !activeVideo.isLocked && (
                                 <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        className="rounded-full"
-                                        onClick={() =>
-                                            document
-                                                .getElementById("lesson-notes")
-                                                ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                                        }
-                                    >
-                                        <NotebookPen className="size-4" />
-                                        Notes
-                                    </Button>
+                                    <div role="tablist" aria-label="Under this lesson" className="flex gap-1 rounded-full bg-secondary p-1">
+                                        {(
+                                            [
+                                                { id: "notes", label: "Notes", icon: NotebookPen },
+                                                { id: "copyright", label: "Copyright", icon: Copyright },
+                                            ] as const
+                                        ).map(({ id, label, icon: Icon }) => (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                role="tab"
+                                                id={`lesson-tab-${id}`}
+                                                aria-selected={lessonPanel === id}
+                                                aria-controls="lesson-panel"
+                                                onClick={() => setLessonPanel(id)}
+                                                className={cn(
+                                                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                                                    lessonPanel === id
+                                                        ? "bg-card text-foreground shadow-sm"
+                                                        : "text-muted-foreground hover:text-foreground",
+                                                )}
+                                            >
+                                                <Icon className={cn("size-4", lessonPanel === id && "text-primary")} />
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
 
                                     <Button
                                         variant="secondary"
@@ -824,11 +822,6 @@ export default function LearnPage() {
                                             <Bookmark className="size-4" />
                                         )}
                                         {lessonState?.isBookmarked ? "Bookmarked" : "Bookmark"}
-                                    </Button>
-
-                                    <Button variant="secondary" size="sm" className="rounded-full" onClick={() => setCopyrightOpen(true)}>
-                                        <Copyright className="size-4" />
-                                        Copyright
                                     </Button>
 
                                     <span className="ml-auto flex items-center gap-1 rounded-full bg-secondary p-1">
@@ -856,10 +849,19 @@ export default function LearnPage() {
                                 </div>
                             )}
 
-                            {/* Always-open note editor for this lesson, rather than a
-                                modal — the "Notes" button above just scrolls to it. */}
+                            {/* The panel the Notes / Copyright tabs switch — the note
+                                editor, or the copyright notice in the same spot. */}
                             {!data.isPreview && !activeVideo.isLocked && (
-                                <div id="lesson-notes" className="scroll-mt-32 overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+                                <div
+                                    id="lesson-panel"
+                                    role="tabpanel"
+                                    aria-labelledby={`lesson-tab-${lessonPanel}`}
+                                    className="scroll-mt-32"
+                                >
+                                {lessonPanel === "copyright" ? (
+                                    <CopyrightPanel slug={slug} />
+                                ) : (
+                                <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
                                     <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                                         <p className="flex items-center gap-2 text-sm font-semibold">
                                             <NotebookPen className="size-4 text-primary" aria-hidden /> Your notes
@@ -941,6 +943,8 @@ export default function LearnPage() {
                                         </Button>
                                     </div>
                                 </div>
+                                )}
+                                </div>
                             )}
 
                             {!data.isPreview && !activeVideo.isLocked && <LessonQuestions videoId={activeVideo.id} />}
@@ -963,7 +967,7 @@ export default function LearnPage() {
                 size="lg"
             >
                 <ModalBody>
-                    <CurriculumSidebar {...curriculumProps} showHeading={false} />
+                    <CurriculumSidebar {...curriculumProps} />
                 </ModalBody>
             </Modal>
 
@@ -1001,37 +1005,49 @@ export default function LearnPage() {
                 </ModalBody>
             </Modal>
 
-            <Modal open={copyrightOpen} onOpenChange={setCopyrightOpen} title="Copyright notice">
-                <ModalBody className="space-y-4">
-                    <Image
-                        src="/handcarf-B-NIE6dN.svg"
-                        alt="Copyright and account-sharing warning"
-                        width={247}
-                        height={171}
-                        unoptimized
-                        className="mx-auto h-auto w-40"
-                    />
+        </div>
+    );
+}
 
-                    {COPYRIGHT_TEXT.map((paragraph) => (
-                        <p
-                            key={paragraph.slice(0, 24)}
-                            className="rounded-lg border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground"
-                        >
-                            {paragraph}
-                        </p>
-                    ))}
+/** The copyright notice, shown in the notes' place when its tab is picked. */
+function CopyrightPanel({ slug }: { slug: string }) {
+    return (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+            <p className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold">
+                <Copyright className="size-4 text-primary" aria-hidden /> Copyright notice
+            </p>
 
-                    <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3.5 text-sm font-semibold leading-relaxed text-destructive">
-                        {COPYRIGHT_CLOSING}
+            <div className="space-y-3 p-4 sm:p-5">
+                <Image
+                    src="/handcarf-B-NIE6dN.svg"
+                    alt="Copyright and account-sharing warning"
+                    width={247}
+                    height={171}
+                    unoptimized
+                    className="mx-auto h-auto w-36"
+                />
+
+                {COPYRIGHT_TEXT.map((paragraph) => (
+                    <p
+                        key={paragraph.slice(0, 24)}
+                        className="rounded-lg border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground"
+                    >
+                        {paragraph}
                     </p>
+                ))}
 
-                    <Button asChild variant="outline" className="w-full">
-                        <Link href={`/learn/${slug}/support`}>
-                            <Headphones className="size-4" /> Report an issue
-                        </Link>
-                    </Button>
-                </ModalBody>
-            </Modal>
+                <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3.5 text-sm font-semibold leading-relaxed text-destructive">
+                    {COPYRIGHT_CLOSING}
+                </p>
+            </div>
+
+            <div className="flex justify-end border-t border-border bg-secondary/30 px-4 py-3">
+                <Button asChild variant="outline" size="sm" className="rounded-full px-5">
+                    <Link href={`/learn/${slug}/support`}>
+                        <Headphones className="size-4" /> Report an issue
+                    </Link>
+                </Button>
+            </div>
         </div>
     );
 }
@@ -1049,7 +1065,6 @@ interface CurriculumSidebarProps {
     toggleMilestone: (id: string) => void;
     allMilestonesOpen: boolean;
     toggleAllMilestones: () => void;
-    completedCount: number;
     totalCount: number;
     search: string;
     onSearchChange: (value: string) => void;
@@ -1059,8 +1074,6 @@ interface CurriculumSidebarProps {
     bookmarksLoading: boolean;
     bookmarkedVideoIds: Set<string>;
     onToggleRowBookmark: (videoId: string, bookmarked: boolean) => void;
-    /** False inside the mobile modal, whose own title already says "Course content". */
-    showHeading?: boolean;
 }
 
 /**
@@ -1080,7 +1093,6 @@ function CurriculumSidebar({
     toggleMilestone,
     allMilestonesOpen,
     toggleAllMilestones,
-    completedCount,
     totalCount,
     search,
     onSearchChange,
@@ -1090,7 +1102,6 @@ function CurriculumSidebar({
     bookmarksLoading,
     bookmarkedVideoIds,
     onToggleRowBookmark,
-    showHeading = true,
 }: CurriculumSidebarProps) {
     const query = search.trim().toLowerCase();
 
@@ -1110,47 +1121,40 @@ function CurriculumSidebar({
             .filter((milestone) => milestone.modules.length > 0)
         : data.curriculum;
 
+    // The course's progress and lesson count are already in the page header,
+    // so this card is just the tools for finding a lesson.
+    const showFinder = !data.isPreview && totalCount > 0;
+    const canToggleAll = data.curriculum.length > 1;
+    const toggleAllButton = canToggleAll && (
+        <button
+            type="button"
+            onClick={toggleAllMilestones}
+            disabled={Boolean(query)}
+            className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-40 disabled:hover:no-underline"
+        >
+            {allMilestonesOpen ? "Collapse all" : "Expand all"}
+        </button>
+    );
+
     return (
         <div className="space-y-3">
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-                <div className="flex items-center gap-3.5">
-                    {data.enrollment && <ProgressRing value={data.enrollment.progress} size={52} stroke={5} />}
-                    <div className="min-w-0 flex-1">
-                        {showHeading && <h2 className="font-semibold leading-tight">Course content</h2>}
-                        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                            {!data.enrollment
-                                ? "Previewing as staff — nothing you do here is recorded."
-                                : totalCount === 0
-                                    ? data.course.phase === "UPCOMING"
-                                        ? "Classes haven't started yet — lessons appear here once they do"
-                                        : "No lessons published yet"
-                                    : `${completedCount} of ${totalCount} lessons complete`}
-                        </p>
-                        {data.enrollment && data.sequentialLearning && totalCount > 0 && (
-                            <p className="text-xs text-muted-foreground">Each module unlocks the next.</p>
-                        )}
-                    </div>
-                    {!query && data.curriculum.length > 1 && (
-                        <button
-                            type="button"
-                            onClick={toggleAllMilestones}
-                            className="shrink-0 self-start text-xs font-medium text-primary hover:underline"
-                        >
-                            {allMilestonesOpen ? "Collapse all" : "Expand all"}
-                        </button>
-                    )}
-                </div>
+            {(showFinder || canToggleAll) && (
+            <div className="rounded-2xl border border-border bg-card p-3 shadow-card">
+                {!showFinder && <div className="flex justify-end">{toggleAllButton}</div>}
 
-                {!data.isPreview && totalCount > 0 && (
-                    <div className="mt-4 space-y-2 border-t border-border pt-4">
-                        <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <input
-                                value={search}
-                                onChange={(e) => onSearchChange(e.target.value)}
-                                placeholder="Search lessons…"
-                                className="w-full rounded-full border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
-                            />
+                {showFinder && (
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <input
+                                    value={search}
+                                    onChange={(e) => onSearchChange(e.target.value)}
+                                    placeholder="Search lessons…"
+                                    className="w-full rounded-full border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
+                                />
+                            </div>
+                            {toggleAllButton}
                         </div>
 
                         <div
@@ -1186,6 +1190,7 @@ function CurriculumSidebar({
                     </div>
                 )}
             </div>
+            )}
 
             {showBookmarksOnly ? (
                 <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
@@ -1283,6 +1288,7 @@ function CurriculumSidebar({
                                 {isOpen && (
                                     <WeekRoute
                                         milestone={milestone}
+                                        moduleLabel={data.course.moduleLabel || "Module"}
                                         withAssignmentsAndPractice={!query}
                                         slug={slug}
                                         activeVideoId={activeAssignmentId || activeQuizId ? null : activeVideoId}
@@ -1378,6 +1384,7 @@ const isDone = (item: RouteItem) =>
  */
 function WeekRoute({
     milestone,
+    moduleLabel,
     withAssignmentsAndPractice,
     slug,
     activeVideoId,
@@ -1390,6 +1397,8 @@ function WeekRoute({
     onToggleRowBookmark,
 }: {
     milestone: LearningMilestone;
+    /** The course's word for a module ("Module", "Chapter", …). */
+    moduleLabel: string;
     withAssignmentsAndPractice: boolean;
     slug: string;
     activeVideoId: string | null;
@@ -1443,28 +1452,51 @@ function WeekRoute({
                     )}
 
                     {item.kind === "MODULE" ? (
-                        <div className="relative flex items-center gap-3 pb-1 pl-4 pr-4 pt-2.5">
-                            <span className="relative z-10 grid size-6 shrink-0 place-items-center">
+                        // A module opens with its own labelled block — "MODULE 02"
+                        // and its name — so where one module ends and the next
+                        // begins reads at a glance, not just the week around them.
+                        // Padding (not margin) spaces it, so the route line runs
+                        // unbroken through the gap.
+                        <div className={cn("px-2 pb-1", index > 0 ? "pt-3" : "pt-1")}>
+                            {/* Opaque, so the route line stops at its edges; the
+                                7px left padding centres the badge on that line. */}
+                            <div className="relative flex items-center gap-3 rounded-xl border border-border bg-secondary py-2 pl-1.75 pr-3">
                                 <span
                                     className={cn(
-                                        "size-2.5 rotate-45 rounded-[3px] border-2",
-                                        item.courseModule.isCompleted ? "border-primary bg-primary" : "border-border bg-card",
+                                        "relative z-10 grid size-6 shrink-0 place-items-center rounded-md text-[0.625rem] font-bold tabular-nums",
+                                        item.courseModule.isCompleted
+                                            ? "bg-primary text-primary-foreground"
+                                            : item.courseModule.isLocked
+                                                ? "bg-secondary text-muted-foreground"
+                                                : "border border-primary/40 bg-card text-primary",
                                     )}
-                                />
-                            </span>
-                            <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground/80">
-                                {String(item.courseModule.order).padStart(2, "0")}. {item.courseModule.title}
-                            </p>
-                            {item.courseModule.mode && (
-                                <ClassModeTag mode={item.courseModule.mode} className="shrink-0 text-[0.6875rem] font-medium text-muted-foreground [&>svg]:size-3" />
-                            )}
-                            <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
-                                {item.courseModule.isLocked ? (
-                                    <Lock className="size-3.5" />
-                                ) : (
-                                    `${item.courseModule.completedVideos}/${item.courseModule.totalVideos}`
-                                )}
-                            </span>
+                                >
+                                    {item.courseModule.isCompleted ? (
+                                        <Check className="size-3.5" strokeWidth={3} />
+                                    ) : item.courseModule.isLocked ? (
+                                        <Lock className="size-3" />
+                                    ) : (
+                                        String(item.courseModule.order).padStart(2, "0")
+                                    )}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="flex items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wider text-primary">
+                                        {moduleLabel} {String(item.courseModule.order).padStart(2, "0")}
+                                        {item.courseModule.mode && (
+                                            <ClassModeTag
+                                                mode={item.courseModule.mode}
+                                                className="font-medium normal-case tracking-normal text-muted-foreground [&>svg]:size-3"
+                                            />
+                                        )}
+                                    </p>
+                                    <p className="truncate text-sm font-semibold leading-snug">{item.courseModule.title}</p>
+                                </div>
+                                <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
+                                    {item.courseModule.isLocked
+                                        ? "Locked"
+                                        : `${item.courseModule.completedVideos}/${item.courseModule.totalVideos} done`}
+                                </span>
+                            </div>
                         </div>
                     ) : item.kind === "VIDEO" ? (
                         (() => {

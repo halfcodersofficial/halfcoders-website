@@ -127,3 +127,68 @@ export const assertModuleUnlocked = async (enrollmentId: string | null, moduleId
         throw new AppError(status.FORBIDDEN, "This module is still locked — finish the ones before it first.");
     }
 };
+
+/**
+ * Lessons are marked complete in course order: milestone, then module, then
+ * lesson — the same order the learning page numbers them in. Every earlier
+ * published lesson has to be complete first, not just the one right before,
+ * so un-marking an early lesson (or progress recorded before this rule)
+ * can't leave a gap the student skips over. Applies whether or not
+ * sequential learning is on: that setting decides what can be *opened*,
+ * this decides what can be *finished*.
+ */
+export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId: string) => {
+    const target = await prisma.video.findUnique({
+        where: { id: videoId },
+        select: {
+            courseId: true,
+            moduleId: true,
+            order: true,
+            module: { select: { milestoneId: true, order: true, milestone: { select: { order: true } } } },
+        },
+    });
+    if (!target) return;
+
+    const earlier = await prisma.video.findMany({
+        where: {
+            courseId: target.courseId,
+            isPublished: true,
+            module: { isPublished: true, milestone: { isPublished: true } },
+            OR: [
+                { module: { milestone: { order: { lt: target.module.milestone.order } } } },
+                { module: { milestoneId: target.module.milestoneId, order: { lt: target.module.order } } },
+                { moduleId: target.moduleId, order: { lt: target.order } },
+            ],
+        },
+        select: {
+            id: true,
+            title: true,
+            order: true,
+            module: { select: { order: true, milestone: { select: { order: true } } } },
+        },
+    });
+    if (earlier.length === 0) return;
+
+    const completed = await prisma.videoProgress.findMany({
+        where: { enrollmentId, videoId: { in: earlier.map((video) => video.id) }, isCompleted: true },
+        select: { videoId: true },
+    });
+    const completedIds = new Set(completed.map((row) => row.videoId));
+
+    // Name the earliest unfinished lesson, so the student knows where to go.
+    const firstUnfinished = earlier
+        .filter((video) => !completedIds.has(video.id))
+        .sort(
+            (a, b) =>
+                a.module.milestone.order - b.module.milestone.order ||
+                a.module.order - b.module.order ||
+                a.order - b.order,
+        )[0];
+
+    if (firstUnfinished) {
+        throw new AppError(
+            status.FORBIDDEN,
+            `Complete the lessons before this one first — start with "${firstUnfinished.title}".`,
+        );
+    }
+};
