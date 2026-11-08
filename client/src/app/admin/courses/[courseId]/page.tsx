@@ -607,31 +607,38 @@ function CourseEditor() {
         // padded 2rem top and bottom at that width, hence the 4rem, and sits
         // between the console's title and status bars (`--console-chrome`).
         <div className="max-w-[1700px] space-y-5 xl:flex xl:h-[calc(100dvh-4rem-var(--console-chrome,0px))] xl:flex-col">
-            <header className="flex flex-wrap items-start gap-x-3 gap-y-4">
+            {/* The title keeps at least 18rem: where the tools don't fit beside
+                it they wrap onto their own row below, rather than squeezing the
+                title down to a letter or two. */}
+            <header className="flex flex-wrap items-start gap-x-6 gap-y-4">
                 <div className="basis-full">
                     <BackButton href="/admin/courses" label="সব কোর্স" />
                 </div>
-                <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-2xl font-bold">{course.title}</h1>
-                    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1 basis-72">
+                    <h1 className="line-clamp-2 text-2xl font-bold text-balance wrap-break-word" title={course.title}>
+                        {course.title}
+                    </h1>
+                    <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <StatusPill kind="course" value={course.status} label={STATUS_LABEL[course.status]} />
                         <CourseClassBadges phase={course.phase} delivery={course.delivery} mode={course.mode} pricing={course.pricing} lang="bn" />
                         <Badge variant={course.courseType === "BOOTCAMP" ? "default" : "secondary"}>
                             {COURSE_TYPE_LABEL[course.courseType] ?? course.courseType}
                         </Badge>
-                        <span>/{course.slug}</span>
+                        <span className="min-w-0 max-w-full truncate font-mono text-xs" title={`/${course.slug}`}>
+                            /{course.slug}
+                        </span>
                         {isPublished && (
                             <Link
                                 href={`/courses/${course.slug}`}
                                 target="_blank"
-                                className="inline-flex items-center gap-1 text-primary hover:underline"
+                                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-primary hover:underline"
                             >
                                 লাইভ পেজ দেখুন <ExternalLink className="size-3" />
                             </Link>
                         )}
                     </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex max-w-full flex-wrap gap-2">
                     <Button asChild variant="outline">
                         <Link href={`/admin/courses/${courseId}/pre-enrollment`}>
                             <FileUp /> ভর্তির আগের আউটলাইন

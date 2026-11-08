@@ -156,7 +156,8 @@ export function CourseClassBadges({
     const ModeIcon = mode ? MODE_META[mode].icon : null;
 
     return (
-        <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)}>
+        // Each badge stays on one line ("রেকর্ডেড ক্লাস" never splits in two); the row wraps between them.
+        <span className={cn("inline-flex flex-wrap items-center gap-1.5 *:whitespace-nowrap", className)}>
             <Badge variant={phaseMeta.badge} title={lang === "bn" ? phaseMeta.hintBn : phaseMeta.hint}>
                 <PhaseDot phase={phase} />
                 {lang === "bn" ? phaseMeta.adminBn : phaseMeta.admin}
