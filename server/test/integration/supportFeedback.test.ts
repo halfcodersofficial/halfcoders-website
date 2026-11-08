@@ -48,12 +48,31 @@ describe("support: feedback, turns and the board", () => {
         await owner.query(`UPDATE learning.support_session SET "meetingLink" = $1 WHERE id = $2`, [MEET, live]);
     });
 
-    it("shows a student on the course the board, with the meeting link while the session is on", async () => {
+    it("shows a student on the course the board, and the meeting link only once they hold a number", async () => {
         const student = await newStudent();
-        const res = await api().get(`/api/v1/support/${live}/board`).set("Cookie", student.cookie);
-        expect(res.status).toBe(200);
-        expect(res.body.data.meetingLink).toBe(MEET);
-        expect(res.body.data.isLive).toBe(true);
+        const board = () => api().get(`/api/v1/support/${live}/board`).set("Cookie", student.cookie);
+        const listed = async () =>
+            (await api().get(`/api/v1/support/course/${courseId}`).set("Cookie", student.cookie)).body.data.find(
+                (session: { id: string }) => session.id === live,
+            );
+
+        const before = await board();
+        expect(before.status).toBe(200);
+        expect(before.body.data.isLive).toBe(true);
+        expect(before.body.data.meetingLink).toBeNull();
+        expect((await listed()).meetingLink).toBeNull();
+
+        // Holding a number: the room opens to them.
+        expect((await api().post(`/api/v1/support/${live}/join`).set("Cookie", student.cookie).send({})).status).toBe(201);
+        expect((await board()).body.data.meetingLink).toBe(MEET);
+        expect((await listed()).meetingLink).toBe(MEET);
+
+        // Out of the line again: closed.
+        expect((await api().post(`/api/v1/support/${live}/leave`).set("Cookie", student.cookie)).status).toBeLessThan(300);
+        expect((await board()).body.data.meetingLink).toBeNull();
+
+        // Staff always have it on their board.
+        expect((await api().get(`/api/v1/support/manage/${live}/queue`).set("Cookie", mentor.cookie)).body.data.meetingLink).toBe(MEET);
 
         // Not on the course: no board.
         expect((await api().get(`/api/v1/support/${live}/board`).set("Cookie", outsider.cookie)).status).toBeGreaterThanOrEqual(400);

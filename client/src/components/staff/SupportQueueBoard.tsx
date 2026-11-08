@@ -180,7 +180,8 @@ export default function SupportQueueBoard({
             <Stats board={board} now={now} />
 
             {board.isLive && (
-                <MeetingLinkBar link={board.meetingLink ?? null} saving={saveMeetingLink.isPending} onSave={(link) => saveMeetingLink.mutate(link)} />
+                // The pushed board leaves the link out (it goes to everyone watching); staff read it from their own fetch.
+                <MeetingLinkBar link={fetched?.meetingLink ?? null} saving={saveMeetingLink.isPending} onSave={(link) => saveMeetingLink.mutate(link)} />
             )}
 
             {board.isLive && (

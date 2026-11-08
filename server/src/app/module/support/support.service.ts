@@ -548,6 +548,8 @@ const getSessionsForStudent = async (user: IRequestUser, courseId: string) => {
 
     return sessions.map((session) => {
         const isLive = computeLive(session);
+        // The room is for whoever holds a number in this session — waiting or with the mentor.
+        const holdsNumber = IN_LINE.includes(mine.get(session.id)?.status ?? SupportQueueStatus.LEFT);
         return {
             id: session.id,
             title: session.title,
@@ -560,7 +562,7 @@ const getSessionsForStudent = async (user: IRequestUser, courseId: string) => {
             isLive,
             joinOpen: session.joinOpen,
             waitingCount: session._count.queue,
-            meetingLink: isLive ? session.meetingLink : null,
+            meetingLink: isLive && holdsNumber ? session.meetingLink : null,
             myQueue: mine.get(session.id) ?? null,
         };
     });
@@ -635,7 +637,9 @@ const buildQueueBoard = async (sessionId: string) => {
 
 const broadcastQueue = async (sessionId: string) => {
     try {
-        emitQueueUpdate(sessionId, await buildQueueBoard(sessionId));
+        // Everyone watching gets the board, but not the room's link: a student
+        // gets that over REST once they hold a number, and staff from their own board.
+        emitQueueUpdate(sessionId, { ...(await buildQueueBoard(sessionId)), meetingLink: null });
     } catch (error) {
         // A failed broadcast must never fail the request that caused it — the
         // REST endpoints remain authoritative.
@@ -1086,13 +1090,18 @@ const setQueueStatus = async (user: IRequestUser, queueId: string, next: Support
 /**
  * The queue board for a student on the course — the same public board the
  * socket pushes (names only), for the first paint and whenever the socket
- * isn't connected.
+ * isn't connected. The meeting link only once they hold a number here.
  */
 const getBoardForStudent = async (user: IRequestUser, sessionId: string) => {
     const session = await prisma.supportSession.findUnique({ where: { id: sessionId }, select: { courseId: true } });
     if (!session) throw new AppError(status.NOT_FOUND, "Support session not found.");
     await requireCourseAccess(user, session.courseId);
-    return buildQueueBoard(sessionId);
+
+    const [board, holding] = await Promise.all([
+        buildQueueBoard(sessionId),
+        prisma.supportQueue.findFirst({ where: { sessionId, studentId: user.userId, status: { in: IN_LINE } }, select: { id: true } }),
+    ]);
+    return { ...board, meetingLink: holding ? board.meetingLink : null };
 };
 
 /** Full attendance record for a finished session. */
