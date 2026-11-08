@@ -11,7 +11,7 @@ import {
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
-import { assertTransactionUnused, bkashGatewayData, BkashSubmission } from "../../utils/bkash";
+import { assertTransactionUnused, bkashGatewayData, BkashSubmission, describeSubmission } from "../../utils/bkash";
 import { quoteBundle, type BundleCoursePrice } from "../../utils/bundlePricing";
 import { assertEnrollmentOpen, ENROLLMENT_RULE_SELECT } from "../../utils/courseBatch";
 import { announceGrants, grantBonusCourses, isLive, type GivenCourse } from "../../utils/courseGrants";
@@ -323,17 +323,18 @@ const submitBkashBundlePayment = async (user: IRequestUser, bundleOrderId: strin
         },
     });
 
+    const sent = describeSubmission(submission);
     await createNotification({
         userId: order.studentId,
         title: "Payment details received",
-        message: `We got your bKash payment details for "${order.bundle.title}" (TrxID ${submission.transactionId}). We'll check it and open the courses — you'll hear from us as soon as it's done.`,
+        message: `We got your ${sent.via} payment details for "${order.bundle.title}" (${sent.number}). We'll check it and open the courses — you'll hear from us as soon as it's done.`,
         type: NotificationType.PAYMENT,
         link: `/checkout/bundle/${order.id}`,
         email: { actionLabel: "View your order" },
     });
     await notifyAdmins({
-        title: `bKash payment to verify · ৳${order.total.toLocaleString("en-US")}`,
-        message: `${order.student.name} paid for the bundle "${order.bundle.title}" (${order.orderNumber}) — TrxID ${submission.transactionId}, from ${submission.senderNumber}.`,
+        title: `${sent.via} payment to verify · ৳${order.total.toLocaleString("en-US")}`,
+        message: `${order.student.name} paid for the bundle "${order.bundle.title}" (${order.orderNumber}) — ${sent.number}, ${sent.from}.`,
         type: NotificationType.PAYMENT,
         link: "/admin/bundles",
     });

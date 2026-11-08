@@ -12,7 +12,7 @@ import AppError from "../../errorHelpers/AppError";
 import { IQueryParams } from "../../interfaces/query.interface";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
-import { assertTransactionUnused, bkashGatewayData, BkashSubmission } from "../../utils/bkash";
+import { assertTransactionUnused, bkashGatewayData, BkashSubmission, describeSubmission } from "../../utils/bkash";
 import { sendEmailAsync } from "../../utils/email";
 import { assertEnrollmentOpen, ENROLLMENT_RULE_SELECT } from "../../utils/courseBatch";
 import { buildInvoicePdf, InvoicePdfData } from "../../utils/invoicePdf";
@@ -377,17 +377,18 @@ const submitBkashPayment = async (user: IRequestUser, orderId: string, submissio
         if (order.couponCode) await tx.order.update({ where: { id: order.id }, data: { couponAppliedAt: new Date() } });
     });
 
+    const sent = describeSubmission(submission);
     await createNotification({
         userId: order.studentId,
         title: "Payment details received",
-        message: `We got your bKash payment details for "${order.course.title}" (TrxID ${submission.transactionId}). We'll check it and open the course — you'll hear from us as soon as it's done.`,
+        message: `We got your ${sent.via} payment details for "${order.course.title}" (${sent.number}). We'll check it and open the course — you'll hear from us as soon as it's done.`,
         type: NotificationType.PAYMENT,
         link: `/checkout/${order.id}`,
         email: { actionLabel: "View your order" },
     });
     await notifyAdmins({
-        title: `bKash payment to verify · ৳${order.total.toLocaleString("en-US")}`,
-        message: `${order.student.name} paid for "${order.course.title}" (${order.orderNumber}) — TrxID ${submission.transactionId}, from ${submission.senderNumber}.`,
+        title: `${sent.via} payment to verify · ৳${order.total.toLocaleString("en-US")}`,
+        message: `${order.student.name} paid for "${order.course.title}" (${order.orderNumber}) — ${sent.number}, ${sent.from}.`,
         type: NotificationType.PAYMENT,
         link: adminOrderLink(order),
     });

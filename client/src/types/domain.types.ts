@@ -870,7 +870,7 @@ export interface BundleOrder {
     gateway: string | null;
     /** The bKash TrxID the student sent in, while it waits for an admin — and after. */
     transactionId: string | null;
-    gatewayData: { senderNumber?: string; submittedAt?: string } | null;
+    gatewayData: { senderNumber?: string; paidWith?: string; submittedAt?: string } | null;
     paidAt: string | null;
     failureReason: string | null;
     createdAt: string;

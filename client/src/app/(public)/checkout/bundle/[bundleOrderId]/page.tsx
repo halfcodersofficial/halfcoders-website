@@ -86,7 +86,12 @@ function BundleCheckout() {
     // Sent in by the student, waiting for an admin to match it.
     const sentIn =
         isPending && order.gateway === "BKASH" && order.transactionId
-            ? { transactionId: order.transactionId, senderNumber: order.gatewayData?.senderNumber, submittedAt: order.gatewayData?.submittedAt }
+            ? {
+                  transactionId: order.transactionId,
+                  senderNumber: order.gatewayData?.senderNumber,
+                  paidWith: order.gatewayData?.paidWith,
+                  submittedAt: order.gatewayData?.submittedAt,
+              }
             : null;
 
     return (
@@ -100,15 +105,15 @@ function BundleCheckout() {
                         <span className="font-sans text-sm font-semibold text-primary">{order.bundle.title}</span>
                     </p>
                     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                        {isPaid ? "Access granted." : sentIn ? "Verifying your payment…" : isPending ? "One step left: pay by bKash" : "This order is closed"}
+                        {isPaid ? "Access granted." : sentIn ? "Verifying your payment…" : isPending ? "One step left: pay" : "This order is closed"}
                     </h1>
                     <p className="mt-2 max-w-xl leading-relaxed text-muted-foreground">
                         {isPaid
                             ? "Payment confirmed. Every course is in your dashboard, each with its own invoice in your orders."
                             : sentIn
-                              ? "Your bKash payment details are in. Every course below opens as soon as we've matched them — we'll email you."
+                              ? "Your payment details are in. Every course below opens as soon as we've matched them — we'll email you."
                               : isPending
-                                ? "One bKash payment for every course below. Pay with the steps below, then send us the transaction ID."
+                                ? "One payment for every course below, with bKash or your bank's app. Pay with the steps below, then send us the transaction ID."
                                 : `This order is ${order.status.toLowerCase()}${order.failureReason ? ` — ${order.failureReason}` : ""}. Start again from the bundle page, or contact support if you think this is a mistake.`}
                     </p>
                 </header>
@@ -164,7 +169,7 @@ function BundleCheckout() {
 
                         {isPending && (
                             <p className="mx-5 mt-4 rounded-md border border-border bg-surface px-3 py-2.5 text-center text-xs text-muted-foreground">
-                                {sentIn ? "Payment sent — being verified" : "Pay by bKash — the steps are on this page"}
+                                {sentIn ? "Payment sent — being verified" : "Pay by bKash or bank app — the steps are on this page"}
                             </p>
                         )}
                     </article>

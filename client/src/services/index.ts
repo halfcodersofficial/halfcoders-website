@@ -285,11 +285,14 @@ export const bundleOrderService = {
         httpClient.post<ApiResponse<BundleOrder>>(`/bundles/orders/${bundleOrderId}/bkash`, details).then(unwrap),
 };
 
-/** What a student sends in after paying by bKash. */
-export interface BkashSubmission {
-    transactionId: string;
-    senderNumber: string;
-}
+/**
+ * What a student sends in after paying the bKash merchant account: from the
+ * bKash app (its TrxID and the number paid from), or by Bangla QR from a bank
+ * or another app (that receipt's reference and which bank or app it was).
+ */
+export type BkashSubmission =
+    | { method: "bkash"; transactionId: string; senderNumber: string }
+    | { method: "bank"; transactionId: string; paidWith: string };
 
 export const learningService = {
     course: (slug: string) =>

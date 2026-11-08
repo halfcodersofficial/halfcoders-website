@@ -50,7 +50,7 @@ const SOCIAL_ICON: Record<(typeof SOCIAL_LINKS)[number]["network"], IconType> = 
 /**
  * The site's footer: a dark editor pane. On the left the logo, what Half
  * Coders is and the social pages; in the middle the sitemap as a file tree
- * with plain names; on the right how to reach us and how to pay (bKash only,
+ * with plain names; on the right how to reach us and how to pay (into the bKash merchant account only,
  * never a PIN or OTP), each in a small editor panel. Under it the small
  * print, and along the foot a violet status bar — the time in Dhaka and the
  * tagline — as at the bottom of an editor.
@@ -170,11 +170,12 @@ export default function Footer() {
                                 </span>
                             </p>
                             <p className="leading-relaxed text-editor-muted">
-                                Scan our QR code at checkout, or use bKash &quot;Payment&quot;, then send us the Transaction ID.
+                                Scan our QR code at checkout with bKash or your bank&apos;s app, or use bKash &quot;Payment&quot;, then send us
+                                the Transaction ID.
                             </p>
                             <p className="flex items-start gap-2 leading-relaxed text-syn-number">
                                 <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                                We never ask for your bKash PIN or OTP.
+                                We never ask for your bKash or bank PIN, password or OTP.
                             </p>
                         </div>
                     </div>

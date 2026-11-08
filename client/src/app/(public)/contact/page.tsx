@@ -33,7 +33,7 @@ export const metadata: Metadata = pageMetadata({
 const REMOTE_FACTS: { icon: LucideIcon; label: string; text: string }[] = [
     { icon: Laptop, label: "ক্লাস আর সাপোর্ট", text: "সবই অনলাইনে, লাইভ ক্লাস আর সাপোর্ট সেশন Google Meet-এ।" },
     { icon: Mail, label: "যোগাযোগ", text: "ইমেইল, ফোন বা আমাদের Facebook পেজে।" },
-    { icon: Wallet, label: "পেমেন্ট", text: `শুধু বিকাশ মার্চেন্ট নম্বরে (${BKASH.display}), চেকআউট পেজ থেকে।` },
+    { icon: Wallet, label: "পেমেন্ট", text: `শুধু বিকাশ মার্চেন্ট অ্যাকাউন্টে (${BKASH.display}), চেকআউট পেজ থেকে — বিকাশ বা ব্যাংকের অ্যাপ দিয়ে।` },
 ];
 
 /**
