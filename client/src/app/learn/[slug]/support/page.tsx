@@ -49,16 +49,6 @@ export default function SupportPage() {
     // The live session is the only one worth watching; there is at most one.
     const liveSession = sessions?.find((session) => session.isLive) ?? null;
     const { board: pushedBoard, isConnected } = useSupportSocket(liveSession?.id ?? null);
-    // The board itself: fetched for the first paint (the socket only pushes on
-    // a change) and polled while the socket is down; the socket's push wins
-    // while it's connected.
-    const { data: fetchedBoard } = useQuery({
-        queryKey: ["support", "student-board", liveSession?.id],
-        queryFn: () => supportService.studentBoard(liveSession!.id),
-        enabled: Boolean(liveSession),
-        refetchInterval: isConnected ? 60_000 : 10_000,
-    });
-    const board = (isConnected ? pushedBoard : null) ?? fetchedBoard ?? pushedBoard ?? null;
 
     const { data: position } = useQuery({
         queryKey: ["support", "position", liveSession?.id],
@@ -68,6 +58,21 @@ export default function SupportPage() {
         // when the handshake failed, so it can be slow.
         refetchInterval: isConnected ? 60_000 : 10_000,
     });
+    // Holding a number in this session — waiting, or with the mentor.
+    const inLine = Boolean(position?.inQueue);
+
+    // The board itself: fetched for the first paint (the socket only pushes on
+    // a change) and polled while the socket is down; the socket's push wins
+    // while it's connected. Only this fetch carries the meeting link — once
+    // they hold a number — so it's polled more often then, to catch a link
+    // the mentor adds mid-session.
+    const { data: fetchedBoard } = useQuery({
+        queryKey: ["support", "student-board", liveSession?.id],
+        queryFn: () => supportService.studentBoard(liveSession!.id),
+        enabled: Boolean(liveSession),
+        refetchInterval: !isConnected ? 10_000 : inLine ? 15_000 : 60_000,
+    });
+    const board = (isConnected ? pushedBoard : null) ?? fetchedBoard ?? pushedBoard ?? null;
 
     // A finished turn is rated before the next number — on any course, so asked here whatever's live.
     const { data: pendingFeedback } = useQuery({
@@ -113,8 +118,9 @@ export default function SupportPage() {
     // which mirrors how the mentor can close sign-ups mid-session (plan §23).
     const joinOpen = board?.joinOpen ?? liveSession?.joinOpen ?? true;
     const myNumber = position?.myQueueNumber ?? null;
-    // While the session is on, the room is open to every student on the course, as often as they like.
-    const meetingLink = board?.meetingLink ?? liveSession?.meetingLink ?? null;
+    // The room opens to a student once they hold a number — as often as they like while they do.
+    // (The server sends the link only then; the socket's board never carries it.)
+    const meetingLink = inLine ? (fetchedBoard?.meetingLink ?? liveSession?.meetingLink ?? null) : null;
     // Had a turn in this session already: another number goes to the back of the line.
     const hadTurnHere = Boolean(position && !position.inQueue && position.myStatus);
 
@@ -122,7 +128,6 @@ export default function SupportPage() {
     // When that's about this student — called up, or out of the line — refresh
     // their own standing now rather than at the next poll, so "It's your turn"
     // and, after it, the feedback form show straight away.
-    const inLine = Boolean(position?.inQueue);
     const boardServesMe = board && myNumber !== null ? board.nowServing?.queueNumber === myNumber : null;
     const boardHasMe = board && myNumber !== null ? boardServesMe || board.waiting.some((entry) => entry.queueNumber === myNumber) : null;
     const servingNow = position?.myStatus === "SERVING";
@@ -182,6 +187,7 @@ export default function SupportPage() {
                                     waitingCount={waitingCount}
                                     isConnected={isConnected}
                                     meetingLink={meetingLink}
+                                    holdsNumber={inLine}
                                 />
                             </div>
 
@@ -283,7 +289,7 @@ const meetingLabel = (link: string) => (/meet\.google\.com/i.test(link) ? "Join 
 /**
  * The counter's display: the number being served, large, re-keyed so it
  * drops in fresh each time the mentor calls the next one — and the way into
- * the session's meeting room, open to every student while it's on.
+ * the session's meeting room, once the student holds a number.
  */
 function NowServingBoard({
     session,
@@ -291,12 +297,15 @@ function NowServingBoard({
     waitingCount,
     isConnected,
     meetingLink,
+    holdsNumber,
 }: {
     session: SupportSessionCard;
     nowServing: number | null;
     waitingCount: number;
     isConnected: boolean;
+    /** Only once they hold a number in this session. */
     meetingLink: string | null;
+    holdsNumber: boolean;
 }) {
     return (
         <section className="relative isolate overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-panel sm:p-8">
@@ -357,11 +366,17 @@ function NowServingBoard({
                             </a>
                         </Button>
                         <p className="min-w-0 flex-1 basis-56 text-xs leading-relaxed text-white/60">
-                            Open the room whenever you need — as many times as you like. Your mentor talks to each number in turn.
+                            Open the room whenever you need — as many times as you like while you hold your number. Your mentor talks to
+                            each number in turn.
                         </p>
                     </>
-                ) : (
+                ) : holdsNumber ? (
                     <p className="text-sm text-white/60">The meeting link isn&apos;t up yet — it shows here as soon as your mentor adds it.</p>
+                ) : (
+                    <p className="flex items-center gap-2 text-sm text-white/60">
+                        <Lock className="size-4 shrink-0" aria-hidden />
+                        Take a number below to get the meeting link.
+                    </p>
                 )}
             </div>
 

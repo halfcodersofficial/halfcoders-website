@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import envConfig from "@/lib/envConfig";
+import { refreshLiveData } from "@/lib/liveRefresh";
 
 interface IncomingNotification {
     title: string;
@@ -25,7 +26,9 @@ interface IncomingNotification {
  * hook only has to listen, then nudge React Query to refetch — the pushed
  * payload is a "something changed" signal, not always a full row (a
  * broadcast to many recipients at once doesn't carry per-row ids), so
- * re-fetching the real list is simpler than trying to splice it in by hand.
+ * re-fetching the real lists is simpler than trying to splice them in by
+ * hand. It refreshes the pages on screen too (`refreshLiveData`), so a
+ * dashboard updates the moment something changes, without a reload.
  */
 export const useNotificationSocket = (enabled: boolean) => {
     const queryClient = useQueryClient();
@@ -43,8 +46,20 @@ export const useNotificationSocket = (enabled: boolean) => {
         });
         socketRef.current = socket;
 
+        // Back after a drop (the API waking from a quiet spell, a network
+        // blip): pushes may have been missed meanwhile, so catch up.
+        let connectedBefore = false;
+        socket.on("connect", () => {
+            if (connectedBefore) void refreshLiveData(queryClient);
+            connectedBefore = true;
+        });
+
         socket.on("notification:new", (payload: IncomingNotification) => {
-            void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            // A notification means something changed for this person — a
+            // payment checked, a course given, a module out, a mark in, their
+            // support turn called. Bring every page on screen up to date, so
+            // nobody has to reload to see it.
+            void refreshLiveData(queryClient);
             if (payload.silent) return;
 
             toast.message(payload.title, {

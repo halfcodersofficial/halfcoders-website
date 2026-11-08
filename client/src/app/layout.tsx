@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import SiteListeners from "@/components/shared/SiteListeners";
+import SlowServerNotice from "@/components/shared/SlowServerNotice";
 import DevToolsGuard from "@/providers/DevToolsGuard";
 import QueryProvider from "@/providers/QueryProvider";
 import ThemeProvider, { ThemedToaster } from "@/providers/ThemeProvider";
@@ -145,6 +146,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <DevToolsGuard />
                         {children}
                         <SiteListeners />
+                        <SlowServerNotice />
                         <ThemedToaster />
                     </QueryProvider>
                 </ThemeProvider>

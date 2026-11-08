@@ -79,6 +79,11 @@ function StudentDashboardView() {
     const { data, isLoading } = useQuery({
         queryKey: ["dashboard", "student"],
         queryFn: dashboardService.student,
+        // Kept current without a reload: a notification refreshes it at once
+        // (useNotificationSocket); coming back to the tab, or every couple of
+        // minutes, catches anything that came without one.
+        refetchOnWindowFocus: true,
+        refetchInterval: 2 * 60_000,
     });
 
     if (isLoading || !data) {
