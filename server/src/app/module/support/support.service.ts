@@ -24,6 +24,9 @@ import { dhakaClock, dhakaWhen } from "../../utils/dhakaTime";
 
 const studentCard = { id: true, name: true, image: true } as const;
 
+/** A turn still in line: waiting for their number, or being helped now. */
+const IN_LINE: SupportQueueStatus[] = [SupportQueueStatus.WAITING, SupportQueueStatus.SERVING];
+
 /** Tells everyone who can still open the course about one of its sessions — one bulk write, never throws. */
 const notifyEnrolled = async (
     course: { id: string; slug: string },
@@ -535,8 +538,10 @@ const getSessionsForStudent = async (user: IRequestUser, courseId: string) => {
         },
     });
 
+    // Oldest first, so each session keeps the student's latest turn.
     const myEntries = await prisma.supportQueue.findMany({
         where: { studentId: user.userId, sessionId: { in: sessions.map((s) => s.id) } },
+        orderBy: { joinedAt: "asc" },
         select: { sessionId: true, queueNumber: true, status: true },
     });
     const mine = new Map(myEntries.map((entry) => [entry.sessionId, entry]));
@@ -666,24 +671,13 @@ const joinQueue = async (user: IRequestUser, sessionId: string, topic?: string) 
         );
     }
 
-    const existing = await prisma.supportQueue.findUnique({
-        where: { sessionId_studentId: { sessionId, studentId: user.userId } },
+    // Already in line (a duplicate click, a second tab): that number stands.
+    // Once a turn is over they may take another — a fresh number at the back
+    // of the line, so nobody waiting is jumped.
+    const existing = await prisma.supportQueue.findFirst({
+        where: { sessionId, studentId: user.userId, status: { in: IN_LINE } },
     });
-
-    // Rejoining after being served or leaving would jump the student ahead of
-    // people who have been waiting; one number per student per session.
-    if (existing) {
-        if (
-            existing.status === SupportQueueStatus.WAITING ||
-            existing.status === SupportQueueStatus.SERVING
-        ) {
-            return existing;
-        }
-        throw new AppError(
-            status.CONFLICT,
-            "You've already had your turn in this session's queue.",
-        );
-    }
+    if (existing) return existing;
 
     // A closed cutoff only blocks a fresh join — the check above already lets
     // someone already queued back in, e.g. after a duplicate click.
@@ -691,6 +685,14 @@ const joinQueue = async (user: IRequestUser, sessionId: string, topic?: string) 
         throw new AppError(
             status.BAD_REQUEST,
             "The mentor has closed sign-ups for this session. If you're already in the queue, sit tight.",
+        );
+    }
+
+    // Their last finished turn is rated before they take another number — on any course.
+    if (await findPendingFeedback(user.userId)) {
+        throw new AppError(
+            status.CONFLICT,
+            "Before you take a new number, rate your last support session — it only takes a few seconds.",
         );
     }
 
@@ -728,6 +730,18 @@ const joinQueue = async (user: IRequestUser, sessionId: string, topic?: string) 
         );
     }
 
+    // Two joins at the same instant (two tabs) can both get this far: the
+    // earlier number stands and the later one is taken back.
+    const inLine = await prisma.supportQueue.findMany({
+        where: { sessionId, studentId: user.userId, status: { in: IN_LINE } },
+        orderBy: { queueNumber: "asc" },
+    });
+    if (inLine.length > 1 && inLine[0].id !== entry.id) {
+        await prisma.supportQueue.delete({ where: { id: entry.id } });
+        return inLine[0];
+    }
+
+    // Once per session, however many turns (unique per student, source and session).
     await awardXp(prisma, {
         studentId: user.userId,
         courseId: session.courseId,
@@ -773,8 +787,10 @@ const getMyQueuePosition = async (user: IRequestUser, sessionId: string) => {
 
     await requireCourseAccess(user, session.courseId);
 
-    const mine = await prisma.supportQueue.findUnique({
-        where: { sessionId_studentId: { sessionId, studentId: user.userId } },
+    // Their latest turn in this session — the one in line, if any (only ever one is).
+    const mine = await prisma.supportQueue.findFirst({
+        where: { sessionId, studentId: user.userId },
+        orderBy: { joinedAt: "desc" },
     });
 
     const board = await buildQueueBoard(sessionId);
@@ -806,6 +822,69 @@ const getMyQueuePosition = async (user: IRequestUser, sessionId: string) => {
 };
 
 // ---------------------------------------------------------------------------
+// Feedback — asked after a finished turn, before the next number
+// ---------------------------------------------------------------------------
+
+/**
+ * The turn a student still owes feedback on: their latest finished one
+ * (COMPLETED — served, not skipped or left), while it isn't rated. Only the
+ * latest: an older turn they never rated isn't asked about again.
+ */
+const findPendingFeedback = async (studentId: string) => {
+    const latest = await prisma.supportQueue.findFirst({
+        where: { studentId, status: SupportQueueStatus.COMPLETED },
+        orderBy: [{ completedAt: { sort: "desc", nulls: "last" } }, { joinedAt: "desc" }],
+        select: {
+            id: true,
+            queueNumber: true,
+            topic: true,
+            completedAt: true,
+            feedbackAt: true,
+            session: {
+                select: {
+                    id: true,
+                    title: true,
+                    startTime: true,
+                    mentor: { select: studentCard },
+                    course: { select: { id: true, title: true, slug: true } },
+                },
+            },
+        },
+    });
+    return latest && !latest.feedbackAt ? latest : null;
+};
+
+/** What the support page asks about before the next number, or null when nothing's owed. */
+const getPendingFeedback = async (user: IRequestUser) => {
+    const owed = await findPendingFeedback(user.userId);
+    if (!owed) return null;
+    const { feedbackAt: _unrated, ...turn } = owed;
+    return turn;
+};
+
+/**
+ * Saves the student's feedback on one finished turn of theirs. Given once:
+ * a second submission (a double click, two tabs) changes nothing.
+ */
+const submitFeedback = async (user: IRequestUser, queueId: string, feedback: { rating: number; solved: number }) => {
+    const entry = await prisma.supportQueue.findUnique({
+        where: { id: queueId },
+        select: { studentId: true, status: true, sessionId: true },
+    });
+    if (!entry || entry.studentId !== user.userId) throw new AppError(status.NOT_FOUND, "That support turn wasn't found.");
+    if (entry.status !== SupportQueueStatus.COMPLETED) {
+        throw new AppError(status.BAD_REQUEST, "You can give feedback once your turn with the mentor is over.");
+    }
+
+    const { count } = await prisma.supportQueue.updateMany({
+        where: { id: queueId, feedbackAt: null },
+        data: { feedbackRating: feedback.rating, feedbackSolved: feedback.solved, feedbackAt: new Date() },
+    });
+    if (count) logger.update("Support feedback given", { queueId, sessionId: entry.sessionId, ...feedback });
+    return { queueId, ...feedback };
+};
+
+// ---------------------------------------------------------------------------
 // Mentor queue dashboard (plan §26)
 // ---------------------------------------------------------------------------
 
@@ -828,7 +907,7 @@ const getQueue = async (user: IRequestUser, sessionId: string) => {
 const serveNext = async (user: IRequestUser, sessionId: string, mentorNote?: string) => {
     const session = await prisma.supportSession.findUnique({
         where: { id: sessionId },
-        select: { id: true, courseId: true },
+        select: { id: true, courseId: true, course: { select: { slug: true } } },
     });
     if (!session) throw new AppError(status.NOT_FOUND, "Support session not found.");
 
@@ -871,6 +950,7 @@ const serveNext = async (user: IRequestUser, sessionId: string, mentorNote?: str
             title: "It's your turn 🎧",
             message: `You're now being served in the support session. Join the meeting link.`,
             type: NotificationType.SUPPORT,
+            link: `/learn/${session.course.slug}/support`,
             senderId: user.userId,
         });
     }
@@ -930,6 +1010,89 @@ const skipStudent = async (user: IRequestUser, queueId: string, mentorNote?: str
 
     await broadcastQueue(entry.session.id);
     return skipped;
+};
+
+const numberLabel = (queueNumber: number) => `#${String(queueNumber).padStart(2, "0")}`;
+
+/**
+ * Staff moving one turn by hand, from the attendance record or the board:
+ * call them now (SERVING — whoever is with the mentor is finished first, as
+ * "Done — call next" does), mark them helped, skipped or gone, or put them
+ * back in line at their own number. Calling someone or putting them back in
+ * line needs the session to be on, and a student is never in line twice.
+ */
+const setQueueStatus = async (user: IRequestUser, queueId: string, next: SupportQueueStatus, mentorNote?: string) => {
+    const entry = await prisma.supportQueue.findUnique({
+        where: { id: queueId },
+        include: {
+            student: { select: { name: true } },
+            session: { select: { id: true, courseId: true, startTime: true, endTime: true, status: true, course: { select: { slug: true } } } },
+        },
+    });
+    if (!entry) throw new AppError(status.NOT_FOUND, "Queue entry not found.");
+    await assertCanManageCourse(user, entry.session.courseId);
+    if (entry.status === next && !mentorNote) return entry;
+
+    const inLineNext = IN_LINE.includes(next);
+    if (inLineNext && entry.status !== next) {
+        if (!computeLive(entry.session)) {
+            throw new AppError(status.BAD_REQUEST, "The session isn't on right now, so nobody can be called or put back in line.");
+        }
+        const other = await prisma.supportQueue.findFirst({
+            where: { sessionId: entry.sessionId, studentId: entry.studentId, status: { in: IN_LINE }, id: { not: entry.id } },
+            select: { queueNumber: true },
+        });
+        if (other) {
+            throw new AppError(status.CONFLICT, `${entry.student.name} is already in line as ${numberLabel(other.queueNumber)}.`);
+        }
+    }
+
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+        if (next === SupportQueueStatus.SERVING && entry.status !== next) {
+            // One student with the mentor at a time: whoever is there now is done.
+            await tx.supportQueue.updateMany({
+                where: { sessionId: entry.sessionId, status: SupportQueueStatus.SERVING, id: { not: entry.id } },
+                data: { status: SupportQueueStatus.COMPLETED, completedAt: now },
+            });
+        }
+        return tx.supportQueue.update({
+            where: { id: entry.id },
+            data: {
+                status: next,
+                ...(next === SupportQueueStatus.WAITING ? { servedAt: null, completedAt: null } : {}),
+                ...(next === SupportQueueStatus.SERVING && entry.status !== next ? { servedAt: now, completedAt: null } : {}),
+                ...(next === SupportQueueStatus.COMPLETED ? { servedAt: entry.servedAt ?? now, completedAt: entry.completedAt ?? now } : {}),
+                ...(mentorNote ? { mentorNote } : {}),
+            },
+        });
+    });
+
+    if (next === SupportQueueStatus.SERVING && entry.status !== next) {
+        await createNotification({
+            userId: entry.studentId,
+            title: "It's your turn 🎧",
+            message: "You're now being served in the support session. Join the meeting link.",
+            type: NotificationType.SUPPORT,
+            link: `/learn/${entry.session.course.slug}/support`,
+            senderId: user.userId,
+        });
+    }
+
+    await broadcastQueue(entry.sessionId);
+    return updated;
+};
+
+/**
+ * The queue board for a student on the course — the same public board the
+ * socket pushes (names only), for the first paint and whenever the socket
+ * isn't connected.
+ */
+const getBoardForStudent = async (user: IRequestUser, sessionId: string) => {
+    const session = await prisma.supportSession.findUnique({ where: { id: sessionId }, select: { courseId: true } });
+    if (!session) throw new AppError(status.NOT_FOUND, "Support session not found.");
+    await requireCourseAccess(user, session.courseId);
+    return buildQueueBoard(sessionId);
 };
 
 /** Full attendance record for a finished session. */
@@ -1038,10 +1201,14 @@ export const SupportService = {
     joinQueue,
     leaveQueue,
     getMyQueuePosition,
+    getPendingFeedback,
+    submitFeedback,
     getQueue,
     serveNext,
     completeCurrent,
     skipStudent,
+    setQueueStatus,
+    getBoardForStudent,
     getSessionHistory,
     notifyLiveSessions,
 };

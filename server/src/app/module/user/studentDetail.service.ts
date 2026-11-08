@@ -332,6 +332,8 @@ const getStudentOverview = async (userId: string) => {
             select: {
                 id: true, queueNumber: true, status: true, topic: true, joinedAt: true, servedAt: true,
                 completedAt: true, mentorNote: true,
+                // What the student said about the turn afterwards.
+                feedbackRating: true, feedbackSolved: true, feedbackAt: true,
                 session: {
                     select: {
                         id: true, title: true, startTime: true, endTime: true, status: true,

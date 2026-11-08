@@ -362,6 +362,10 @@ export interface StudentOverview {
         servedAt: string | null;
         completedAt: string | null;
         mentorNote: string | null;
+        /** What the student said about the turn afterwards (1–5 each), once they did. */
+        feedbackRating: number | null;
+        feedbackSolved: number | null;
+        feedbackAt: string | null;
         session: {
             id: string;
             title: string | null;

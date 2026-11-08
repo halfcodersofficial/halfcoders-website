@@ -12,6 +12,7 @@ import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffSupportRoutes } from "@/lib/staffRoutes";
 import { clock } from "@/components/mentor/dashboard/time";
 import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
+import { SupportFeedbackScores } from "@/components/shared/SupportFeedback";
 import { cn, formatQueueNumber } from "@/lib/utils";
 import { supportService } from "@/services";
 import type { SupportQueueStatus } from "@/types/api.types";
@@ -43,8 +44,9 @@ const asMinutes = (value: number | null) => (value === null ? "—" : value < 1 
 
 /**
  * Who joined a support session's line and how it went for each: their
- * number, when they were seen and for how long, what they needed and the
- * mentor's note — with the session's medians on top. Mentors open it from
+ * number, when they were seen and for how long, what they needed, the
+ * mentor's note and the student's own rating of it afterwards — with the
+ * session's medians and average rating on top. Mentors open it from
  * the board they ran; admins from the course's sessions. Mentors see
  * students by name only.
  */
@@ -94,6 +96,10 @@ export default function SupportSessionHistory({
     const waits = data.flatMap((entry) => (entry.servedAt ? [minutesBetween(entry.joinedAt, entry.servedAt)] : []));
     const helpTimes = data.flatMap((entry) => (entry.servedAt && entry.completedAt && entry.status === "COMPLETED" ? [minutesBetween(entry.servedAt, entry.completedAt)] : []));
     const rows = filter ? data.filter((entry) => entry.status === filter) : data;
+    // What the students said afterwards, averaged over the turns they rated.
+    const rated = data.filter((entry) => entry.feedbackRating !== null && entry.feedbackSolved !== null);
+    const average = (pick: (entry: QueueHistoryEntry) => number | null) =>
+        rated.length ? (rated.reduce((sum, entry) => sum + (pick(entry) ?? 0), 0) / rated.length).toFixed(1) : "—";
 
     return (
         <div className="w-full space-y-6">
@@ -109,11 +115,16 @@ export default function SupportSessionHistory({
                 </div>
             </header>
 
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border shadow-card sm:grid-cols-3 lg:grid-cols-5">
                 <Figure label="Joined" value={data.length} />
                 <Figure label="Helped" value={count("COMPLETED")} hint={count("SKIPPED") || count("LEFT") ? `${count("SKIPPED")} skipped · ${count("LEFT")} left` : undefined} />
                 <Figure label="Median wait" value={asMinutes(median(waits))} hint="From joining to being seen" />
                 <Figure label="Median help" value={asMinutes(median(helpTimes))} hint="Time with the mentor" />
+                <Figure
+                    label="Student rating"
+                    value={rated.length ? `${average((entry) => entry.feedbackRating)}/5` : "—"}
+                    hint={rated.length ? `Solved ${average((entry) => entry.feedbackSolved)}/5 · ${rated.length} rated` : "No feedback yet"}
+                />
             </dl>
 
             {data.length === 0 ? (
@@ -181,6 +192,7 @@ function Row({ entry }: { entry: QueueHistoryEntry }) {
                     </p>
                     {entry.topic && <p className="mt-0.5 text-sm leading-relaxed text-foreground/80">{entry.topic}</p>}
                     {entry.mentorNote && <p className="mt-1 border-l-2 border-primary/30 pl-2 text-xs text-muted-foreground">{entry.mentorNote}</p>}
+                    <SupportFeedbackScores rating={entry.feedbackRating} solved={entry.feedbackSolved} className="mt-1.5" />
                 </div>
             </div>
             <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:col-start-3 sm:flex-col sm:items-end">

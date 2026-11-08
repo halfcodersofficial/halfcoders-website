@@ -10,6 +10,8 @@ import {
     createSessionZodSchema,
     joinQueueZodSchema,
     mentorNoteZodSchema,
+    queueStatusZodSchema,
+    supportFeedbackZodSchema,
     updateSessionZodSchema,
 } from "./support.validation";
 
@@ -88,8 +90,27 @@ router.post(
     SupportController.skipStudent,
 );
 
+// Any turn moved by hand — call, helped, skipped, left, back in line.
+router.patch(
+    "/manage/queue/:queueId/status",
+    checkAuth(...STAFF),
+    trackActivity("support.queueStatus"),
+    validateRequest(queueStatusZodSchema),
+    SupportController.setQueueStatus,
+);
+
 // ---- Student. Joining a queue is something you do as a learner on a course
 // you're enrolled in; the mentor's side of the same session is above.
+
+// A finished turn is rated before the next number (`joinQueue` holds to it).
+router.get("/feedback/pending", checkAuth(Role.STUDENT), SupportController.getPendingFeedback);
+router.post(
+    "/feedback/:queueId",
+    checkAuth(Role.STUDENT),
+    validateRequest(supportFeedbackZodSchema),
+    SupportController.submitFeedback,
+);
+
 router.get(
     "/course/:courseId",
     checkAuth(Role.STUDENT),
@@ -100,6 +121,8 @@ router.get(
     checkAuth(Role.STUDENT),
     SupportController.getMyQueuePosition,
 );
+// The public board (names only), for the first paint and when the socket is down.
+router.get("/:sessionId/board", checkAuth(Role.STUDENT), SupportController.getBoardForStudent);
 
 router.post(
     "/:sessionId/join",

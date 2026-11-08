@@ -57,6 +57,25 @@ export const joinQueueZodSchema = z.object({
     topic: z.string().trim().max(500).optional(),
 });
 
+const score = (what: string) =>
+    z
+        .number({ error: `Pick a number from 1 to 5 for ${what}` })
+        .int()
+        .min(1, `Pick a number from 1 to 5 for ${what}`)
+        .max(5, `Pick a number from 1 to 5 for ${what}`);
+
+/** A student's feedback on a finished turn: how it went, and how far it solved their problem. */
+export const supportFeedbackZodSchema = z.object({
+    rating: score("how it went"),
+    solved: score("whether it solved your problem"),
+});
+
+/** Staff moving one turn by hand — from the attendance record or the board. */
+export const queueStatusZodSchema = z.object({
+    status: z.enum(["WAITING", "SERVING", "COMPLETED", "SKIPPED", "LEFT"], { error: "Pick a status" }),
+    mentorNote: z.string().trim().max(1000).optional(),
+});
+
 export const mentorNoteZodSchema = z.object({
     mentorNote: z.string().trim().max(1000).optional(),
 });

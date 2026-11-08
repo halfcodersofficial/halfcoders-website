@@ -433,6 +433,12 @@ const CATALOGUE = {
         summary: (c) =>
             `Skipped ${c.about?.student ?? "a student"} in ${quote(c.about?.title, "a support session")}`,
     },
+    "support.queueStatus": {
+        entity: "queueEntry",
+        about: { subject: "queueEntry", param: "queueId" },
+        summary: (c) =>
+            `Changed ${c.about?.student ?? "a student"}'s turn in ${quote(c.about?.title, "a support session")}`,
+    },
 
     // ---- Conceptual sessions (recorded live classes, by topic)
     "conceptual.topic.create": {

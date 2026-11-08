@@ -1,7 +1,7 @@
 import axios from "axios";
 import envConfig from "@/lib/envConfig";
 import httpClient from "@/lib/httpClient";
-import type { ApiMeta, ApiResponse, SubmissionStatus } from "@/types/api.types";
+import type { ApiMeta, ApiResponse, SubmissionStatus, SupportQueueStatus } from "@/types/api.types";
 import type {
     QueueHistoryEntry,
 } from "@/types/mentor.types";
@@ -54,6 +54,7 @@ import type {
     LessonState,
     LoginPopups,
     MyQueuePosition,
+    PendingSupportFeedback,
     Order,
     QueueBoard,
     StudentDashboard,
@@ -534,6 +535,18 @@ export const supportService = {
     leaveQueue: (sessionId: string) =>
         httpClient.post(`/support/${sessionId}/leave`).then(() => undefined),
 
+    /** The finished turn still to rate before the next number, or null. */
+    pendingFeedback: () =>
+        httpClient.get<ApiResponse<PendingSupportFeedback | null>>("/support/feedback/pending").then(unwrap),
+
+    /** How the turn went and how far it solved the problem, 1–5 each. */
+    submitFeedback: (queueId: string, feedback: { rating: number; solved: number }) =>
+        httpClient.post(`/support/feedback/${queueId}`, feedback).then(() => undefined),
+
+    /** The public queue board (names only) — the first paint, and the fallback while the socket is down. */
+    studentBoard: (sessionId: string) =>
+        httpClient.get<ApiResponse<QueueBoard>>(`/support/${sessionId}/board`, { _silent: true }).then(unwrap),
+
     // Polled as a fallback when the socket is unavailable, so it must not
     // redirect on a transient 401.
     myPosition: (sessionId: string) =>
@@ -562,6 +575,10 @@ export const supportService = {
 
     skip: (queueId: string, mentorNote?: string) =>
         httpClient.post(`/support/manage/queue/${queueId}/skip`, { mentorNote }).then(() => undefined),
+
+    /** Moves one turn by hand: call now, helped, skipped, left, or back in line. */
+    setQueueStatus: (queueId: string, status: SupportQueueStatus, mentorNote?: string) =>
+        httpClient.patch(`/support/manage/queue/${queueId}/status`, { status, mentorNote }).then(() => undefined),
 
     sessionsForManagedCourse: (courseId: string) =>
         httpClient
