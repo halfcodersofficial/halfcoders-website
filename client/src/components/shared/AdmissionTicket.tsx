@@ -1,11 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Download, Share2, Ticket } from "lucide-react";
+import { Copy, Download, Share2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { admissionTicketFile, type AdmissionTicketDrawing } from "@/lib/admissionTicket";
 import { SITE_DOMAIN } from "@/lib/brand";
@@ -79,7 +78,7 @@ export function useAdmissionTicketPicture(drawing: AdmissionTicketDrawing | null
 /** The drawn ticket, 4:5, with a placeholder of the same shape until it's ready. */
 export function AdmissionTicketPicture({ url, alt, className }: { url: string | null; alt: string; className?: string }) {
     return (
-        <div className={cn("relative aspect-[4/5] overflow-hidden rounded-card bg-editor shadow-panel", className)}>
+        <div className={cn("relative aspect-4/5 overflow-hidden rounded-card bg-editor shadow-panel", className)}>
             {url ? (
                 // A blob: URL drawn in the browser — next/image has nothing to optimise.
                 // eslint-disable-next-line @next/next/no-img-element
@@ -164,8 +163,8 @@ const ticketQuery = (courseId: string) => ({
     staleTime: 5 * 60_000,
 });
 
-/** The picture beside what it is and what to do with it. */
-function TicketBody({ ticket, compact = false }: { ticket: MyAdmissionTicket; compact?: boolean }) {
+/** The picture beside what it is and what to do with it — under `title` when given (a course's name), else the welcome line. */
+function TicketBody({ ticket, compact = false, title }: { ticket: MyAdmissionTicket; compact?: boolean; title?: string }) {
     const { file, url, failed } = useAdmissionTicketPicture(drawingOf(ticket), ticket.course.slug);
 
     return (
@@ -179,7 +178,7 @@ function TicketBody({ ticket, compact = false }: { ticket: MyAdmissionTicket; co
                 {!compact && (
                     <>
                         <p className="text-xs font-semibold uppercase tracking-wider text-primary">Admission ticket</p>
-                        <h2 className="mt-1 text-xl font-bold leading-snug">Your seat is confirmed. Here&apos;s your ticket.</h2>
+                        <h2 className="mt-1 text-xl font-bold leading-snug">{title ?? "Your seat is confirmed. Here's your ticket."}</h2>
                     </>
                 )}
                 <p className={cn("text-sm text-muted-foreground", !compact && "mt-2")}>
@@ -210,27 +209,35 @@ export function AdmissionTicketPanel({ courseId, className }: { courseId: string
     );
 }
 
-/** On a dashboard course tile: opens the ticket again whenever they want it. */
-export function AdmissionTicketButton({ courseId }: { courseId: string }) {
-    const [open, setOpen] = useState(false);
-    const { data, isLoading, isError } = useQuery({ ...ticketQuery(courseId), enabled: open });
+/**
+ * On the dashboard's Admission Ticket page: one course's ticket under that
+ * course's name, to save or share again whenever they want it.
+ */
+export function AdmissionTicketCard({ courseId, courseTitle }: { courseId: string; courseTitle: string }) {
+    const { data, isLoading, isError } = useQuery(ticketQuery(courseId));
 
     return (
-        <>
-            <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
-                <Ticket /> Ticket
-            </Button>
-            <Modal open={open} onOpenChange={setOpen} title="Your admission ticket" size="md">
-                <ModalBody>
-                    {data ? (
-                        <TicketBody ticket={data} compact />
-                    ) : isError ? (
-                        <p className="py-6 text-center text-sm text-muted-foreground">This course doesn&apos;t have a ticket right now.</p>
-                    ) : (
-                        isLoading && <Skeleton className="mx-auto aspect-[4/5] w-full max-w-sm rounded-card" />
-                    )}
-                </ModalBody>
-            </Modal>
-        </>
+        <section className="rounded-card border border-border bg-card p-4 shadow-card sm:p-6">
+            {data ? (
+                <TicketBody ticket={data} title={courseTitle} />
+            ) : isError ? (
+                <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">Admission ticket</p>
+                    <h2 className="mt-1 text-xl font-bold leading-snug">{courseTitle}</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">This course doesn&apos;t have a ticket right now.</p>
+                </div>
+            ) : (
+                isLoading && (
+                    <div className="grid items-center gap-6 md:grid-cols-[minmax(0,19rem)_minmax(0,1fr)] md:gap-8">
+                        <Skeleton className="aspect-4/5 w-full max-w-xs rounded-card max-md:mx-auto" />
+                        <div className="space-y-3">
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-6 w-3/4" />
+                            <Skeleton className="h-9 w-48" />
+                        </div>
+                    </div>
+                )
+            )}
+        </section>
     );
 }

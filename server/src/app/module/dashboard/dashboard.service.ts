@@ -1,5 +1,6 @@
 import {
     CertificateStatus,
+    CoursePricing,
     CourseStatus,
     CourseType,
     EnrollmentStatus,
@@ -14,7 +15,7 @@ import { Role } from "../../lib/roles";
 import { learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
 import { STUDENT_NAME_ONLY } from "../../lib/studentPrivacy";
-import { rewardMainCourses } from "../../utils/courseGrants";
+import { freeWithMainCourses } from "../../utils/courseGrants";
 import { isSequentialLearningEnabled } from "../../utils/platformSettings";
 import { computeLive } from "../support/support.service";
 
@@ -216,6 +217,8 @@ const getStudentDashboard = async (user: IRequestUser) => {
                 course: {
                     select: {
                         id: true, title: true, slug: true, thumbnail: true, duration: true, courseType: true,
+                        // A free course is listed with the reward courses, apart from the ones they paid for.
+                        pricing: true,
                         // Support's course picker leaves out a previous course, which has no sessions.
                         phase: true,
                         // So the dashboard says "Week 03" where the course calls its milestones weeks.
@@ -237,8 +240,8 @@ const getStudentDashboard = async (user: IRequestUser) => {
             where: { studentId: user.userId },
             _sum: { totalXp: true },
         }),
-        // Courses held as a reward with another — the dashboard lists them on their own.
-        rewardMainCourses(user.userId),
+        // Courses held free with another (a reward course, an offer's free course…) — the dashboard lists them on their own.
+        freeWithMainCourses(user.userId),
     ]);
 
     // Learning streak — Bootcamp and Traditional courses earn it differently
@@ -334,7 +337,7 @@ const getStudentDashboard = async (user: IRequestUser) => {
             ...e,
             course,
             hasAdmissionTicket,
-            /** The main course this one came with as a reward, if that's how they have it. */
+            /** The main course this one came free with (a reward course, an offer's free course…), if that's how they have it. */
             rewardWith: rewardsWith.get(e.courseId) ?? null,
             streak: { currentStreakDays, courseType: e.course.courseType, history },
         };
@@ -342,8 +345,17 @@ const getStudentDashboard = async (user: IRequestUser) => {
 
     const courseIds = enrollments.map((e) => e.courseId);
 
-    // Most recently touched course — what "Continue Learning" should open.
-    const continueLearning = enrollmentsWithStreak.find((e) => e.status === EnrollmentStatus.ACTIVE) ?? null;
+    // Most recently touched course — what "Continue Learning" should open. An
+    // extra (one that came free with another, or a free course) never opened
+    // yet doesn't lead: a main course does.
+    const isExtra = (e: (typeof enrollmentsWithStreak)[number]) => Boolean(e.rewardWith) || e.course.pricing === CoursePricing.FREE;
+    const active = enrollmentsWithStreak.filter((e) => e.status === EnrollmentStatus.ACTIVE);
+    const opened = new Set([...traditionalProgress, ...bootcampProgress].map((p) => p.enrollmentId));
+    const latest = active[0] ?? null;
+    const continueLearning =
+        latest && isExtra(latest) && latest.progress === 0 && !opened.has(latest.id)
+            ? (active.find((e) => !isExtra(e)) ?? latest)
+            : latest;
 
     // Only look for the extras once the student actually has a course — these
     // queries are pointless (and `IN ()` is awkward) with an empty list.

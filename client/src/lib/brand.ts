@@ -77,4 +77,6 @@ export const BKASH = {
     number: "01329453598",
     display: "01329 453 598",
     qr: "/payments/bkash-qr.jpeg",
+    /** How to pay, step by step — offered on the checkout's payment steps. */
+    guideVideo: "https://youtu.be/adSqISjv5U0",
 } as const;

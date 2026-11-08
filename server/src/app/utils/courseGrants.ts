@@ -5,6 +5,7 @@ import {
     EnrollmentStatus,
     GrantSource,
     NotificationType,
+    OrderStatus,
     RewardCondition,
 } from "../../generated/prisma/enums";
 import { prisma } from "../lib/prisma";
@@ -319,11 +320,68 @@ export const rewardMainCourse = async (studentId: string, courseId: string) => {
     return grant?.bonus?.mainCourse ?? null;
 };
 
-/** Every course a student holds as a reward, with the main course it came with — keyed by the reward course's id. */
-export const rewardMainCourses = async (studentId: string) => {
-    const grants = await prisma.courseGrant.findMany({
-        where: { studentId, source: GrantSource.BONUS, revokedAt: null },
-        select: { courseId: true, bonus: { select: { mainCourse: { select: mainCourseSelect } } } },
-    });
-    return new Map(grants.flatMap((grant) => (grant.bonus ? [[grant.courseId, grant.bonus.mainCourse] as const] : [])));
+type MainCourse = { id: string; title: string; slug: string };
+
+/**
+ * Every course a student has free with another course of theirs, with that
+ * main course — keyed by the free course's id. The dashboard lists these as
+ * reward courses, apart from the courses they came for:
+ *
+ * - a reward course an admin attached to a main course (BONUS grant),
+ * - a free course an offer gave with a purchase (OFFER grant),
+ * - a course earned by finishing another in time (REWARD grant),
+ * - and one with no grant at all — an admin opened both by hand — that a
+ *   course they hold lists as free (its offer, or a reward course for
+ *   everyone), as long as they never bought it themselves.
+ *
+ * Display only: whether a course earns its own certificate is
+ * `rewardMainCourse`'s call (reward courses alone don't).
+ */
+export const freeWithMainCourses = async (studentId: string) => {
+    const [grants, held, bought] = await Promise.all([
+        prisma.courseGrant.findMany({
+            where: { studentId, revokedAt: null },
+            select: {
+                courseId: true,
+                bonus: { select: { mainCourse: { select: mainCourseSelect } } },
+                offer: { select: { course: { select: mainCourseSelect } } },
+                reward: { select: { course: { select: mainCourseSelect } } },
+            },
+        }),
+        prisma.enrollment.findMany({ where: { studentId, status: { in: HAS_ACCESS } }, select: { courseId: true } }),
+        prisma.order.findMany({ where: { studentId, status: OrderStatus.PAID }, select: { courseId: true } }),
+    ]);
+
+    const freeWith = new Map<string, MainCourse>();
+    for (const grant of grants) {
+        const main = grant.bonus?.mainCourse ?? grant.offer?.course ?? grant.reward?.course;
+        if (main && main.id !== grant.courseId) freeWith.set(grant.courseId, main);
+    }
+
+    // Opened by hand: held, not bought, and not explained by a grant.
+    const heldIds = held.map((enrollment) => enrollment.courseId);
+    const boughtIds = new Set(bought.map((order) => order.courseId));
+    const unexplained = heldIds.filter((courseId) => !freeWith.has(courseId) && !boughtIds.has(courseId));
+    if (unexplained.length === 0) return freeWith;
+
+    const [offerItems, forEveryone] = await Promise.all([
+        prisma.courseOfferItem.findMany({
+            where: { courseId: { in: unexplained }, offer: { courseId: { in: heldIds } } },
+            select: { courseId: true, offer: { select: { course: { select: mainCourseSelect } } } },
+        }),
+        prisma.bonusCourse.findMany({
+            where: { courseId: { in: unexplained }, mainCourseId: { in: heldIds }, forEveryone: true },
+            select: { courseId: true, mainCourse: { select: mainCourseSelect } },
+        }),
+    ]);
+    const listed = new Map<string, MainCourse>();
+    for (const { courseId, mainCourse } of forEveryone) listed.set(courseId, mainCourse);
+    for (const { courseId, offer } of offerItems) if (!listed.has(courseId)) listed.set(courseId, offer.course);
+
+    for (const [courseId, main] of listed) {
+        // Two courses each listed free with the other: neither is the extra, so both stay main courses.
+        if (main.id === courseId || listed.get(main.id)?.id === courseId) continue;
+        freeWith.set(courseId, main);
+    }
+    return freeWith;
 };

@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { AdmissionTicketButton } from "@/components/shared/AdmissionTicket";
 import ProgressRing from "@/components/shared/ProgressRing";
 import RoleGuard from "@/components/shared/RoleGuard";
 import { Avatar } from "@/components/ui/avatar";
@@ -56,6 +55,9 @@ const nextCoursePromptFor = (streakDays: number, fallback: string) =>
     streakDays > 0 ? `Keep your ${streakDays}-day streak going — start a new course!` : fallback;
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** An extra rather than a course they came for: free with a course they have (a reward), or a free course. */
+const isExtraCourse = (enrollment: Enrollment) => Boolean(enrollment.rewardWith) || enrollment.course.pricing === "FREE";
 
 /** Page-load rise, staggered with `delay-*`; CSS, so it runs from the first paint. */
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
@@ -103,9 +105,10 @@ function StudentDashboardView() {
         enrollments.find((e) => e.id === continueLearning?.id && e.streak) ??
         [...enrollments].sort((a, b) => (b.streak?.currentStreakDays ?? 0) - (a.streak?.currentStreakDays ?? 0))[0];
 
-    // Reward courses (given with a course they have) get their own section under the rest.
-    const ownCourses = enrollments.filter((enrollment) => !enrollment.rewardWith);
-    const rewardCourses = enrollments.filter((enrollment) => enrollment.rewardWith);
+    // The courses they came for first; under them, the extras — reward courses
+    // (free with a course they have) and free courses — in a section of their own.
+    const ownCourses = enrollments.filter((enrollment) => !isExtraCourse(enrollment));
+    const rewardCourses = enrollments.filter(isExtraCourse);
 
     const filteredEnrollments = courseFilter
         ? ownCourses.filter((enrollment) => enrollment.status === courseFilter)
@@ -197,11 +200,11 @@ function StudentDashboardView() {
                                 <div className="mb-5">
                                     <h2 id="reward-courses-title" className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
                                         <span aria-hidden className="h-5 w-1 rounded-full bg-syn-number" />
-                                        Reward courses
+                                        Reward &amp; free courses
                                         <span className="text-base font-normal text-muted-foreground">({rewardCourses.length})</span>
                                     </h2>
                                     <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-                                        Extra courses that came free with yours. Learn them any time — your certificate comes from the main course.
+                                        Courses that came free with yours, and free courses you joined. Learn them any time.
                                     </p>
                                 </div>
                                 <div className="grid gap-5 sm:grid-cols-2">
@@ -743,13 +746,20 @@ function CourseTile({ enrollment }: { enrollment: Enrollment }) {
                         {enrollment.course.title}
                     </Link>
                 </h3>
-                {enrollment.rewardWith && (
+                {enrollment.rewardWith ? (
                     <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs font-medium text-syn-number">
                         <Gift className="size-3.5 shrink-0" aria-hidden />
                         <span className="truncate">
                             Reward with <span className="text-foreground">{enrollment.rewardWith.title}</span>
                         </span>
                     </p>
+                ) : (
+                    enrollment.course.pricing === "FREE" && (
+                        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-syn-number">
+                            <Gift className="size-3.5 shrink-0" aria-hidden />
+                            Free course
+                        </p>
+                    )
                 )}
 
                 <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
@@ -763,7 +773,6 @@ function CourseTile({ enrollment }: { enrollment: Enrollment }) {
                             <ListTree /> Outline
                         </Link>
                     </Button>
-                    {enrollment.hasAdmissionTicket && <AdmissionTicketButton courseId={enrollment.courseId} />}
                     {enrollment.certificate && (
                         <Button asChild size="sm" variant="outline">
                             <Link href={`/certificate/${enrollment.certificate.certificateNo}`}>

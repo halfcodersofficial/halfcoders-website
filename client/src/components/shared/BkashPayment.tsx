@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Download, Hash, Info, Landmark, QrCode, Smartphone } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, Download, Hash, Info, Landmark, Play, QrCode, Smartphone } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +13,7 @@ import { Checkbox, Input } from "@/components/ui/input";
 import { useZodForm } from "@/hooks/useZodForm";
 import { BKASH } from "@/lib/brand";
 import { cn, formatBDT, formatDateTime } from "@/lib/utils";
+import { extractYoutubeId } from "@/lib/validation";
 import type { BkashSubmission } from "@/services";
 
 /** "+880 1712-345678" / "01712 345678" → "01712345678" — the form the API keeps. */
@@ -169,6 +170,55 @@ function QrFigure() {
     );
 }
 
+/**
+ * How to pay, on video, for whoever would rather watch than read the steps.
+ * YouTube's poster with a play button; the player only mounts on a tap, so
+ * the checkout doesn't load YouTube for everyone.
+ */
+function PaymentGuideVideo() {
+    const [playing, setPlaying] = useState(false);
+    const videoId = extractYoutubeId(BKASH.guideVideo);
+    if (!videoId) return null;
+
+    if (playing) {
+        return (
+            <div className="mt-5 overflow-hidden rounded-card border border-border bg-black">
+                <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`}
+                    title="কীভাবে পেমেন্ট করবেন — ভিডিও"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="aspect-video w-full"
+                />
+            </div>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => setPlaying(true)}
+            className="group mt-5 flex w-full items-center gap-4 rounded-card border border-border bg-surface p-3 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+            <span className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-black sm:w-36">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} alt="" aria-hidden className="size-full object-cover" />
+                <span className="absolute inset-0 grid place-items-center bg-black/25 transition-colors group-hover:bg-black/35">
+                    <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-lg ring-4 ring-white/15 transition-transform group-hover:scale-105">
+                        <Play className="ml-0.5 size-4 fill-current" aria-hidden />
+                    </span>
+                </span>
+            </span>
+            <span className="min-w-0">
+                <span className="block text-sm font-semibold">কীভাবে পেমেন্ট করবেন, ভিডিওতে দেখে নিন</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                    নিচের ধাপগুলো বুঝতে সমস্যা হলে ভিডিওটা চালিয়ে দেখুন।
+                </span>
+            </span>
+        </button>
+    );
+}
+
 const SOURCES: { id: Source; title: string; text: string; icon: typeof Smartphone; tile: string }[] = [
     {
         id: "bkash",
@@ -233,6 +283,8 @@ function PaySteps({
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                 bKash অ্যাপ দিয়ে, অথবা আপনার ব্যাংকের অ্যাপ দিয়ে পেমেন্ট করতে পারবেন। দুইভাবেই টাকা আমাদের bKash মার্চেন্ট অ্যাকাউন্টে জমা হয়।
             </p>
+
+            <PaymentGuideVideo />
 
             <fieldset className="mt-5">
                 <legend className="text-sm font-semibold">কোথা থেকে পেমেন্ট করবেন?</legend>
