@@ -264,6 +264,7 @@ function Checkout() {
             ? {
                   transactionId: order.payment.transactionId,
                   senderNumber: order.payment.gatewayData?.senderNumber,
+                  paidWith: order.payment.gatewayData?.paidWith,
                   submittedAt: order.payment.gatewayData?.submittedAt,
               }
             : null;
@@ -277,15 +278,15 @@ function Checkout() {
             <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_24rem] lg:grid-rows-[auto_1fr] lg:gap-x-12 lg:gap-y-8">
                 <header className="min-w-0 lg:col-start-1 lg:row-start-1">
                     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                        {isPaid ? "Access granted." : sentIn ? "Verifying your payment…" : isPending ? "One step left: pay by bKash" : "This order is closed"}
+                        {isPaid ? "Access granted." : sentIn ? "Verifying your payment…" : isPending ? "One step left: pay" : "This order is closed"}
                     </h1>
                     <p className="mt-2 max-w-xl leading-relaxed text-muted-foreground">
                         {isPaid
                             ? "Payment confirmed — the course is waiting in your dashboard. Start whenever you like."
                             : sentIn
-                                ? "We've got your bKash details. The course opens as soon as our team matches them — you'll get an email."
+                                ? "We've got your payment details. The course opens as soon as our team matches them — you'll get an email."
                                 : isPending
-                                    ? "Your order is saved. Follow the bKash steps below, then send us the Transaction ID."
+                                    ? "Your order is saved. Pay with bKash or your bank's app using the steps below, then send us the Transaction ID."
                                     : `This order is ${order.status.toLowerCase()}${order.payment?.failureReason ? ` — ${order.payment.failureReason}` : ""}. Start a new order from the course page, or contact support if you think this is a mistake.`}
                     </p>
                 </header>
@@ -362,7 +363,7 @@ function Checkout() {
 
                         {isPending && (
                             <p className="mx-5 mt-4 rounded-md border border-border bg-surface px-3 py-2.5 text-center text-xs text-muted-foreground">
-                                {sentIn ? "Payment sent — being verified" : "Pay by bKash — the steps are on this page"}
+                                {sentIn ? "Payment sent — being verified" : "Pay by bKash or bank app — the steps are on this page"}
                             </p>
                         )}
 

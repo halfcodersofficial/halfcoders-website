@@ -1197,6 +1197,9 @@ export interface AdminBundleOrder {
     total: number;
     status: OrderStatus;
     gateway: string | null;
+    /** What the student sent in after paying: a bKash TrxID or a bank/app reference. */
+    transactionId: string | null;
+    gatewayData: unknown;
     paidAt: string | null;
     failureReason: string | null;
     createdAt: string;

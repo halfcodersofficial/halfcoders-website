@@ -111,80 +111,88 @@ export default function AdminMentorDetailPage() {
                     <span className="bg-grid bg-grid-fade absolute inset-0" />
                     <p className="relative px-6 pt-4 text-right font-mono text-xs text-syn-comment">{"// "}Mentor profile</p>
                 </div>
-                <CardContent className="-mt-14 flex flex-col gap-5 p-6 pt-0 sm:-mt-16 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                <CardContent className="flex flex-col gap-5 p-6 pt-0 sm:flex-row sm:items-start sm:gap-6">
+                    {/* Only the photo rises into the banner. */}
+                    <div className="relative z-10 -mt-14 w-fit shrink-0 sm:-mt-16">
                         <Avatar
                             src={mentor.image}
                             name={mentor.name}
                             size={128}
-                            className="shrink-0 bg-card ring-4 ring-card"
+                            className="bg-card ring-4 ring-card"
                         />
-                        <div className="min-w-0 space-y-1.5 sm:pb-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h1 className="text-2xl font-bold wrap-break-word sm:text-3xl">{mentor.name}</h1>
-                                <StatusPill kind="user" value={mentor.status} />
-                            </div>
-                            <p className={cn("text-base", !headline && "text-muted-foreground")}>
-                                {headline || "No designation yet"}
-                            </p>
-                            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                    <Mail className="size-4 shrink-0" aria-hidden />
-                                    <span className="truncate">{mentor.email}</span>
-                                </span>
-                                {mentor.phone && (
-                                    <span className="flex items-center gap-1.5">
-                                        <Phone className="size-4" aria-hidden /> {mentor.phone}
-                                    </span>
-                                )}
-                                <span className="flex items-center gap-1.5">
-                                    <CalendarDays className="size-4" aria-hidden /> Mentor since {formatDate(mentor.createdAt)}
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <Clock className="size-4" aria-hidden />
-                                    {stats.lastActivityAt
-                                        ? `Last active ${formatDistanceToNow(new Date(stats.lastActivityAt), { addSuffix: true })}`
-                                        : "No recorded activity yet"}
-                                </span>
-                            </p>
-                        </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                            <Pencil /> Edit
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
-                            <Link2 /> Assign to course
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            isLoading={mentorActions.isResetting(mentor.id)}
-                            onClick={() => void mentorActions.resetPassword(mentor)}
-                        >
-                            <KeyRound /> Reset password
-                        </Button>
-                        {isActive ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                isLoading={mentorActions.isChangingStatus(mentor.id)}
-                                onClick={() => void mentorActions.block(mentor)}
-                            >
-                                <Ban /> Block
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                isLoading={mentorActions.isChangingStatus(mentor.id)}
-                                onClick={() => mentorActions.reactivate(mentor)}
-                            >
-                                <CheckCircle2 /> Reactivate
-                            </Button>
-                        )}
+                    {/* Name, designation and actions start under the banner, so nothing hides behind it. */}
+                    <div className="min-w-0 flex-1 space-y-3 sm:pt-5">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h1 className="text-2xl font-bold wrap-break-word sm:text-3xl">{mentor.name}</h1>
+                                    <StatusPill kind="user" value={mentor.status} />
+                                </div>
+                                <p className={cn("text-base", !headline && "text-muted-foreground")}>
+                                    {headline || "No designation yet"}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 xl:justify-end">
+                                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                                    <Pencil /> Edit
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+                                    <Link2 /> Assign to course
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    isLoading={mentorActions.isResetting(mentor.id)}
+                                    onClick={() => void mentorActions.resetPassword(mentor)}
+                                >
+                                    <KeyRound /> Reset password
+                                </Button>
+                                {isActive ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        isLoading={mentorActions.isChangingStatus(mentor.id)}
+                                        onClick={() => void mentorActions.block(mentor)}
+                                    >
+                                        <Ban /> Block
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        isLoading={mentorActions.isChangingStatus(mentor.id)}
+                                        onClick={() => mentorActions.reactivate(mentor)}
+                                    >
+                                        <CheckCircle2 /> Reactivate
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                <Mail className="size-4 shrink-0" aria-hidden />
+                                <span className="truncate">{mentor.email}</span>
+                            </span>
+                            {mentor.phone && (
+                                <span className="flex items-center gap-1.5">
+                                    <Phone className="size-4" aria-hidden /> {mentor.phone}
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1.5">
+                                <CalendarDays className="size-4" aria-hidden /> Mentor since {formatDate(mentor.createdAt)}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Clock className="size-4" aria-hidden />
+                                {stats.lastActivityAt
+                                    ? `Last active ${formatDistanceToNow(new Date(stats.lastActivityAt), { addSuffix: true })}`
+                                    : "No recorded activity yet"}
+                            </span>
+                        </p>
                     </div>
                 </CardContent>
 

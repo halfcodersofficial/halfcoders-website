@@ -26,22 +26,27 @@ let warningOverlay: HTMLDivElement | null = null;
 
 // ─── Mobile Detection ───────────────────────────────────────────────────────
 
-// The size-based and debugger-timing heuristics below are desktop-only
-// signals in disguise:
-//   - Size-based: mobile browser chrome (address bar + toolbar) routinely
-//     eats more than the 160px threshold on its own — especially iOS Safari
-//     in portrait — so it false-positives on virtually every visit.
-//   - Debugger-timing: ordinary main-thread jank on a throttled mobile CPU
-//     (GC pauses, background-tab throttling) can push a trivial function
-//     call past the 100ms threshold with no debugger attached at all.
-// Real "DevTools open while browsing" only happens via a desktop-attached
-// remote/USB debugger, which is a developer scenario, not a visitor one —
-// so both checks are skipped on touch/mobile devices.
+// DevTools detection is for computers only. On a phone or tablet, DevTools
+// can only be opened from a computer plugged into it — a developer scenario,
+// not a visitor one, and that person can open the site on the computer
+// anyway. Meanwhile the probes misfire there: main-thread jank on a mobile
+// CPU pushes the debugger timing past its threshold, and in-app browsers
+// (Facebook, Messenger) wrap the console and read what's logged, tripping the
+// console probe. So none of the checks run on these devices.
+//
+// The user agent alone doesn't say so: an iPad by default, and an iPhone or
+// Android phone asking for the "desktop site", send a computer's user agent
+// ("Macintosh", "X11; Linux"). Touch as the main pointer does say so — a
+// Windows touch laptop still has a mouse or trackpad as its main pointer.
 function isMobileDevice() {
-    if (typeof navigator === "undefined") return false;
+    if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+    const ua = navigator.userAgent;
     const isTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
-    const isMobileUA = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
-    return isTouch && isMobileUA;
+    const isMobileUA = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+    // A real Mac reports no touch points; an iPad or iPhone in desktop mode reports several.
+    const isAppleDesktopMode = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+    const touchIsMainPointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return isTouch && (isMobileUA || isAppleDesktopMode || touchIsMainPointer);
 }
 
 // ─── Crawler Detection ──────────────────────────────────────────────────────
@@ -105,13 +110,12 @@ function removeWarningOverlay() {
     }
 }
 
-// Size-based detection
-function checkDevToolsBySize() {
-    const threshold = 160;
-    const widthDiff = window.outerWidth - window.innerWidth > threshold;
-    const heightDiff = window.outerHeight - window.innerHeight > threshold;
-    return widthDiff || heightDiff;
-}
+// No size-based check (window.outerWidth/Height minus innerWidth/Height over
+// some threshold). That gap grows for plenty besides docked DevTools — page
+// zoom above 100%, the browser's side panel, split view (two tabs in one
+// window), a bookmarks bar plus a system title bar, an infobar — and it
+// covered the page for admins with no DevTools open. Docked DevTools are
+// caught by the debugger-timing probe below anyway.
 
 // Console-based detection (catches undocked DevTools too)
 // Uses a getter on a logged object — the getter only fires when DevTools
@@ -135,9 +139,9 @@ function checkDevToolsByConsole() {
     return consoleDetected;
 }
 
-// Debugger-timing detection (catches detached/undocked DevTools that the
-// size heuristic misses). A `debugger` statement is a no-op when DevTools is
-// closed, but pauses execution when it is open — so the elapsed time spikes.
+// Debugger-timing detection (catches DevTools docked or undocked). A
+// `debugger` statement is a no-op when DevTools is closed, but pauses
+// execution when it is open — so the elapsed time spikes.
 //
 // CRITICAL: the statement must be built from a STRING via `new Function`, not
 // written as a literal `debugger;`. The production minifier drops literal
@@ -152,7 +156,7 @@ function getDebuggerProbe(): (() => void) | null {
     try {
         debuggerProbe = new Function("debugger") as () => void;
     } catch {
-        // eval blocked by CSP — fall back to size/console detection only.
+        // eval blocked by CSP — fall back to console detection only.
         debuggerProbe = null;
     }
     return debuggerProbe;
@@ -167,13 +171,8 @@ function checkDevToolsByDebugger() {
 }
 
 function checkDevTools() {
-    // Size and debugger-timing heuristics are unreliable on mobile chrome/CPUs
-    // (see isMobileDevice() above) — only the console-based probe runs there.
-    const sizeDetected = isMobileDevice() ? false : checkDevToolsBySize();
-    const consoleOpen = checkDevToolsByConsole();
-    const debuggerOpen = isMobileDevice() ? false : checkDevToolsByDebugger();
-
-    const isOpen = sizeDetected || consoleOpen || debuggerOpen;
+    // Computers only — initDevToolsProtection never starts this on a phone or tablet.
+    const isOpen = checkDevToolsByConsole() || checkDevToolsByDebugger();
 
     if (isOpen && !devtoolsOpen) {
         devtoolsOpen = true;
@@ -335,14 +334,14 @@ export function initDevToolsProtection() {
     // Block drag
     document.addEventListener("dragstart", blockDragStart, true);
 
-    // Periodic DevTools check (size-based + debugger-based)
-    const interval = setInterval(checkDevTools, 1500);
-
-    // Initial check
-    checkDevTools();
-
-    // Resize-based detection
-    window.addEventListener("resize", checkDevTools);
+    // Periodic DevTools check (console + debugger), on a computer only — see isMobileDevice().
+    const watching = !isMobileDevice();
+    const interval = watching ? setInterval(checkDevTools, 1500) : undefined;
+    if (watching) {
+        checkDevTools();
+        // Docking DevTools resizes the page — check again straight away.
+        window.addEventListener("resize", checkDevTools);
+    }
 
     cleanupFn = () => {
         document.removeEventListener("keydown", blockShortcuts, true);

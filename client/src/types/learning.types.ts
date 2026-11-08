@@ -189,10 +189,14 @@ export interface OrderDetail {
     } | null;
 }
 
-/** What a student sends in after paying by bKash, kept on the payment for the admin who verifies it. */
+/** What a student sends in after paying, kept on the payment for the admin who verifies it. */
 export interface BkashDetails {
+    /** "bkash-merchant" from the bKash app, "bangla-qr" from a bank or another app. */
     method?: string;
+    /** The bKash number paid from (bKash app). */
     senderNumber?: string;
+    /** The bank or app paid from (Bangla QR). */
+    paidWith?: string;
     submittedAt?: string;
 }
 

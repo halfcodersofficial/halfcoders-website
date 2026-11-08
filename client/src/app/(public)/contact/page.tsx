@@ -20,6 +20,8 @@ import {
 import { pageMetadata } from "@/lib/seo";
 
 const FACEBOOK = SOCIAL_LINKS.find((social) => social.network === "facebook")!;
+const YOUTUBE = SOCIAL_LINKS.find((social) => social.network === "youtube")!;
+const GITHUB = SOCIAL_LINKS.find((social) => social.network === "github")!;
 
 export const metadata: Metadata = pageMetadata({
     title: "যোগাযোগ ও সাপোর্ট",
@@ -31,7 +33,7 @@ export const metadata: Metadata = pageMetadata({
 const REMOTE_FACTS: { icon: LucideIcon; label: string; text: string }[] = [
     { icon: Laptop, label: "ক্লাস আর সাপোর্ট", text: "সবই অনলাইনে, লাইভ ক্লাস আর সাপোর্ট সেশন Google Meet-এ।" },
     { icon: Mail, label: "যোগাযোগ", text: "ইমেইল, ফোন বা আমাদের Facebook পেজে।" },
-    { icon: Wallet, label: "পেমেন্ট", text: `শুধু বিকাশ মার্চেন্ট নম্বরে (${BKASH.display}), চেকআউট পেজ থেকে।` },
+    { icon: Wallet, label: "পেমেন্ট", text: `শুধু বিকাশ মার্চেন্ট অ্যাকাউন্টে (${BKASH.display}), চেকআউট পেজ থেকে — বিকাশ বা ব্যাংকের অ্যাপ দিয়ে।` },
 ];
 
 /**
@@ -189,7 +191,15 @@ export default function ContactPage() {
                             <a href={FACEBOOK.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
                                 Facebook পেজ
                             </a>{" "}
-                            ফলো করুন। প্রশ্ন থাকলে সেখানে মেসেজও দিতে পারেন।
+                            ফলো করুন। প্রশ্ন থাকলে সেখানে মেসেজও দিতে পারেন। ভিডিও দেখতে আমাদের{" "}
+                            <a href={YOUTUBE.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
+                                YouTube চ্যানেল
+                            </a>{" "}
+                            আর কোড দেখতে{" "}
+                            <a href={GITHUB.href} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">
+                                GitHub
+                            </a>{" "}
+                            ঘুরে আসুন।
                         </p>
                     </section>
                 </div>

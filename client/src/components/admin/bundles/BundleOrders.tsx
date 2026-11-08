@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layers } from "lucide-react";
 import { toast } from "sonner";
+import { bkashSentIn, sentInSummary } from "@/components/admin/orders/orderMeta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,80 +88,85 @@ export default function BundleOrders({ bundle, onChanged }: { bundle: AdminBundl
                     </dl>
 
                     <ul className="divide-y divide-border overflow-hidden rounded-card border border-border">
-                        {orders.map((order) => (
-                            <li key={order.id} className="p-3.5">
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                                    <Avatar src={order.student.image} name={order.student.name} size={36} />
-                                    <div className="min-w-0 flex-1 basis-40">
-                                        <p className="truncate text-sm font-semibold">{order.student.name}</p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            <span className="font-mono">{order.orderNumber}</span> · {formatDateTime(order.paidAt ?? order.createdAt)}
-                                        </p>
+                        {orders.map((order) => {
+                            // What the student sent in, so a waiting order can be matched on the bKash merchant statement.
+                            const sentIn = order.status === "PENDING" ? bkashSentIn(order) : null;
+                            return (
+                                <li key={order.id} className="p-3.5">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                                        <Avatar src={order.student.image} name={order.student.name} size={36} />
+                                        <div className="min-w-0 flex-1 basis-40">
+                                            <p className="truncate text-sm font-semibold">{order.student.name}</p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                <span className="font-mono">{order.orderNumber}</span> · {formatDateTime(order.paidAt ?? order.createdAt)}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold tabular-nums">{formatBDT(order.total)}</span>
+                                            <Badge variant={ORDER_TONE[order.status]} className="capitalize">
+                                                {order.status.toLowerCase()}
+                                            </Badge>
+                                        </div>
+                                        {order.status === "PENDING" && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                isLoading={confirmPaid.isPending && confirmPaid.variables?.id === order.id}
+                                                onClick={async () => {
+                                                    if (
+                                                        await confirmAction({
+                                                            title: "Confirm this payment?",
+                                                            text: `Only when ${formatBDT(order.total)} has really been paid some other way. Every course in it opens at once.`,
+                                                            confirmText: "Confirm payment",
+                                                            tone: "default",
+                                                        })
+                                                    ) {
+                                                        confirmPaid.mutate(order);
+                                                    }
+                                                }}
+                                            >
+                                                Confirm paid
+                                            </Button>
+                                        )}
+                                        {order.status === "PAID" && (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                isLoading={refund.isPending && refund.variables?.id === order.id}
+                                                onClick={async () => {
+                                                    if (
+                                                        await confirmAction({
+                                                            title: "Refund the whole bundle?",
+                                                            text: "Each course order in it is refunded and the student loses those courses. Send the money back yourself.",
+                                                            confirmText: "Refund",
+                                                        })
+                                                    ) {
+                                                        refund.mutate(order);
+                                                    }
+                                                }}
+                                            >
+                                                Refund
+                                            </Button>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold tabular-nums">{formatBDT(order.total)}</span>
-                                        <Badge variant={ORDER_TONE[order.status]} className="capitalize">
-                                            {order.status.toLowerCase()}
-                                        </Badge>
-                                    </div>
-                                    {order.status === "PENDING" && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            isLoading={confirmPaid.isPending && confirmPaid.variables?.id === order.id}
-                                            onClick={async () => {
-                                                if (
-                                                    await confirmAction({
-                                                        title: "Confirm this payment?",
-                                                        text: `Only when ${formatBDT(order.total)} has really been paid some other way. Every course in it opens at once.`,
-                                                        confirmText: "Confirm payment",
-                                                        tone: "default",
-                                                    })
-                                                ) {
-                                                    confirmPaid.mutate(order);
-                                                }
-                                            }}
-                                        >
-                                            Confirm paid
-                                        </Button>
+                                    {order.orders.length > 0 && (
+                                        <ul className="mt-2.5 flex flex-wrap gap-1.5 sm:pl-12">
+                                            {order.orders.map((child) => (
+                                                <li key={child.id} className="max-w-full truncate rounded-sm bg-secondary px-2.5 py-0.5 text-xs" title={child.course.title}>
+                                                    {child.course.title} · <span className="tabular-nums">{formatBDT(child.total)}</span>
+                                                    {child.status !== "PAID" && <span className="text-muted-foreground"> ({child.status.toLowerCase()})</span>}
+                                                </li>
+                                            ))}
+                                        </ul>
                                     )}
-                                    {order.status === "PAID" && (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                            isLoading={refund.isPending && refund.variables?.id === order.id}
-                                            onClick={async () => {
-                                                if (
-                                                    await confirmAction({
-                                                        title: "Refund the whole bundle?",
-                                                        text: "Each course order in it is refunded and the student loses those courses. Send the money back yourself.",
-                                                        confirmText: "Refund",
-                                                    })
-                                                ) {
-                                                    refund.mutate(order);
-                                                }
-                                            }}
-                                        >
-                                            Refund
-                                        </Button>
+                                    {sentIn && <p className="mt-2 break-all font-mono text-xs text-muted-foreground sm:pl-12">{sentInSummary(sentIn)}</p>}
+                                    {order.failureReason && order.status !== "PAID" && (
+                                        <p className="mt-2 text-xs text-muted-foreground sm:pl-12">{order.failureReason}</p>
                                     )}
-                                </div>
-                                {order.orders.length > 0 && (
-                                    <ul className="mt-2.5 flex flex-wrap gap-1.5 sm:pl-12">
-                                        {order.orders.map((child) => (
-                                            <li key={child.id} className="max-w-full truncate rounded-sm bg-secondary px-2.5 py-0.5 text-xs" title={child.course.title}>
-                                                {child.course.title} · <span className="tabular-nums">{formatBDT(child.total)}</span>
-                                                {child.status !== "PAID" && <span className="text-muted-foreground"> ({child.status.toLowerCase()})</span>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {order.failureReason && order.status !== "PAID" && (
-                                    <p className="mt-2 text-xs text-muted-foreground sm:pl-12">{order.failureReason}</p>
-                                )}
-                            </li>
-                        ))}
+                                </li>
+                            );
+                        })}
                     </ul>
                 </>
             )}

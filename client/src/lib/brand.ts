@@ -58,6 +58,8 @@ export const whatsappLink = (phone: string) => `https://wa.me/88${phone.replace(
 /** Half Coders' social pages, and WhatsApp on each support number. */
 export const SOCIAL_LINKS = [
     { network: "facebook", label: "Facebook", href: "https://www.facebook.com/share/1EFpAu3Cpv/" },
+    { network: "youtube", label: "YouTube", href: "https://www.youtube.com/@HalfCoders" },
+    { network: "github", label: "GitHub", href: "https://github.com/Half-Coders" },
     ...SUPPORT_PHONES.map((phone) => ({ network: "whatsapp" as const, label: `WhatsApp ${phone}`, href: whatsappLink(phone) })),
     // Not set up yet. Once a page exists, uncomment its line with the real link,
     // and its icon in components/shared/Footer.tsx (SOCIAL_ICON).

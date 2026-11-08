@@ -33,7 +33,7 @@ import { cn, formatBDT, formatDateTime } from "@/lib/utils";
 import { optionalTextField, selectField } from "@/lib/validation";
 import { adminService } from "@/services/admin";
 import type { AdminOrder } from "@/types/admin.types";
-import { bkashSentIn, GATEWAYS, gatewayLabel, ORDER_TONE } from "./orderMeta";
+import { bkashSentIn, GATEWAYS, gatewayLabel, ORDER_TONE, sentInSummary } from "./orderMeta";
 import { useOrderActions } from "./useOrderActions";
 
 const settleSchema = z.object({
@@ -93,20 +93,37 @@ function SettleForm({ order, onBack, onDone }: { order: AdminOrder; onBack?: () 
                         <p className="font-semibold">Check the bKash merchant statement for a payment with:</p>
                         <ul className="mt-2 space-y-1 text-muted-foreground">
                             <li>
-                                TrxID <span className="font-mono font-semibold text-foreground">{sentIn.transactionId}</span>
+                                {sentIn.paidWith ? "Their bank's reference" : "TrxID"}{" "}
+                                <span className="font-mono font-semibold text-foreground">{sentIn.transactionId}</span>
                             </li>
                             <li>
                                 Amount <span className="font-semibold text-foreground">{formatBDT(order.total)}</span>
                             </li>
+                            {sentIn.paidWith && (
+                                <li>
+                                    Paid by Bangla QR from <span className="font-semibold text-foreground">{sentIn.paidWith}</span>
+                                </li>
+                            )}
                             {sentIn.senderNumber && (
                                 <li>
                                     From <span className="font-mono font-semibold text-foreground">{sentIn.senderNumber}</span>
+                                </li>
+                            )}
+                            {sentIn.submittedAt && (
+                                <li>
+                                    Sent in <span className="font-semibold text-foreground">{formatDateTime(sentIn.submittedAt)}</span>
                                 </li>
                             )}
                             <li>
                                 Reference <span className="font-mono font-semibold text-foreground">{order.orderNumber}</span> (if they added it)
                             </li>
                         </ul>
+                        {sentIn.paidWith && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                A bank app gives its own reference number, which may not match what the bKash statement shows. If it
+                                doesn&apos;t, match on the amount and the time it was paid.
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -159,14 +176,14 @@ function orderSteps(order: AdminOrder): Step[] {
         case "PENDING":
             if (sentIn) {
                 steps.push({
-                    title: "bKash payment sent in",
-                    detail: `TrxID ${sentIn.transactionId}${sentIn.senderNumber ? `, from ${sentIn.senderNumber}` : ""}.`,
+                    title: sentIn.paidWith ? "Bangla QR payment sent in" : "bKash payment sent in",
+                    detail: `${sentInSummary(sentIn)}.`,
                     at: sentIn.submittedAt,
                     tone: "done",
                 });
                 steps.push({ title: "Awaiting verification", detail: "Match it on the bKash merchant statement, then verify it.", tone: "current" });
             } else {
-                steps.push({ title: "Awaiting payment", detail: "The student hasn't sent in a bKash payment yet.", tone: "current" });
+                steps.push({ title: "Awaiting payment", detail: "The student hasn't sent in their payment details yet.", tone: "current" });
             }
             break;
         case "PAID":
@@ -212,7 +229,7 @@ function Timeline({ order }: { order: AdminOrder }) {
             {steps.map((step, index) => (
                 <li key={step.title} className="relative flex gap-3 pl-0.5">
                     {index < steps.length - 1 && (
-                        <span aria-hidden className="absolute left-[0.4375rem] top-4 h-[calc(100%+0.25rem)] w-px bg-border" />
+                        <span aria-hidden className="absolute left-1.75 top-4 h-[calc(100%+0.25rem)] w-px bg-border" />
                     )}
                     <span className={cn("relative mt-1 size-3 shrink-0 rounded-full ring-4", STEP_DOT[step.tone])}>
                         {step.tone === "current" && (
@@ -380,6 +397,7 @@ function OrderDetail({ order }: { order: AdminOrder }) {
                                 <span className="font-mono text-xs">{sentIn.senderNumber}</span>
                             </Row>
                         )}
+                        {sentIn?.paidWith && <Row label="Paid from">{sentIn.paidWith} (Bangla QR)</Row>}
                         {sentIn?.submittedAt && <Row label="Sent in">{formatDateTime(sentIn.submittedAt)}</Row>}
                         {payment.paidAt && (
                             <Row label="Paid">
