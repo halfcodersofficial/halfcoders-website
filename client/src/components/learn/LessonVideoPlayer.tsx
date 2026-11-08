@@ -11,6 +11,7 @@ import {
     RotateCcw,
     RotateCw,
     Settings,
+    SkipBack,
     SkipForward,
     Volume1,
     Volume2,
@@ -84,8 +85,7 @@ type Status = "idle" | "playing" | "paused" | "buffering" | "ended";
 interface LessonVideoPlayerProps {
     youtubeVideoId: string;
     title: string;
-    /** Under the title on the cover, e.g. "Lesson 3 of 12 · 8:40". */
-    subtitle?: string;
+    prev?: { title: string; onSelect: () => void } | null;
     next?: { title: string; onSelect: () => void } | null;
     /** The viewer's email, drifting over the video so a screen recording names who made it. */
     watermark?: string;
@@ -107,7 +107,7 @@ interface LessonVideoPlayerProps {
 export default function LessonVideoPlayer({
     youtubeVideoId,
     title,
-    subtitle,
+    prev,
     next,
     watermark,
     onDuration,
@@ -605,11 +605,10 @@ export default function LessonVideoPlayer({
                 </div>
             )}
 
+            {/* Paused: the same play button as the cover, a size smaller and still. */}
             {started && status === "paused" && scrubTime === null && (
                 <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-                    <span className="grid size-14 place-items-center rounded-full bg-black/55 ring-1 ring-white/15 backdrop-blur-sm sm:size-16">
-                        <Play className="ml-0.5 size-6 fill-white sm:size-7" aria-hidden />
-                    </span>
+                    <PlayBadge className="size-14 sm:size-16" />
                 </div>
             )}
 
@@ -727,7 +726,17 @@ export default function LessonVideoPlayer({
 
                     <span className="flex-1" />
 
-                    {/* Phones have the page's own "Next" right under the video. */}
+                    {/* Previous and next lesson, side by side. Phones have the
+                        page's own "Previous" and "Next" right under the video. */}
+                    {prev && (
+                        <ControlButton
+                            label={`Previous lesson: ${prev.title}`}
+                            onClick={prev.onSelect}
+                            className="hidden sm:grid"
+                        >
+                            <SkipBack className="fill-current" />
+                        </ControlButton>
+                    )}
                     {next && (
                         <ControlButton
                             label={`Next lesson: ${next.title}`}
@@ -808,31 +817,19 @@ export default function LessonVideoPlayer({
                 </div>
             )}
 
-            {/* Before the first play: the video's own picture with a play
-                button on it. It's ours, not YouTube's waiting screen, so it
-                carries no YouTube title or link. */}
+            {/* Before the first play: just the video's own picture and the
+                play button — the lesson's name is already right under the
+                video. It's ours, not YouTube's waiting screen, so it carries no
+                YouTube title or link. */}
             {!started && !failed && (
                 <button
                     type="button"
                     onClick={start}
                     aria-label={`Play ${title}`}
-                    className="group absolute inset-0 z-40 overflow-hidden bg-black text-left text-white"
+                    className="group absolute inset-0 z-40 grid place-items-center overflow-hidden bg-black text-white focus-visible:outline-none"
                 >
                     <VideoThumbnail videoId={youtubeVideoId} />
-                    <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/15 transition-transform duration-300 group-hover:scale-105 sm:size-20">
-                        {starting ? (
-                            <LoaderCircle className="size-6 animate-spin sm:size-8" aria-hidden />
-                        ) : (
-                            <svg viewBox="0 0 24 24" className="ml-1 size-6 fill-white sm:size-8" aria-hidden>
-                                <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-                            </svg>
-                        )}
-                    </span>
-                    {/* A light fade at the bottom only, so the title reads on any picture. */}
-                    <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent px-4 pb-3 pt-12 sm:px-6 sm:pb-5">
-                        <span className="line-clamp-1 block text-sm font-semibold sm:text-lg">{title}</span>
-                        {subtitle && <span className="block text-xs tabular-nums text-white/75 sm:text-sm">{subtitle}</span>}
-                    </span>
+                    <PlayBadge pulse={!starting} loading={starting} className="size-16 sm:size-20" />
                 </button>
             )}
 
@@ -873,8 +870,51 @@ function VideoThumbnail({ videoId }: { videoId: string }) {
                 if (event.currentTarget.naturalWidth <= 120 && hasSmaller) setIndex(index + 1);
             }}
             onError={() => hasSmaller && setIndex(index + 1)}
-            className="absolute inset-0 size-full object-cover"
+            className="absolute inset-0 size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
         />
+    );
+}
+
+/**
+ * The play button: a violet core in a frosted-glass ring, so it stands out
+ * on a bright whiteboard frame and a dark one alike. On the cover it sends
+ * out a slow ripple asking to be pressed (still, for anyone whose device
+ * asks for less motion) and grows a touch under the pointer.
+ */
+function PlayBadge({
+    pulse = false,
+    loading = false,
+    className,
+}: {
+    pulse?: boolean;
+    loading?: boolean;
+    className?: string;
+}) {
+    return (
+        <span aria-hidden className={cn("relative grid place-items-center", className)}>
+            {pulse && (
+                // Tailwind's ping, slowed from 1s to a calmer 2.2s.
+                <span
+                    className="absolute inset-0 animate-ping rounded-full bg-violet-400/40 motion-reduce:hidden"
+                    style={{ animationDuration: "2.2s" }}
+                />
+            )}
+            {/* The frosted ring — and the keyboard focus ring, when the cover has focus. */}
+            <span className="absolute -inset-2 rounded-full bg-white/20 shadow-[0_2px_12px_rgb(0_0_0/0.18)] ring-1 ring-white/50 backdrop-blur-md transition-colors duration-300 group-hover:bg-white/30 group-focus-visible:ring-2 group-focus-visible:ring-white sm:-inset-2.5" />
+            <span className="relative grid size-full place-items-center rounded-full bg-[linear-gradient(145deg,var(--violet-400),var(--violet-600)_55%,var(--violet-800))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_14px_36px_-8px_rgb(96_34_207/0.85)] transition-transform duration-300 ease-out group-hover:scale-[1.07] group-active:scale-95">
+                {loading ? (
+                    <LoaderCircle className="size-[42%] animate-spin" />
+                ) : (
+                    // A rounded triangle, nudged right so it looks centred.
+                    <svg viewBox="0 0 24 24" className="ml-[9%] size-[50%] drop-shadow-[0_1px_2px_rgb(0_0_0/0.35)]">
+                        <path
+                            fill="currentColor"
+                            d="M7 5.27v13.46c0 1.17 1.28 1.89 2.28 1.28l10.9-6.73a1.5 1.5 0 0 0 0-2.56L9.28 3.99C8.28 3.38 7 4.1 7 5.27z"
+                        />
+                    </svg>
+                )}
+            </span>
+        </span>
     );
 }
 
