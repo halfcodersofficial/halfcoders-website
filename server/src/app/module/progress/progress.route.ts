@@ -11,6 +11,10 @@ const watchPositionZodSchema = z.object({
     watchedSeconds: z.number().int().min(0).max(24 * 3600),
 });
 
+const videoDurationZodSchema = z.object({
+    seconds: z.number().positive().max(24 * 3600),
+});
+
 // Progress is recorded against an enrolment, which only a student holds. The
 // service resolves that enrolment and rejects a student who doesn't have one.
 router.post(
@@ -29,6 +33,15 @@ router.patch(
     checkAuth(Role.STUDENT),
     validateRequest(watchPositionZodSchema),
     ProgressController.updateWatchPosition,
+);
+
+// The player reports a lesson's running time when the stored one is missing.
+// Staff previewing a course count too — the service checks course access.
+router.patch(
+    "/videos/:videoId/duration",
+    checkAuth(Role.STUDENT, Role.MENTOR, Role.ADMIN, Role.SUPER_ADMIN),
+    validateRequest(videoDurationZodSchema),
+    ProgressController.reportVideoDuration,
 );
 
 

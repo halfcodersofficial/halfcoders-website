@@ -57,7 +57,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
-import { cn, formatDateTime, formatHoursMinutes } from "@/lib/utils";
+import { useSession } from "@/hooks/useSession";
+import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
 import {
     assignmentService,
     leaderboardService,
@@ -141,6 +142,9 @@ export default function LearnPage() {
     // Same idea for a module's quiz.
     const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
     const [openMilestones, setOpenMilestones] = useState<Set<string>>(new Set());
+    // Modules open in the sidebar. The one being studied opens by itself (see
+    // below); the rest are the student's to open or close.
+    const [openModules, setOpenModules] = useState<Set<string>>(new Set());
     const [initialisedFromQuery, setInitialisedFromQuery] = useState(false);
 
     const [mobileCurriculumOpen, setMobileCurriculumOpen] = useState(false);
@@ -149,6 +153,11 @@ export default function LearnPage() {
     const [notesTab, setNotesTab] = useState<"write" | "preview">("write");
     const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
     const [rewardOpen, setRewardOpen] = useState(false);
+    // "Next" completions waiting to reach the server, kept in order (see queueComplete).
+    const completionQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+    const pendingCompletionsRef = useRef(0);
+    const reportedDurationsRef = useRef(new Set<string>());
+    const { user } = useSession();
     const [noteDraft, setNoteDraft] = useState("");
     const [sidebarSearch, setSidebarSearch] = useState("");
     const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
@@ -238,6 +247,26 @@ export default function LearnPage() {
     }, [data, activeVideoId]);
     const activeLessonNumber = allVideos.findIndex((video) => video.id === activeVideoId) + 1;
 
+    // The module holding whatever is open — a lesson, or a module's quiz.
+    const activeModuleId = useMemo(() => {
+        if (!data || activeAssignmentId) return null;
+        for (const milestone of data.curriculum) {
+            for (const courseModule of milestone.modules) {
+                if (activeQuizId ? courseModule.quiz?.id === activeQuizId : courseModule.videos.some((v) => v.id === activeVideoId)) {
+                    return courseModule.id;
+                }
+            }
+        }
+        return null;
+    }, [data, activeVideoId, activeQuizId, activeAssignmentId]);
+
+    // Moving into another module (Next, a link, the sidebar) opens it, so the
+    // row being studied is never hidden inside a collapsed module.
+    useEffect(() => {
+        if (!activeModuleId) return;
+        setOpenModules((current) => (current.has(activeModuleId) ? current : new Set(current).add(activeModuleId)));
+    }, [activeModuleId]);
+
     /* Prev/next walk the *unlocked* lessons only. Stepping onto a locked one
        would land the student on the padlock screen with no way forward, which
        reads as the button being broken rather than the content being gated. */
@@ -279,10 +308,25 @@ export default function LearnPage() {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
+    /** Applies a change to one lesson in the cached course, without waiting on a refetch. */
+    const patchLessonInCache = (videoId: string, patch: (video: LearningVideo) => LearningVideo) =>
+        queryClient.setQueryData<CourseLearning>(["learning", slug], (current) =>
+            current && {
+                ...current,
+                curriculum: current.curriculum.map((milestone) => ({
+                    ...milestone,
+                    modules: milestone.modules.map((courseModule) => {
+                        if (!courseModule.videos.some((video) => video.id === videoId)) return courseModule;
+                        const videos = courseModule.videos.map((video) => (video.id === videoId ? patch(video) : video));
+                        return { ...courseModule, videos, completedVideos: videos.filter((video) => video.isCompleted).length };
+                    }),
+                })),
+            },
+        );
+
     const complete = useMutation({
         mutationFn: (videoId: string) => progressService.completeVideo(videoId),
         onSuccess: (result) => {
-            void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
             void queryClient.invalidateQueries({ queryKey: ["dashboard", "student"] });
 
             if (result.courseCompleted && result.rewardWith) {
@@ -291,25 +335,51 @@ export default function LearnPage() {
             } else if (result.courseCompleted) {
                 toast.success("Course complete! Your certificate is ready to claim. 🎓");
             } else {
-                toast.success(`Progress saved — ${result.courseProgress}% done`);
+                toast.success(`Lesson complete — ${result.courseProgress}% of the course done`);
             }
-
-            // Auto-advance so finishing a lesson flows into the next one.
-            const index = allVideos.findIndex((video) => video.id === activeVideoId);
-            const next = allVideos.slice(index + 1).find((video) => !video.isLocked);
-            if (next) setActiveVideoId(next.id);
         },
         onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't save your progress.")),
+        onSettled: () => {
+            pendingCompletionsRef.current -= 1;
+            // Refetch once the last queued completion has landed, so the real
+            // numbers replace the optimistic ones (or undo one that failed)
+            // without flickering back in between.
+            if (pendingCompletionsRef.current === 0) {
+                void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
+            }
+        },
     });
 
-    const uncomplete = useMutation({
-        mutationFn: (videoId: string) => progressService.uncompleteVideo(videoId),
-        onSuccess: () => {
-            void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
-            toast.success("Marked as not complete.");
-        },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't update your progress.")),
-    });
+    /**
+     * Marks a lesson done. The page shows it at once; the requests run one
+     * after another, because the server only completes a lesson whose earlier
+     * lessons are already complete — two quick "Next" clicks must reach it in
+     * order.
+     */
+    const queueComplete = (videoId: string) => {
+        void queryClient.cancelQueries({ queryKey: ["learning", slug] });
+        patchLessonInCache(videoId, (video) => ({ ...video, isCompleted: true }));
+        pendingCompletionsRef.current += 1;
+        completionQueueRef.current = completionQueueRef.current
+            .then(() => complete.mutateAsync(videoId))
+            .catch(() => undefined);
+    };
+
+    /**
+     * Saves a running time the player measured, for a lesson stored without
+     * one — once per lesson per visit. The server keeps the first value it
+     * gets, and the sidebar shows it straight away.
+     */
+    const saveDetectedDuration = (videoId: string, seconds: number) => {
+        if (reportedDurationsRef.current.has(videoId)) return;
+        reportedDurationsRef.current.add(videoId);
+        progressService
+            .reportDuration(videoId, seconds)
+            .then(({ duration }) =>
+                patchLessonInCache(videoId, (video) => ({ ...video, duration, durationLabel: formatDuration(duration) })),
+            )
+            .catch(() => undefined);
+    };
 
     // ---- Notes / bookmark / reaction — the active lesson's own state. -----
 
@@ -466,11 +536,41 @@ export default function LearnPage() {
             return next;
         });
 
-    const allMilestonesOpen = data.curriculum.every((m) => openMilestones.has(m.id));
-    const toggleAllMilestones = () =>
-        setOpenMilestones(allMilestonesOpen ? new Set() : new Set(data.curriculum.map((m) => m.id)));
+    const toggleModule = (id: string) =>
+        setOpenModules((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+
+    // "Expand all" / "Collapse all" covers both levels: milestones and the modules inside them.
+    const allModuleIds = data.curriculum.flatMap((milestone) => milestone.modules.map((m) => m.id));
+    const everythingOpen =
+        data.curriculum.every((m) => openMilestones.has(m.id)) && allModuleIds.every((id) => openModules.has(id));
+    const toggleEverything = () => {
+        if (everythingOpen) {
+            setOpenMilestones(new Set());
+            setOpenModules(new Set());
+        } else {
+            setOpenMilestones(new Set(data.curriculum.map((m) => m.id)));
+            setOpenModules(new Set(allModuleIds));
+        }
+    };
 
     const reaction = lessonState?.reaction ?? null;
+
+    // A lesson counts as done when the student moves on from it with "Next"
+    // (or "Finish" on the last one) — there's no separate complete button.
+    const canComplete = Boolean(
+        activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingLesson,
+    );
+
+    /** "Next": counts the open lesson as done, then moves on. */
+    const advance = () => {
+        if (activeVideo && canComplete) queueComplete(activeVideo.id);
+        if (nextVideo) goTo(nextVideo.id);
+    };
 
     const openNotes = () => {
         setLessonPanel("notes");
@@ -502,8 +602,11 @@ export default function LearnPage() {
         goToQuiz,
         openMilestones,
         toggleMilestone,
-        allMilestonesOpen,
-        toggleAllMilestones,
+        openModules,
+        toggleModule,
+        canToggleAll: data.curriculum.length > 1 || allModuleIds.length > 1,
+        everythingOpen,
+        toggleEverything,
         totalCount: allVideos.length,
         search: sidebarSearch,
         onSearchChange: setSidebarSearch,
@@ -625,8 +728,14 @@ export default function LearnPage() {
                             key={activeVideo.id}
                             youtubeVideoId={activeVideo.youtubeVideoId}
                             title={activeVideo.title}
-                            subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${activeVideo.durationLabel ? ` · ${activeVideo.durationLabel}` : ""}`}
-                            next={nextVideo ? { title: nextVideo.title, onSelect: () => goTo(nextVideo.id) } : null}
+                            subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${activeVideo.duration > 0 ? ` · ${activeVideo.durationLabel}` : ""}`}
+                            next={nextVideo ? { title: nextVideo.title, onSelect: advance } : null}
+                            watermark={user?.email}
+                            onDuration={
+                                activeVideo.duration > 0
+                                    ? undefined
+                                    : (seconds) => saveDetectedDuration(activeVideo.id, seconds)
+                            }
                         />
                     ) : (
                         <div className="relative grid aspect-video place-items-center overflow-hidden rounded-2xl border border-border bg-brand-soft text-center">
@@ -665,11 +774,10 @@ export default function LearnPage() {
 
                     {!activeAssignmentId && activeVideo && (
                         <div className="space-y-3">
-                            {/* Previous — Mark complete — Next sit beside the lesson
-                                title instead of on their own row. They stay visible in
-                                staff preview (there's nothing to record, but browsing
-                                between lessons is still useful); only the completion
-                                control needs a real enrolment. */}
+                            {/* Previous / Next sit beside the lesson title. "Next"
+                                also counts this lesson as done; the last lesson has
+                                "Finish" in its place. Both stay in staff preview for
+                                browsing — there, nothing is recorded. */}
                             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-1">
                                 <div className="min-w-0">
                                     {activeContext && (
@@ -683,6 +791,14 @@ export default function LearnPage() {
                                             <span className="tabular-nums">
                                                 Lesson {activeLessonNumber} of {allVideos.length}
                                             </span>
+                                            {activeVideo.isCompleted && (
+                                                <>
+                                                    <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
+                                                    <span className="inline-flex items-center gap-1 font-semibold text-success">
+                                                        <CheckCircle2 className="size-3.5" aria-hidden /> Completed
+                                                    </span>
+                                                </>
+                                            )}
                                         </p>
                                     )}
                                     <h2 className="mt-1.5 text-balance text-2xl font-bold leading-tight tracking-tight">
@@ -704,56 +820,38 @@ export default function LearnPage() {
                                         </Button>
                                     )}
 
-                                    {!data.isPreview && !activeVideo.isLocked && (
-                                        activeVideo.isCompleted ? (
-                                            <Button
-                                                variant="outline"
-                                                className="rounded-full border-success/40 bg-success/5 px-5 text-success hover:bg-success/10"
-                                                title="Mark as not complete"
-                                                onClick={() => uncomplete.mutate(activeVideo.id)}
-                                                isLoading={uncomplete.isPending}
-                                            >
-                                                <CheckCircle2 className="size-4" />
-                                                Completed
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                className="rounded-full px-5"
-                                                onClick={() => complete.mutate(activeVideo.id)}
-                                                isLoading={complete.isPending}
-                                                disabled={Boolean(blockingLesson)}
-                                                title={
-                                                    blockingLesson
-                                                        ? `Complete "${blockingLesson.title}" first`
-                                                        : undefined
-                                                }
-                                            >
-                                                {blockingLesson ? <Lock className="size-4" /> : <Check className="size-4" />}
-                                                Mark as complete
-                                            </Button>
-                                        )
-                                    )}
-
-                                    {nextVideo && (
+                                    {nextVideo ? (
                                         <Button
-                                            variant="outline"
-                                            className="rounded-full pl-4 pr-3"
-                                            title={nextVideo.title}
-                                            onClick={() => goTo(nextVideo.id)}
+                                            className="rounded-full pl-5 pr-4"
+                                            title={`Next: ${nextVideo.title}`}
+                                            onClick={advance}
                                         >
                                             Next <ChevronRight className="size-4" />
                                         </Button>
+                                    ) : (
+                                        // The last lesson has no "Next" to complete it on.
+                                        !data.isPreview &&
+                                        !activeVideo.isLocked &&
+                                        !activeVideo.isCompleted && (
+                                            <Button
+                                                className="rounded-full px-5"
+                                                disabled={!canComplete}
+                                                onClick={() => queueComplete(activeVideo.id)}
+                                            >
+                                                <Check className="size-4" /> Finish
+                                            </Button>
+                                        )
                                     )}
                                 </div>
                             </div>
 
-                            {/* Why "Mark as complete" is greyed out, and the way to fix it. */}
+                            {/* Why moving on won't count this lesson as done yet, and the way to fix it. */}
                             {!data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && blockingLesson && (
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
                                     <Lock className="size-4 shrink-0 text-warning-ink" aria-hidden />
                                     <p className="min-w-0 flex-1 text-foreground">
-                                        To mark this lesson complete, first complete the lessons before it. Start with{" "}
-                                        <span className="font-semibold">&ldquo;{blockingLesson.title}&rdquo;</span>.
+                                        This lesson will only count as complete after you finish the lessons before it.
+                                        Start with <span className="font-semibold">&ldquo;{blockingLesson.title}&rdquo;</span>.
                                     </p>
                                     <Button
                                         variant="outline"
@@ -1063,8 +1161,12 @@ interface CurriculumSidebarProps {
     goToQuiz: (id: string) => void;
     openMilestones: Set<string>;
     toggleMilestone: (id: string) => void;
-    allMilestonesOpen: boolean;
-    toggleAllMilestones: () => void;
+    openModules: Set<string>;
+    toggleModule: (id: string) => void;
+    /** Whether "Expand all" means anything — more than one milestone or module. */
+    canToggleAll: boolean;
+    everythingOpen: boolean;
+    toggleEverything: () => void;
     totalCount: number;
     search: string;
     onSearchChange: (value: string) => void;
@@ -1091,8 +1193,11 @@ function CurriculumSidebar({
     goToQuiz,
     openMilestones,
     toggleMilestone,
-    allMilestonesOpen,
-    toggleAllMilestones,
+    openModules,
+    toggleModule,
+    canToggleAll,
+    everythingOpen,
+    toggleEverything,
     totalCount,
     search,
     onSearchChange,
@@ -1124,15 +1229,14 @@ function CurriculumSidebar({
     // The course's progress and lesson count are already in the page header,
     // so this card is just the tools for finding a lesson.
     const showFinder = !data.isPreview && totalCount > 0;
-    const canToggleAll = data.curriculum.length > 1;
     const toggleAllButton = canToggleAll && (
         <button
             type="button"
-            onClick={toggleAllMilestones}
+            onClick={toggleEverything}
             disabled={Boolean(query)}
             className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-40 disabled:hover:no-underline"
         >
-            {allMilestonesOpen ? "Collapse all" : "Expand all"}
+            {everythingOpen ? "Collapse all" : "Expand all"}
         </button>
     );
 
@@ -1225,7 +1329,7 @@ function CurriculumSidebar({
                                             </span>
                                         </span>
                                         <span className="shrink-0 text-xs text-muted-foreground">
-                                            {bookmark.durationLabel}
+                                            {bookmark.durationLabel !== "0:00" && bookmark.durationLabel}
                                         </span>
                                     </button>
                                 </li>
@@ -1272,7 +1376,8 @@ function CurriculumSidebar({
                                         <p className="truncate text-sm font-semibold">{milestone.title}</p>
                                         {milestoneVideos.length > 0 && (
                                             <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                                                {formatHoursMinutes(milestoneSeconds)} · {milestoneCompleted}/
+                                                {milestoneSeconds > 0 && `${formatHoursMinutes(milestoneSeconds)} · `}
+                                                {milestoneCompleted}/
                                                 {milestoneVideos.length} done
                                             </p>
                                         )}
@@ -1290,6 +1395,9 @@ function CurriculumSidebar({
                                         milestone={milestone}
                                         moduleLabel={data.course.moduleLabel || "Module"}
                                         withAssignmentsAndPractice={!query}
+                                        // A search shows every match, so it opens every module.
+                                        isModuleOpen={(id) => Boolean(query) || openModules.has(id)}
+                                        onToggleModule={query ? undefined : toggleModule}
                                         slug={slug}
                                         activeVideoId={activeAssignmentId || activeQuizId ? null : activeVideoId}
                                         goTo={goTo}
@@ -1358,7 +1466,7 @@ function Stop({ state, done, icon: Icon }: { state: StopState; done: boolean; ic
 }
 
 type RouteItem =
-    | { kind: "MODULE"; key: string; courseModule: LearningModule }
+    | { kind: "MODULE"; key: string; courseModule: LearningModule; isOpen: boolean }
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule }
     | { kind: "QUIZ"; key: string; quiz: NonNullable<LearningModule["quiz"]> }
     | { kind: "ASSIGNMENT"; key: string; assignment: LearningMilestone["assignments"][number] }
@@ -1386,6 +1494,8 @@ function WeekRoute({
     milestone,
     moduleLabel,
     withAssignmentsAndPractice,
+    isModuleOpen,
+    onToggleModule,
     slug,
     activeVideoId,
     goTo,
@@ -1400,6 +1510,9 @@ function WeekRoute({
     /** The course's word for a module ("Module", "Chapter", …). */
     moduleLabel: string;
     withAssignmentsAndPractice: boolean;
+    isModuleOpen: (moduleId: string) => boolean;
+    /** Absent while searching — every module is shown open then. */
+    onToggleModule?: (moduleId: string) => void;
     slug: string;
     activeVideoId: string | null;
     goTo: (id: string) => void;
@@ -1416,8 +1529,11 @@ function WeekRoute({
         if (row.kind === "ASSIGNMENT") return [{ kind: "ASSIGNMENT", key: `ASSIGNMENT:${row.entry.id}`, assignment: row.entry }];
         if (row.kind === "PRACTICE") return [{ kind: "PRACTICE", key: `PRACTICE:${row.entry.id}`, practice: row.entry }];
         const courseModule = row.entry;
+        const isOpen = isModuleOpen(courseModule.id);
+        // A collapsed module keeps just its heading on the route.
+        if (!isOpen) return [{ kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen }];
         return [
-            { kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule },
+            { kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen },
             ...courseModule.videos.map((video): RouteItem => ({ kind: "VIDEO", key: `VIDEO:${video.id}`, video, courseModule })),
             ...(courseModule.quiz ? [{ kind: "QUIZ" as const, key: `QUIZ:${courseModule.quiz.id}`, quiz: courseModule.quiz }] : []),
         ];
@@ -1459,8 +1575,23 @@ function WeekRoute({
                         // unbroken through the gap.
                         <div className={cn("px-2 pb-1", index > 0 ? "pt-3" : "pt-1")}>
                             {/* Opaque, so the route line stops at its edges; the
-                                7px left padding centres the badge on that line. */}
-                            <div className="relative flex items-center gap-3 rounded-xl border border-border bg-secondary py-2 pl-1.75 pr-3">
+                                7px left padding centres the badge on that line.
+                                The whole block is the dropdown toggle for the
+                                module's lessons. */}
+                            <button
+                                type="button"
+                                onClick={() => onToggleModule?.(item.courseModule.id)}
+                                disabled={!onToggleModule}
+                                aria-expanded={item.isOpen}
+                                title={
+                                    onToggleModule
+                                        ? item.isOpen
+                                            ? "Hide this module's lessons"
+                                            : "Show this module's lessons"
+                                        : undefined
+                                }
+                                className="relative flex w-full items-center gap-3 rounded-xl border border-border bg-secondary py-2 pl-1.75 pr-2 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default disabled:hover:border-border"
+                            >
                                 <span
                                     className={cn(
                                         "relative z-10 grid size-6 shrink-0 place-items-center rounded-md text-[0.625rem] font-bold tabular-nums",
@@ -1479,8 +1610,8 @@ function WeekRoute({
                                         String(item.courseModule.order).padStart(2, "0")
                                     )}
                                 </span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="flex items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wider text-primary">
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wider text-primary">
                                         {moduleLabel} {String(item.courseModule.order).padStart(2, "0")}
                                         {item.courseModule.mode && (
                                             <ClassModeTag
@@ -1488,15 +1619,26 @@ function WeekRoute({
                                                 className="font-medium normal-case tracking-normal text-muted-foreground [&>svg]:size-3"
                                             />
                                         )}
-                                    </p>
-                                    <p className="truncate text-sm font-semibold leading-snug">{item.courseModule.title}</p>
-                                </div>
+                                    </span>
+                                    <span className="block truncate text-sm font-semibold leading-snug">
+                                        {item.courseModule.title}
+                                    </span>
+                                </span>
                                 <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
                                     {item.courseModule.isLocked
                                         ? "Locked"
                                         : `${item.courseModule.completedVideos}/${item.courseModule.totalVideos} done`}
                                 </span>
-                            </div>
+                                {onToggleModule && (
+                                    <ChevronDown
+                                        aria-hidden
+                                        className={cn(
+                                            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                                            item.isOpen && "rotate-180",
+                                        )}
+                                    />
+                                )}
+                            </button>
                         </div>
                     ) : item.kind === "VIDEO" ? (
                         (() => {
@@ -1533,7 +1675,11 @@ function WeekRoute({
                                         </span>
                                         {/* Only a video has a running time worth showing. */}
                                         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                            {video.type === "VIDEO" ? video.durationLabel : video.type === "TEXT" ? "Read" : "Link"}
+                                            {video.type === "VIDEO"
+                                                ? video.duration > 0 && video.durationLabel
+                                                : video.type === "TEXT"
+                                                    ? "Read"
+                                                    : "Link"}
                                         </span>
                                     </button>
                                     {!courseModule.isLocked && (
