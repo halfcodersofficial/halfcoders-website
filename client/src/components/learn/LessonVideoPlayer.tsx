@@ -64,14 +64,25 @@ const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
 const frameBleed = (videoHeight: number) => Math.max(96, Math.round(videoHeight / 4));
 
 /**
- * The quality a choice comes to for this video: the choice itself, or the
- * best one under it this video has. Null for "Auto" — nothing to hold for.
+ * What the student picked: "best" — the default on every lesson — is the
+ * highest quality the video has; a set quality is a lower one picked for
+ * this video only (a slow connection), so the next lesson is "best" again.
  */
-const lockedQuality = (choice: QualityChoice | "auto", levels: string[]): QualityChoice | null => {
-    if (choice === "auto") return null;
+type QualityPick = QualityChoice | "best";
+
+/** The highest quality YouTube has for this video, once it has said. */
+const topQuality = (levels: string[]): QualityChoice | null =>
+    QUALITY_CHOICES.find((level) => levels.includes(level)) ?? null;
+
+/**
+ * The quality a pick comes to for this video: its best, the pick itself, or
+ * the best one under the pick it has. Null until YouTube lists the levels.
+ */
+const lockedQuality = (pick: QualityPick, levels: string[]): QualityChoice | null => {
+    if (pick === "best") return topQuality(levels);
     return (
         QUALITY_CHOICES.find(
-            (level) => levels.includes(level) && QUALITY_FRAME_HEIGHT[level] <= QUALITY_FRAME_HEIGHT[choice],
+            (level) => levels.includes(level) && QUALITY_FRAME_HEIGHT[level] <= QUALITY_FRAME_HEIGHT[pick],
         ) ?? null
     );
 };
@@ -99,9 +110,10 @@ interface QualityHold {
 }
 
 // Volume and speed carry over from one lesson to the next — someone who
-// watches at 1.5× shouldn't have to pick it again on every video.
+// watches at 1.5× shouldn't have to pick it again on every video. Quality
+// doesn't: every lesson starts at its best (see QualityPick).
 const PREFS_KEY = "hc-lesson-player";
-type PlayerPrefs = { volume?: number; rate?: number; quality?: QualityChoice | "auto" };
+type PlayerPrefs = { volume?: number; rate?: number };
 
 const readPrefs = (): PlayerPrefs => {
     try {
@@ -203,11 +215,11 @@ export default function LessonVideoPlayer({
     const stageRef = useRef<HTMLDivElement>(null);
     const [stageWidth, setStageWidth] = useState(0);
     const [pixelRatio, setPixelRatio] = useState(1);
-    const [quality, setQuality] = useState<QualityChoice | "auto">("auto");
+    const [quality, setQuality] = useState<QualityPick>("best");
     const [availableQualities, setAvailableQualities] = useState<string[]>([]);
     const [currentQuality, setCurrentQuality] = useState("");
     // The picked quality, for the player's event handlers.
-    const qualityRef = useRef<QualityChoice | "auto">("auto");
+    const qualityRef = useRef<QualityPick>("best");
     // Set while the video waits for its picked quality ("Loading 1080p…").
     const holdRef = useRef<QualityHold | null>(null);
     const [holding, setHolding] = useState<QualityChoice | null>(null);
@@ -308,7 +320,8 @@ export default function LessonVideoPlayer({
             setHolding(target);
             setStatus(hold.resume ? "buffering" : "paused");
             if (reloadDelay > 0) {
-                // Give the frame a moment to take its new size first.
+                // Stop now; reload once the frame has taken its new size.
+                player.pauseVideo();
                 hold.retryTimer = window.setTimeout(() => reloadForHold(player), reloadDelay);
             } else {
                 reloadForHold(player);
@@ -318,18 +331,19 @@ export default function LessonVideoPlayer({
     );
 
     /**
-     * While a quality is picked and nothing is being waited for: if YouTube
-     * plays less than it (at the start, or dropping mid-video), wait for it.
+     * While nothing is being waited for: if YouTube plays less than the pick
+     * — at the start, or dropping mid-video — wait for it. The short delay
+     * lets the frame grow first when YouTube has only just said the video
+     * goes higher than the frame was sized for (1440p, 4K).
      */
     const guardQuality = useCallback(
         (player: YTPlayer, playing: string) => {
             if (holdRef.current || holdGaveUpRef.current || !startedRef.current) return;
-            const levels = player.getAvailableQualityLevels() ?? [];
-            const target = levels.length ? lockedQuality(qualityRef.current, levels) : null;
+            const target = lockedQuality(qualityRef.current, player.getAvailableQualityLevels() ?? []);
             if (!target || QUALITY_HEIGHT[playing] === undefined || reaches(playing, target)) return;
             const state = player.getPlayerState();
             if (state !== YT_STATE.PLAYING && state !== YT_STATE.BUFFERING) return;
-            holdFor(player, target, true);
+            holdFor(player, target, true, 150);
         },
         [holdFor],
     );
@@ -508,15 +522,6 @@ export default function LessonVideoPlayer({
         if (started) poke();
     }, [started, poke]);
 
-    // The chosen quality carries over between lessons, like volume and speed.
-    useEffect(() => {
-        const saved = readPrefs().quality;
-        if (saved === "auto" || (saved && saved in QUALITY_FRAME_HEIGHT)) {
-            setQuality(saved);
-            qualityRef.current = saved;
-        }
-    }, []);
-
     // The stage's width (full screen, a resized window) and the screen's
     // pixel density decide how a chosen quality's frame is scaled to fit.
     useEffect(() => {
@@ -644,26 +649,20 @@ export default function LessonVideoPlayer({
         }
     };
 
-    // A picked quality reloads the video at the same second and waits behind
-    // "Loading 1080p…" until YouTube plays it (see `holdFor`). "Auto" just
-    // lets YouTube fit the frame's real size.
-    const changeQuality = (next: QualityChoice | "auto") => {
+    // A pick reloads the video at the same second and waits behind
+    // "Loading 1080p…" until YouTube plays it (see `holdFor`). It lasts for
+    // this video only — the next lesson starts at its best again.
+    const changeQuality = (next: QualityPick) => {
         setMenuOpen(false);
         const player = readyPlayer();
         const hold = holdRef.current;
         if (next === qualityRef.current && !hold) return;
         setQuality(next);
         qualityRef.current = next;
-        writePrefs({ quality: next });
         holdGaveUpRef.current = false;
-        if (!player) return;
-        if (next === "auto") {
-            if (hold) endHold(player, true);
-            return;
-        }
-        if (!started || status === "ended") return;
-        const target = lockedQuality(next, player.getAvailableQualityLevels() ?? []) ?? next;
-        holdFor(player, target, active, 150);
+        if (!player || !started || status === "ended") return;
+        const target = lockedQuality(next, player.getAvailableQualityLevels() ?? []) ?? (next === "best" ? null : next);
+        if (target) holdFor(player, target, active, 150);
     };
 
     const changeRate = (next: number) => {
@@ -745,24 +744,26 @@ export default function LessonVideoPlayer({
         poke();
     };
 
-    // Quality choices this video actually has, best first. Before it has
-    // played, YouTube hasn't said yet, so the usual three are offered.
-    const qualityOptions = availableQualities.length
-        ? QUALITY_CHOICES.filter((choice) => availableQualities.includes(choice))
-        : (["hd1080", "hd720", "large"] as QualityChoice[]);
-    // A saved choice above this video's best simply plays its best.
-    const shownQuality: QualityChoice | "auto" =
-        quality === "auto" || qualityOptions.includes(quality)
-            ? quality
-            : (qualityOptions.find((choice) => QUALITY_FRAME_HEIGHT[choice] < QUALITY_FRAME_HEIGHT[quality]) ?? "auto");
+    // This video's highest quality — what "Best" plays — once YouTube has
+    // said (on the first play). Until then the frame is sized for 1080p, and
+    // grows if the video turns out to go higher.
+    const bestQuality = topQuality(availableQualities);
+    // The lower ones a student can drop to, e.g. on a slow connection.
+    const lowerOptions = bestQuality
+        ? QUALITY_CHOICES.filter((choice) => availableQualities.includes(choice) && choice !== bestQuality)
+        : (["hd720", "large"] as QualityChoice[]);
+    const shownQuality: QualityPick =
+        quality === "best" || lowerOptions.includes(quality) ? quality : "best";
 
-    // "Auto" fills the stage at its real size; a chosen quality draws the frame
-    // at the size YouTube plays that quality at, then scales it to fit. Either
-    // way the frame runs past the stage above and below (see `frameBleed`), so
-    // YouTube's title strip and "More videos" row fall outside the picture.
+    // The frame is drawn at the size YouTube plays the wanted quality at, then
+    // scaled to fit the stage — YouTube never plays more than its frame's
+    // size, so this is what lets it play its best. The frame also runs past
+    // the stage above and below (see `frameBleed`), so YouTube's title strip
+    // and "More videos" row fall outside the picture.
+    const frameQuality: QualityChoice = quality === "best" ? (bestQuality ?? "hd1080") : quality;
     const frameStyle = (() => {
         if (stageWidth === 0) return undefined;
-        const videoHeight = quality === "auto" ? (stageWidth * 9) / 16 : QUALITY_FRAME_HEIGHT[quality] / pixelRatio;
+        const videoHeight = QUALITY_FRAME_HEIGHT[frameQuality] / pixelRatio;
         const width = (videoHeight * 16) / 9;
         const scale = stageWidth / width;
         const bleed = frameBleed(videoHeight);
@@ -770,7 +771,7 @@ export default function LessonVideoPlayer({
             width,
             height: videoHeight + 2 * bleed,
             top: -bleed * scale,
-            transform: quality === "auto" ? undefined : `scale(${scale})`,
+            transform: `scale(${scale})`,
         };
     })();
 
@@ -1063,20 +1064,27 @@ export default function LessonVideoPlayer({
                         )}
                     </p>
                     <div className="grid grid-cols-4 gap-1">
-                        {(["auto", ...qualityOptions] as const).map((choice) => (
+                        <MenuChip
+                            selected={shownQuality === "best"}
+                            onClick={() => changeQuality("best")}
+                            className="col-span-2"
+                        >
+                            Best{bestQuality && ` · ${QUALITY_LABEL[bestQuality]}`}
+                        </MenuChip>
+                        {lowerOptions.map((choice) => (
                             <MenuChip
                                 key={choice}
                                 selected={choice === shownQuality}
                                 onClick={() => changeQuality(choice)}
                             >
-                                {choice === "auto" ? "Auto" : QUALITY_LABEL[choice]}
+                                {QUALITY_LABEL[choice]}
                             </MenuChip>
                         ))}
                     </div>
                     <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
-                        {shownQuality === "auto"
-                            ? "Picks the best quality for your screen and internet."
-                            : `The video loads in ${QUALITY_LABEL[shownQuality]} first, then plays.`}
+                        {shownQuality === "best"
+                            ? "Always the highest quality this video has. It loads first, then plays."
+                            : "Lower quality for this video only — it uses less internet. The next lesson plays in Best again."}
                     </p>
 
                     <p className="mb-2 mt-3 border-t border-white/10 pt-2.5 text-xs font-semibold text-white/60">
@@ -1238,10 +1246,12 @@ function MovingWatermark({ text }: { text: string }) {
 function MenuChip({
     selected,
     onClick,
+    className,
     children,
 }: {
     selected: boolean;
     onClick: () => void;
+    className?: string;
     children: ReactNode;
 }) {
     return (
@@ -1253,6 +1263,7 @@ function MenuChip({
             className={cn(
                 "relative rounded-lg px-1 py-1.5 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 selected ? "bg-primary text-primary-foreground" : "bg-white/5 text-white/85 hover:bg-white/15",
+                className,
             )}
         >
             {children}
