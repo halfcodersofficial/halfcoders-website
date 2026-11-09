@@ -482,7 +482,6 @@ export const courseReviewService = {
         httpClient.get<ApiResponse<{ canReview: boolean; review: MyCourseReview | null }>>(`/course-reviews/mine/${courseId}`).then(unwrap),
     save: (courseId: string, payload: { rating: number; comment?: string }) =>
         httpClient.put<ApiResponse<MyCourseReview>>(`/course-reviews/mine/${courseId}`, payload).then(unwrap),
-    removeMine: (courseId: string) => httpClient.delete(`/course-reviews/mine/${courseId}`).then(() => undefined),
     /** Staff: every review of one course, students by name only. */
     forCourse: (courseId: string) =>
         httpClient

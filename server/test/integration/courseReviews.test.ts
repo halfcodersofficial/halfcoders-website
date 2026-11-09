@@ -3,9 +3,9 @@ import { api, createAccount, type TestAccount } from "../helpers/fixtures";
 import { assignMentor, createCourse, enrol, notificationsOf } from "../helpers/learning";
 
 /**
- * Course ratings: students on a course rate it; an admin publishes a review
- * before the course page shows it; any edit goes back for approval; the
- * course's mentors read them all by name only.
+ * Course ratings: students on a course rate it, once; an admin publishes a
+ * review before the course page shows it; the course's mentors read them all
+ * by name only.
  */
 describe("course reviews", () => {
     let admin: TestAccount;
@@ -13,15 +13,22 @@ describe("course reviews", () => {
     let fan: TestAccount;
     let critic: TestAccount;
     let outsider: TestAccount;
+    let latecomer: TestAccount;
     let course: { id: string; slug: string };
 
     beforeAll(async () => {
         [admin, mentor] = await Promise.all([createAccount("ADMIN"), createAccount("MENTOR")]);
-        [fan, critic, outsider] = await Promise.all([createAccount("STUDENT"), createAccount("STUDENT"), createAccount("STUDENT")]);
+        [fan, critic, outsider, latecomer] = await Promise.all([
+            createAccount("STUDENT"),
+            createAccount("STUDENT"),
+            createAccount("STUDENT"),
+            createAccount("STUDENT"),
+        ]);
         course = await createCourse({ title: "Rated course" });
         await assignMentor(course.id, mentor.id);
         await enrol(fan.id, course.id);
         await enrol(critic.id, course.id, "COMPLETED");
+        await enrol(latecomer.id, course.id);
     });
 
     const rate = (account: TestAccount, body: object) => api().put(`/api/v1/course-reviews/mine/${course.id}`).set("Cookie", account.cookie).send(body);
@@ -46,17 +53,22 @@ describe("course reviews", () => {
         expect(page.reviews[0].student).toHaveProperty("name");
     });
 
-    it("sends an edited review back for approval", async () => {
-        await rate(critic, { rating: 1, comment: "Changed my mind." });
-        expect((await publicPage()).summary).toMatchObject({ count: 1, average: 5 });
+    it("takes one rating per student — it can't be changed or taken back", async () => {
+        expect((await rate(critic, { rating: 1, comment: "Changed my mind." })).status).toBe(409);
+        expect((await api().delete(`/api/v1/course-reviews/mine/${course.id}`).set("Cookie", critic.cookie)).status).toBe(404);
+        expect((await publicPage()).summary).toMatchObject({ count: 2, average: 4 });
         const mine = await api().get(`/api/v1/course-reviews/mine/${course.id}`).set("Cookie", critic.cookie);
-        expect(mine.body.data).toMatchObject({ canReview: true, review: { status: "PENDING", rating: 1 } });
+        expect(mine.body.data).toMatchObject({ canReview: true, review: { status: "PUBLISHED", rating: 3 } });
+
+        // A newcomer's first rating still goes through, then waits for approval.
+        expect((await rate(latecomer, { rating: 4 })).status).toBe(200);
+        expect((await rate(latecomer, { rating: 5 })).status).toBe(409);
     });
 
     it("shows the course's mentor every review, names only", async () => {
         const res = await api().get(`/api/v1/course-reviews/course/${course.id}`).set("Cookie", mentor.cookie);
         expect(res.status).toBe(200);
-        expect(res.body.data.reviews).toHaveLength(2);
+        expect(res.body.data.reviews).toHaveLength(3);
         for (const review of res.body.data.reviews) expect(Object.keys(review.student).sort()).toEqual(["id", "name"]);
     });
 

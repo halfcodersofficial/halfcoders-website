@@ -33,38 +33,42 @@ const getMine = async (user: IRequestUser, courseId: string) => {
     return { canReview: Boolean(enrollment && enrollment.status !== EnrollmentStatus.CANCELLED), review };
 };
 
+const ALREADY_RATED = "You've already rated this course — a course can be rated only once.";
+
 /**
- * Writes (or rewrites) a student's review. It reaches the course page only
- * once an admin publishes it — the page says only what staff chose to show —
- * so any change goes back for approval. Admins hear about new ones.
+ * A student's rating of a course — once. It can't be changed or taken back
+ * afterwards (an admin can still hide it). It reaches the course page only
+ * once an admin publishes it; admins hear about each new one.
  */
-const upsert = async (user: IRequestUser, courseId: string, payload: { rating: number; comment?: string }) => {
+const create = async (user: IRequestUser, courseId: string, payload: { rating: number; comment?: string }) => {
     const enrollment = await enrolmentFor(user.userId, courseId);
     if (!enrollment || enrollment.status === EnrollmentStatus.CANCELLED) {
         throw new AppError(status.FORBIDDEN, "Only students on the course can review it.");
     }
     const existing = await prisma.courseReview.findUnique({ where: { courseId_studentId: { courseId, studentId: user.userId } }, select: { id: true } });
-    const data = { rating: payload.rating, comment: payload.comment || null, status: CourseReviewStatus.PENDING, moderatedById: null, moderatedAt: null };
-    const review = await prisma.courseReview.upsert({
-        where: { courseId_studentId: { courseId, studentId: user.userId } },
-        create: { courseId, studentId: user.userId, ...data },
-        update: data,
-        include: { course: { select: { title: true } } },
-    });
-    if (!existing) {
-        await notifyAdmins({
-            title: `New review: ${review.course.title}`,
-            message: `${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}${review.comment ? ` — ${review.comment.slice(0, 160)}` : ""}`,
-            type: NotificationType.COURSE,
-            link: "/admin/reviews?status=PENDING",
-            senderId: user.userId,
-        });
-    }
-    return review;
-};
+    if (existing) throw new AppError(status.CONFLICT, ALREADY_RATED);
 
-const removeMine = async (user: IRequestUser, courseId: string) => {
-    await prisma.courseReview.deleteMany({ where: { courseId, studentId: user.userId } });
+    let review;
+    try {
+        review = await prisma.courseReview.create({
+            data: { courseId, studentId: user.userId, rating: payload.rating, comment: payload.comment || null, status: CourseReviewStatus.PENDING },
+            include: { course: { select: { title: true } } },
+        });
+    } catch (error) {
+        // Two sends at once: the unique (course, student) key lets only one in.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+            throw new AppError(status.CONFLICT, ALREADY_RATED);
+        }
+        throw error;
+    }
+    await notifyAdmins({
+        title: `New review: ${review.course.title}`,
+        message: `${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}${review.comment ? ` — ${review.comment.slice(0, 160)}` : ""}`,
+        type: NotificationType.COURSE,
+        link: "/admin/reviews?status=PENDING",
+        senderId: user.userId,
+    });
+    return review;
 };
 
 /**
@@ -128,4 +132,4 @@ const moderate = async (user: IRequestUser, reviewId: string, next: CourseReview
     });
 };
 
-export const CourseReviewService = { getMine, upsert, removeMine, getPublic, getForStaff, getForAdmin, getCounts, moderate };
+export const CourseReviewService = { getMine, create, getPublic, getForStaff, getForAdmin, getCounts, moderate };

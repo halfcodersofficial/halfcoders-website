@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
+import { linkify } from "@/lib/linkify";
 import { formatDateTime } from "@/lib/utils";
 import { practiceService } from "@/services";
 
@@ -111,7 +112,7 @@ export default function PracticeDayPage() {
                     <CardContent className="space-y-4 p-6">
                         {data.description && (
                             <p className="whitespace-pre-line text-sm text-muted-foreground">
-                                {data.description}
+                                {linkify(data.description)}
                             </p>
                         )}
 

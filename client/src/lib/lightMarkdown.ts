@@ -1,5 +1,22 @@
+// Quotes too: a link's address goes inside an attribute, where a bare `"`
+// would end it and let the rest of the text add attributes of its own.
 const escapeHtml = (value: string) =>
-    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+/**
+ * `[text](https://…)`, or a bare `https://…` address. A bare one stops before
+ * whitespace, a tag or an escaped `<`, `>` or quote.
+ */
+const LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|https?:\/\/(?:(?!&(?:lt|gt|quot|#39);)[^\s<])+/g;
+
+/** Every link opens in a new tab — a meeting or a form shouldn't take the student off the lesson. */
+const anchor = (href: string, text: string) =>
+    `<a href="${href}" target="_blank" rel="noopener noreferrer" class="break-all text-primary underline">${text}</a>`;
 
 /**
  * A minimal, self-contained markdown-to-HTML pass — headings, bold, inline
@@ -19,10 +36,12 @@ export const renderLightMarkdown = (markdown: string, emptyHtml = ""): string =>
     html = html.replace(/^# (.+)$/gm, "<h2 class=\"mt-6 mb-2 text-xl font-bold\">$1</h2>");
     html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     html = html.replace(/`([^`]+)`/g, "<code class=\"rounded bg-secondary px-1 py-0.5 text-[0.85em]\">$1</code>");
-    html = html.replace(
-        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-        "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-primary underline\">$1</a>",
-    );
+    html = html.replace(LINK, (match, text: string | undefined, href: string | undefined) => {
+        if (href) return anchor(href, text ?? href);
+        // A bare address: a full stop or bracket after it is the sentence's, not the link's.
+        const url = match.replace(/[.,;:!?)\]]+$/, "");
+        return anchor(url, url) + match.slice(url.length);
+    });
     html = html.replace(/(?:^|\n)((?:- .+(?:\n|$))+)/g, (block) => {
         const items = block
             .trim()

@@ -275,7 +275,7 @@ export default function OutlineSyllabus({
     // on the student page and inside the admin console beside its sidebar.
     return (
         <div className="@container/syllabus">
-            <div className="grid gap-6 @4xl/syllabus:grid-cols-[17rem_minmax(0,1fr)] @4xl/syllabus:gap-8">
+            <div className="grid grid-cols-1 gap-6 @4xl/syllabus:grid-cols-[17rem_minmax(0,1fr)] @4xl/syllabus:gap-8">
                 {/* ---- Contents: the explorer ------------------------------------ */}
                 <nav aria-label="Course contents" className="hidden @4xl/syllabus:block">
                     <div className="editor sticky top-24 flex max-h-[calc(100dvh-7.5rem)] flex-col overflow-hidden rounded-panel border border-editor-line shadow-panel">

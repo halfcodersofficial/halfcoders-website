@@ -57,6 +57,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
+import { linkify } from "@/lib/linkify";
 import { useSession } from "@/hooks/useSession";
 import { measureYouTubeDurations } from "@/lib/youtube";
 import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
@@ -645,7 +646,7 @@ export default function LearnPage() {
 
     if (isLoading) {
         return (
-            <div className="container mx-auto grid gap-8 p-4 sm:p-6 lg:grid-cols-[1fr_400px]">
+            <div className="container mx-auto grid grid-cols-1 gap-8 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_400px]">
                 <div className="space-y-4">
                     <Skeleton className="aspect-video rounded-2xl" />
                     <Skeleton className="h-4 w-56" />
@@ -773,30 +774,45 @@ export default function LearnPage() {
     return (
         <div className="min-h-dvh bg-background container mx-auto">
             <header className="sticky top-16 z-40 border-b border-border bg-background/90 backdrop-blur-md">
-                <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
-                    <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-16 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         <BackButton href="/dashboard" label="Dashboard" compact />
-                        {data.enrollment && <ProgressRing value={data.enrollment.progress} size={38} />}
+                        {data.enrollment && <ProgressRing value={data.enrollment.progress} size={38} className="shrink-0" />}
                         <div className="min-w-0">
-                            <h1 className="truncate font-semibold leading-tight">{data.course.title}</h1>
+                            {/* Two lines on a phone, so the course name isn't cut to a word or two. */}
+                            <h1
+                                title={data.course.title}
+                                className="line-clamp-2 text-sm font-semibold leading-tight sm:line-clamp-1 sm:text-base"
+                            >
+                                {data.course.title}
+                            </h1>
                             <p className="truncate text-xs tabular-nums text-muted-foreground">
                                 {/* An upcoming course has no modules until its classes start. */}
-                                {allVideos.length === 0
-                                    ? data.course.phase === "UPCOMING"
-                                        ? "Classes haven't started yet — lessons appear here once they do"
-                                        : "No lessons published yet"
-                                    : `${completedCount} of ${allVideos.length} lessons complete`}
+                                {allVideos.length === 0 ? (
+                                    data.course.phase === "UPCOMING" ? (
+                                        "Classes haven't started yet — lessons appear here once they do"
+                                    ) : (
+                                        "No lessons published yet"
+                                    )
+                                ) : (
+                                    <>
+                                        {completedCount} of {allVideos.length} lessons
+                                        <span className="hidden sm:inline"> complete</span>
+                                    </>
+                                )}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1 sm:gap-2">
+                    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                         {data.isPreview && <Badge variant="warning">Preview mode</Badge>}
 
                         {/* Quick shortcuts to this lesson's own state — mirrors the
-                            labelled row under the video, just always in reach. */}
+                            labelled row under the video, just always in reach. On a
+                            phone that row is a short scroll away, so the room goes
+                            to the course name instead. */}
                         {!data.isPreview && !activeAssignmentId && activeVideo && !activeVideo.isLocked && (
-                            <>
+                            <span className="hidden items-center gap-1 sm:flex sm:gap-2">
                                 <Button variant="ghost" size="icon" aria-label="Jump to notes" onClick={openNotes}>
                                     <NotebookPen className="size-4" />
                                 </Button>
@@ -814,7 +830,7 @@ export default function LearnPage() {
                                         <Bookmark className="size-4" />
                                     )}
                                 </Button>
-                            </>
+                            </span>
                         )}
 
                         {/* The curriculum sidebar lives in a modal below `lg` instead
@@ -824,9 +840,11 @@ export default function LearnPage() {
                             variant="outline"
                             size="sm"
                             className="lg:hidden"
+                            aria-label="Course content"
                             onClick={() => setMobileCurriculumOpen(true)}
                         >
                             <ListTree className="size-4" />
+                            <span className="hidden sm:inline">Lessons</span>
                         </Button>
                     </div>
                 </div>
@@ -880,6 +898,10 @@ export default function LearnPage() {
                             key={activeVideo.id}
                             youtubeVideoId={activeVideo.youtubeVideoId}
                             title={activeVideo.title}
+                            subtitle={`Lesson ${activeLessonNumber} of ${allVideos.length}${
+                                activeVideo.duration > 0 ? ` · ${activeVideo.durationLabel}` : ""
+                            }`}
+                            coverImage={data.course.thumbnail}
                             prev={
                                 prevVideo && canOpen(prevVideo.id)
                                     ? { title: prevVideo.title, onSelect: () => goTo(prevVideo.id) }
@@ -957,12 +979,13 @@ export default function LearnPage() {
                                             )}
                                         </p>
                                     )}
-                                    <h2 className="mt-1.5 text-balance text-2xl font-bold leading-tight tracking-tight">
+                                    <h2 className="mt-1.5 text-balance text-xl font-bold leading-tight tracking-tight wrap-break-word sm:text-2xl">
                                         {activeVideo.title}
                                     </h2>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                {/* On a phone, a full-width pair — big enough to hit with a thumb. */}
+                                <div className="flex w-full items-center gap-2 sm:w-auto *:flex-1 sm:*:flex-none">
                                     {/* A matching pair: "Previous" outlined, "Next" filled. */}
                                     {prevVideo && (
                                         <Button
@@ -1026,8 +1049,8 @@ export default function LearnPage() {
                             )}
 
                             {activeVideo.description && (
-                                <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                                    {activeVideo.description}
+                                <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground wrap-break-word">
+                                    {linkify(activeVideo.description)}
                                 </p>
                             )}
 
@@ -2045,7 +2068,7 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
 
             <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
                 <h2 className="mb-3 text-xl font-bold">{data.title}</h2>
-                <p className="whitespace-pre-line text-sm text-muted-foreground">{shownDescription}</p>
+                <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">{linkify(shownDescription)}</p>
                 {isLongDescription && (
                     <Button
                         type="button"
@@ -2171,8 +2194,8 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
                                     {material.title}
                                 </p>
                                 {material.description && (
-                                    <p className="whitespace-pre-line text-sm text-muted-foreground">
-                                        {material.description}
+                                    <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">
+                                        {linkify(material.description)}
                                     </p>
                                 )}
 

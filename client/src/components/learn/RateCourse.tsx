@@ -1,13 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import { Star } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
-import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { cn } from "@/lib/utils";
 import { courseReviewService } from "@/services";
@@ -21,9 +21,10 @@ const STATUS_LINE: Record<MyCourseReview["status"], string> = {
 };
 
 /**
- * "Rate this course", in the learn sidebar: 1–5 stars and a few words. It
- * reaches the public course page (with the student's name) once an admin
- * publishes it; an edit goes back for approval.
+ * "Rate this course", in the learn sidebar: 1–5 stars and a few words, given
+ * once. It reaches the public course page (with the student's name) once an
+ * admin publishes it. After that the student can see what they gave, but not
+ * change or remove it.
  */
 export default function RateCourse({ courseId }: { courseId: string }) {
     const queryClient = useQueryClient();
@@ -39,48 +40,94 @@ export default function RateCourse({ courseId }: { courseId: string }) {
                 <Star className={cn("size-4", review && "fill-amber-400 text-amber-400")} />
                 {review ? `Your rating: ${review.rating} of 5` : "Rate this course"}
             </Button>
-            <Modal open={open} onOpenChange={setOpen} title={review ? "Your review" : "Rate this course"} description="Shown on the course page with your name, once approved.">
-                {open && (
-                    <ReviewForm
-                        courseId={courseId}
-                        review={review}
-                        onDone={() => {
-                            setOpen(false);
-                            void queryClient.invalidateQueries({ queryKey: key });
-                        }}
-                    />
-                )}
+            <Modal
+                open={open}
+                onOpenChange={setOpen}
+                title={review ? "Your review" : "Rate this course"}
+                description="Shown on the course page with your name, once approved."
+            >
+                {open &&
+                    (review ? (
+                        <GivenReview review={review} onClose={() => setOpen(false)} />
+                    ) : (
+                        <ReviewForm
+                            courseId={courseId}
+                            onDone={() => {
+                                setOpen(false);
+                                void queryClient.invalidateQueries({ queryKey: key });
+                            }}
+                        />
+                    ))}
             </Modal>
         </>
     );
 }
 
-function ReviewForm({ courseId, review, onDone }: { courseId: string; review: MyCourseReview | null; onDone: () => void }) {
-    const [rating, setRating] = useState(review?.rating ?? 0);
+function Stars({ value, className }: { value: number; className?: string }) {
+    return (
+        <span className="inline-flex gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                    key={star}
+                    aria-hidden
+                    className={cn(className, star <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40")}
+                />
+            ))}
+        </span>
+    );
+}
+
+/** The review already given — to read, not to change. */
+function GivenReview({ review, onClose }: { review: MyCourseReview; onClose: () => void }) {
+    return (
+        <>
+            <ModalBody className="space-y-5">
+                <p className="rounded-lg bg-secondary/50 px-3 py-2 text-center text-xs text-muted-foreground">
+                    {STATUS_LINE[review.status]}
+                </p>
+                <div className="text-center" role="img" aria-label={`${review.rating} of 5 stars — ${LABELS[review.rating]}`}>
+                    <Stars value={review.rating} className="size-8" />
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">{LABELS[review.rating]}</p>
+                </div>
+                {review.comment && (
+                    <p className="whitespace-pre-line rounded-lg border border-border px-3 py-2.5 text-sm wrap-break-word">
+                        {review.comment}
+                    </p>
+                )}
+                <p className="text-center text-xs text-muted-foreground">
+                    You&apos;ve rated this course. A rating can be given only once.
+                </p>
+            </ModalBody>
+            <ModalFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                    Close
+                </Button>
+            </ModalFooter>
+        </>
+    );
+}
+
+function ReviewForm({ courseId, onDone }: { courseId: string; onDone: () => void }) {
+    const [rating, setRating] = useState(0);
     const [hover, setHover] = useState(0);
-    const [comment, setComment] = useState(review?.comment ?? "");
+    const [comment, setComment] = useState("");
     const save = useMutation({
         mutationFn: () => courseReviewService.save(courseId, { rating, comment: comment.trim() || undefined }),
         onSuccess: () => {
             toast.success("Thanks — your review is with us for approval.");
             onDone();
         },
-        onError: (error) => toast.error(getApiErrorMessage(error, "Couldn't save your review.")),
-    });
-    const remove = useMutation({
-        mutationFn: () => courseReviewService.removeMine(courseId),
-        onSuccess: () => {
-            toast.success("Review removed.");
-            onDone();
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, "Couldn't save your review."));
+            // Already rated (from another tab, say): show what's there.
+            if (isAxiosError(error) && error.response?.status === 409) onDone();
         },
-        onError: (error) => toast.error(getApiErrorMessage(error, "Couldn't remove it.")),
     });
     const shown = hover || rating;
 
     return (
         <>
             <ModalBody className="space-y-5">
-                {review && <p className="rounded-lg bg-secondary/50 px-3 py-2 text-center text-xs text-muted-foreground">{STATUS_LINE[review.status]}</p>}
                 <div className="text-center">
                     <div role="radiogroup" aria-label="Your rating" className="inline-flex gap-1" onMouseLeave={() => setHover(0)}>
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -113,23 +160,13 @@ function ReviewForm({ courseId, review, onDone }: { courseId: string; review: My
                         placeholder="What was it like? What did you get out of it?"
                     />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                    You can rate a course only once — once sent, it can&apos;t be changed or removed.
+                </p>
             </ModalBody>
             <ModalFooter>
-                {review && (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        isLoading={remove.isPending}
-                        onClick={async () => {
-                            if (await confirmAction({ title: "Remove your review?", text: "It comes off the course page too.", confirmText: "Remove" })) remove.mutate();
-                        }}
-                    >
-                        Remove
-                    </Button>
-                )}
                 <Button type="button" disabled={rating === 0} isLoading={save.isPending} onClick={() => save.mutate()}>
-                    {review ? "Save" : "Send review"}
+                    Send review
                 </Button>
             </ModalFooter>
         </>

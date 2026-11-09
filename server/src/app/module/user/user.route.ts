@@ -28,6 +28,10 @@ router.get("/students/export", checkAuth(...ADMINS), heavyOpsRateLimiter, UserCo
 router.get("/students/counts", checkAuth(...ADMINS), UserController.getStudentCounts);
 router.get("/students/:userId", checkAuth(...ADMINS), UserController.getStudentById);
 
+// Removes a student and everything about them for good — payments included,
+// so super admins only.
+router.delete("/students/:userId", checkAuth(Role.SUPER_ADMIN), UserController.deleteStudent);
+
 // The student detail page: everything about them, and one course week by week.
 router.get("/students/:userId/overview", checkAuth(...ADMINS), UserController.getStudentOverview);
 router.get("/students/:userId/courses/:courseId", checkAuth(...ADMINS), UserController.getStudentCourse);

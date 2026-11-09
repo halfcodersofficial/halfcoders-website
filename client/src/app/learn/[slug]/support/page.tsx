@@ -18,6 +18,7 @@ import { useNow } from "@/hooks/useNow";
 import { useSupportSocket } from "@/hooks/useSupportSocket";
 import { useZodForm } from "@/hooks/useZodForm";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { linkify } from "@/lib/linkify";
 import { cn, formatQueueNumber, formatTime } from "@/lib/utils";
 import { optionalTextField } from "@/lib/validation";
 import { catalogueService, supportService } from "@/services";
@@ -319,7 +320,7 @@ function NowServingBoard({
                 </p>
             </div>
 
-            <div className="mt-8 grid gap-8 sm:grid-cols-[auto_1fr] sm:items-end">
+            <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-[auto_1fr] sm:items-end">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-300">Now serving</p>
                     {nowServing ? (
@@ -546,7 +547,7 @@ function UpcomingSessions({ sessions }: { sessions: SupportSessionCard[] }) {
                             </p>
                         </div>
                     </div>
-                    {next.notes && <p className="mt-5 whitespace-pre-line text-sm leading-relaxed text-white/70">{next.notes}</p>}
+                    {next.notes && <p className="mt-5 whitespace-pre-line text-sm leading-relaxed text-white/70 wrap-break-word">{linkify(next.notes)}</p>}
                     <p className="mt-6 border-t border-white/10 pt-4 text-xs text-white/50">
                         You can take a number once it goes live — this page updates by itself.
                     </p>

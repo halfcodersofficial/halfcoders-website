@@ -21,6 +21,11 @@ interface ConfirmOptions {
     cancelText?: string;
     /** `danger` paints the confirm button red and focuses Cancel instead. */
     tone?: ConfirmTone;
+    /**
+     * For what can't be undone: a box the admin must type this word into
+     * before the confirm button does anything.
+     */
+    typeToConfirm?: string;
 }
 
 /**
@@ -59,6 +64,7 @@ export async function confirmAction({
     confirmText = "Confirm",
     cancelText = "Cancel",
     tone = "danger",
+    typeToConfirm,
 }: ConfirmOptions): Promise<boolean> {
     // Imported on demand: SweetAlert2 reaches for `document` at module scope,
     // and this keeps ~40kB out of the bundle of every page that never asks.
@@ -66,8 +72,17 @@ export async function confirmAction({
 
     const result = await Swal.fire({
         target: mountTarget(),
-        title,
+        // `titleText`, not `title`: SweetAlert reads `title` as HTML, and
+        // titles carry names people typed ("Block <b>Sam</b>?").
+        titleText: title,
         text,
+        ...(typeToConfirm && {
+            input: "text" as const,
+            inputLabel: `Type ${typeToConfirm} to confirm`,
+            inputAttributes: { autocomplete: "off", autocapitalize: "off", spellcheck: "false" },
+            inputValidator: (value: string) =>
+                value.trim() === typeToConfirm ? null : `Type ${typeToConfirm} exactly as shown.`,
+        }),
         showCancelButton: true,
         confirmButtonText: confirmText,
         cancelButtonText: cancelText,

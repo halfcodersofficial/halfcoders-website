@@ -85,6 +85,10 @@ type Status = "idle" | "playing" | "paused" | "buffering" | "ended";
 interface LessonVideoPlayerProps {
     youtubeVideoId: string;
     title: string;
+    /** Under the title on the cover, e.g. "Lesson 3 of 12 · 8:40". */
+    subtitle?: string;
+    /** The course's cover image, behind the play button before the first play. */
+    coverImage?: string | null;
     prev?: { title: string; onSelect: () => void } | null;
     next?: { title: string; onSelect: () => void } | null;
     /** The viewer's email, drifting over the video so a screen recording names who made it. */
@@ -107,6 +111,8 @@ interface LessonVideoPlayerProps {
 export default function LessonVideoPlayer({
     youtubeVideoId,
     title,
+    subtitle,
+    coverImage,
     prev,
     next,
     watermark,
@@ -817,19 +823,39 @@ export default function LessonVideoPlayer({
                 </div>
             )}
 
-            {/* Before the first play: just the video's own picture and the
-                play button — the lesson's name is already right under the
-                video. It's ours, not YouTube's waiting screen, so it carries no
-                YouTube title or link. */}
+            {/* Before the first play: the course's cover, the play button and
+                the lesson's name — never the video's own frame. It's ours, not
+                YouTube's waiting screen, so it carries no YouTube title or link. */}
             {!started && !failed && (
                 <button
                     type="button"
                     onClick={start}
                     aria-label={`Play ${title}`}
-                    className="group absolute inset-0 z-40 grid place-items-center overflow-hidden bg-black text-white focus-visible:outline-none"
+                    className="group absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-6 text-center text-white focus-visible:outline-none sm:gap-5"
                 >
-                    <VideoThumbnail videoId={youtubeVideoId} />
-                    <PlayBadge pulse={!starting} loading={starting} className="size-16 sm:size-20" />
+                    {coverImage ? (
+                        <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={coverImage}
+                                alt=""
+                                draggable={false}
+                                className="absolute inset-0 size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                            />
+                            {/* Dark enough for white text on any cover. */}
+                            <span aria-hidden className="absolute inset-0 bg-linear-to-t from-black/90 via-black/65 to-black/45" />
+                        </>
+                    ) : (
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
+                        />
+                    )}
+                    <PlayBadge pulse={!starting} loading={starting} className="size-14 shrink-0 sm:size-20" />
+                    <span className="relative max-w-xl space-y-1 sm:space-y-1.5">
+                        <span className="line-clamp-2 text-sm font-semibold leading-snug drop-shadow-sm sm:text-xl">{title}</span>
+                        {subtitle && <span className="block text-xs tabular-nums text-white/70 sm:text-sm">{subtitle}</span>}
+                    </span>
                 </button>
             )}
 
@@ -846,32 +872,6 @@ export default function LessonVideoPlayer({
                 </div>
             )}
         </div>
-    );
-}
-
-// Biggest first. Not every upload has the large sizes: YouTube then answers
-// with a 120px-wide grey placeholder (or an error), and the next one is tried.
-const THUMBNAIL_SIZES = ["maxresdefault", "sddefault", "hqdefault"] as const;
-
-/** The video's picture from YouTube's image server, filling the frame. */
-function VideoThumbnail({ videoId }: { videoId: string }) {
-    const [index, setIndex] = useState(0);
-    const hasSmaller = index < THUMBNAIL_SIZES.length - 1;
-
-    return (
-        // A plain <img>: the fallback above needs the real image's width,
-        // which the optimised next/image would hide behind its own resize.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-            src={`https://i.ytimg.com/vi/${videoId}/${THUMBNAIL_SIZES[index]}.jpg`}
-            alt=""
-            draggable={false}
-            onLoad={(event) => {
-                if (event.currentTarget.naturalWidth <= 120 && hasSmaller) setIndex(index + 1);
-            }}
-            onError={() => hasSmaller && setIndex(index + 1)}
-            className="absolute inset-0 size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-        />
     );
 }
 
