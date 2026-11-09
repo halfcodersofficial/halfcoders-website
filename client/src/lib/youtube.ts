@@ -114,6 +114,18 @@ export type QualityChoice = keyof typeof QUALITY_FRAME_HEIGHT;
 
 export const QUALITY_CHOICES = Object.keys(QUALITY_FRAME_HEIGHT) as QualityChoice[];
 
+/** The picture height of each YouTube quality code, to tell higher from lower. */
+export const QUALITY_HEIGHT: Record<string, number> = {
+    hd2160: 2160,
+    hd1440: 1440,
+    hd1080: 1080,
+    hd720: 720,
+    large: 480,
+    medium: 360,
+    small: 240,
+    tiny: 144,
+};
+
 /** Plain names for YouTube's quality codes. */
 export const QUALITY_LABEL: Record<string, string> = {
     hd2160: "4K",
