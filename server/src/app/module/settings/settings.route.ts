@@ -10,6 +10,7 @@ import { prisma } from "../../lib/prisma";
 import {
     assertKnownSetting,
     DEFAULT_SETTINGS,
+    getXpRules,
     invalidateSettingCache,
     parseSettingValue,
     SETTING_KEYS,
@@ -43,11 +44,8 @@ const getSettings = catchAsync(async (_req, res) => {
     const stored = Object.fromEntries(rows.map((row) => [row.key, row.value]));
 
     const values: Record<string, unknown> = { ...DEFAULT_SETTINGS, ...stored };
-    // XP rules complete over their defaults, as the awards read them.
-    values[SETTING_KEYS.XP_RULES] = {
-        ...(DEFAULT_SETTINGS[SETTING_KEYS.XP_RULES] as object),
-        ...((stored[SETTING_KEYS.XP_RULES] as object | undefined) ?? {}),
-    };
+    // XP rules complete over their defaults, exactly as the awards read them.
+    values[SETTING_KEYS.XP_RULES] = await getXpRules();
 
     sendResponse(res, {
         httpStatusCode: status.OK,

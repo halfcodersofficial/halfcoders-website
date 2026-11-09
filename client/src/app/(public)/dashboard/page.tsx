@@ -23,6 +23,7 @@ import ProgressRing from "@/components/shared/ProgressRing";
 import RoleGuard from "@/components/shared/RoleGuard";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STUDENT_ROLES } from "@/lib/access";
@@ -193,9 +194,9 @@ function StudentDashboardView() {
                                         No {courseFilter.toLowerCase()} courses.
                                     </p>
                                 ) : (
-                                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                                    <div className="grid grid-cols-1 gap-5">
                                         {filteredEnrollments.map((enrollment) => (
-                                            <CourseTile key={enrollment.id} enrollment={enrollment} />
+                                            <MainCourseCard key={enrollment.id} enrollment={enrollment} />
                                         ))}
                                     </div>
                                 )}
@@ -697,6 +698,126 @@ function ComingUp({ data }: { data: StudentDashboard }) {
                 </div>
             )}
         </section>
+    );
+}
+
+/** What to call the course's progress, in words. */
+const progressWords = (enrollment: Enrollment) =>
+    enrollment.status === "COMPLETED"
+        ? "Completed"
+        : enrollment.progress > 0
+            ? `${enrollment.progress}% complete`
+            : "Not started yet";
+
+/**
+ * A course the student came for, across the whole column: its picture on
+ * the left, left alone — no badge over the course's own artwork — and beside
+ * it where they are, how far they've got, and the way back in. On a phone
+ * the picture sits on top.
+ */
+function MainCourseCard({ enrollment }: { enrollment: Enrollment }) {
+    const href = `/learn/${enrollment.course.slug}`;
+    const isCompleted = enrollment.status === "COMPLETED";
+    const started = enrollment.progress > 0;
+    const streakDays = enrollment.streak?.currentStreakDays ?? 0;
+    const place = whereAt(enrollment);
+
+    return (
+        <article className="group flex flex-col overflow-hidden rounded-card border border-border bg-card transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-card-hover sm:flex-row">
+            {/* At least 16:9, and as tall as the details beside it — never stretched. */}
+            <Link
+                href={href}
+                tabIndex={-1}
+                aria-hidden
+                className="relative aspect-video shrink-0 overflow-hidden bg-secondary sm:w-1/2 sm:max-w-md"
+            >
+                <SafeImage
+                    src={enrollment.course.thumbnail}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 100vw, 448px"
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    fallback={<BookOpen className="size-8 text-muted-foreground" />}
+                />
+            </Link>
+
+            <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="rounded-sm border border-border bg-secondary/60 px-2 py-0.5 font-mono text-[0.6875rem] font-medium text-muted-foreground">
+                        {enrollment.course.courseType === "BOOTCAMP" ? "Bootcamp" : "Self-paced"}
+                    </span>
+                    <span
+                        className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            isCompleted
+                                ? "bg-success/15 text-success"
+                                : started
+                                    ? "bg-primary/10 text-primary"
+                                    : "bg-secondary text-muted-foreground",
+                        )}
+                    >
+                        {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden />}
+                        {isCompleted ? "Completed" : started ? "In progress" : "Not started"}
+                    </span>
+                </div>
+
+                <h3 className="mt-3 line-clamp-2 text-lg font-bold leading-snug tracking-tight sm:text-xl">
+                    <Link href={href} className="transition-colors hover:text-primary">
+                        {enrollment.course.title}
+                    </Link>
+                </h3>
+
+                {isCompleted && enrollment.completedAt ? (
+                    <p className="mt-2 text-sm text-muted-foreground">Completed {formatDate(enrollment.completedAt)}</p>
+                ) : place.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                        {place.map((line) => (
+                            <li key={line} className="flex min-w-0 items-center gap-2">
+                                <span aria-hidden className="size-1.5 shrink-0 rounded-[1px] bg-primary/70" />
+                                <span className="truncate">{line}</span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">Enrolled {formatDate(enrollment.startedAt)}</p>
+                )}
+
+                <div className="mt-4 space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="font-medium tabular-nums text-muted-foreground">{progressWords(enrollment)}</span>
+                        {streakDays > 0 && (
+                            <span className="inline-flex items-center gap-1 font-semibold">
+                                <Flame className="size-3.5 text-syn-number" aria-hidden />
+                                {streakDays}-day streak
+                            </span>
+                        )}
+                    </div>
+                    <Progress
+                        value={enrollment.progress}
+                        className="h-1.5"
+                        barClassName={isCompleted ? "bg-success" : "bg-brand"}
+                    />
+                </div>
+
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+                    <Button asChild size="sm" className="px-4">
+                        <Link href={href}>{isCompleted ? "Review course" : started ? "Continue" : "Start course"}</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                        <Link href={`${href}/outline`}>
+                            <ListTree /> Outline
+                        </Link>
+                    </Button>
+                    {enrollment.certificate && (
+                        <Button asChild size="sm" variant="outline">
+                            <Link href={`/certificate/${enrollment.certificate.certificateNo}`}>
+                                <Award /> Certificate
+                            </Link>
+                        </Button>
+                    )}
+                </div>
+            </div>
+        </article>
     );
 }
 

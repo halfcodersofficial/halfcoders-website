@@ -1,5 +1,5 @@
 import status from "http-status";
-import { EnrollmentStatus, LessonType, RewardCondition, XpSource } from "../../../generated/prisma/enums";
+import { CourseType, EnrollmentStatus, LessonType, RewardCondition, XpSource } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
@@ -11,6 +11,7 @@ import {
 } from "../../utils/courseAccess";
 import { grantCompletionReward, rewardMainCourse } from "../../utils/courseGrants";
 import { logger } from "../../utils/logger";
+import { getXpRules, MODULE_ON_TIME_MS } from "../../utils/platformSettings";
 import { awardXp } from "../leaderboard/leaderboard.service";
 
 const percent = (done: number, total: number) => (total === 0 ? 0 : Math.round((done / total) * 100));
@@ -282,8 +283,36 @@ const recalculateProgress = async (enrollmentId: string): Promise<RecalculationR
 };
 
 /**
+ * When a student's 24 hours to finish each module on time started: a bootcamp
+ * module's release; on a self-paced course — where every module is open from
+ * the start — the student's first lesson in it. Also the first lesson for a
+ * bootcamp module with no release time on record. Null: never started.
+ *
+ * The same rule rebuilt everyone's XP in the 20261109120000_xp_rules migration.
+ */
+const moduleClockStarts = async (enrollmentId: string, courseType: CourseType, moduleIds: string[]) => {
+    const [modules, firstLessons] = await Promise.all([
+        prisma.courseModule.findMany({ where: { id: { in: moduleIds } }, select: { id: true, publishedAt: true } }),
+        prisma.videoProgress.groupBy({
+            by: ["moduleId"],
+            where: { enrollmentId, moduleId: { in: moduleIds } },
+            _min: { createdAt: true },
+        }),
+    ]);
+    const releasedAt = new Map(modules.map((courseModule) => [courseModule.id, courseModule.publishedAt]));
+    const firstLessonAt = new Map(firstLessons.map((row) => [row.moduleId, row._min.createdAt]));
+
+    return new Map(
+        moduleIds.map((id) => [
+            id,
+            (courseType === CourseType.BOOTCAMP ? releasedAt.get(id) : null) ?? firstLessonAt.get(id) ?? null,
+        ]),
+    );
+};
+
+/**
  * Marks a video watched and cascades the result up the progress chain,
- * awarding XP for every threshold crossed.
+ * awarding XP for each module it finishes.
  */
 const markVideoComplete = async (user: IRequestUser, videoId: string) => {
     const video = await prisma.video.findFirst({
@@ -317,41 +346,29 @@ const markVideoComplete = async (user: IRequestUser, videoId: string) => {
 
     const result = await recalculateProgress(enrollment.id);
 
-    // Awards are idempotent on (student, source, refId) and are deliberately
-    // outside the transaction: a duplicate or failed award must never roll back
-    // the progress the student actually earned.
-    await awardXp(prisma, {
-        studentId: user.userId,
-        courseId: video.courseId,
-        source: XpSource.VIDEO_COMPLETE,
-        refId: videoId,
-    });
+    // XP only for finishing a module (see `XpRules`): more for finishing it
+    // within 24 hours. Idempotent on (student, source, module), and
+    // deliberately outside the transaction: a duplicate or failed award must
+    // never roll back the progress the student actually earned.
+    if (result.newlyCompletedModuleIds.length > 0) {
+        const [rules, course] = await Promise.all([
+            getXpRules(),
+            prisma.course.findUniqueOrThrow({ where: { id: video.courseId }, select: { courseType: true } }),
+        ]);
+        const clockStarts = await moduleClockStarts(enrollment.id, course.courseType, result.newlyCompletedModuleIds);
+        const now = Date.now();
 
-    for (const moduleId of result.newlyCompletedModuleIds) {
-        await awardXp(prisma, {
-            studentId: user.userId,
-            courseId: video.courseId,
-            source: XpSource.MODULE_COMPLETE,
-            refId: moduleId,
-        });
-    }
-
-    for (const milestoneId of result.newlyCompletedMilestoneIds) {
-        await awardXp(prisma, {
-            studentId: user.userId,
-            courseId: video.courseId,
-            source: XpSource.MILESTONE_COMPLETE,
-            refId: milestoneId,
-        });
-    }
-
-    if (result.courseJustCompleted) {
-        await awardXp(prisma, {
-            studentId: user.userId,
-            courseId: video.courseId,
-            source: XpSource.COURSE_COMPLETE,
-            refId: video.courseId,
-        });
+        for (const moduleId of result.newlyCompletedModuleIds) {
+            const start = clockStarts.get(moduleId);
+            const onTime = Boolean(start && now <= start.getTime() + MODULE_ON_TIME_MS);
+            await awardXp(prisma, {
+                studentId: user.userId,
+                courseId: video.courseId,
+                source: XpSource.MODULE_COMPLETE,
+                refId: moduleId,
+                points: onTime ? rules.MODULE_ON_TIME : rules.MODULE_LATE,
+            });
+        }
     }
 
     return {

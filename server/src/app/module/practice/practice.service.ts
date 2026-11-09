@@ -1,5 +1,4 @@
 import status from "http-status";
-import { XpSource } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
@@ -14,7 +13,6 @@ import {
     PRACTICE_COURSE_FILTER,
     SCHEDULED_COURSE_FILTER,
 } from "../../utils/weekItems";
-import { awardXp } from "../leaderboard/leaderboard.service";
 
 /**
  * Practice Day (plan §17) — a hands-on checkpoint inside a milestone. Unlike
@@ -187,13 +185,6 @@ const markComplete = async (user: IRequestUser, practiceDayId: string, note?: st
         // Re-marking just refreshes the note; the original completion time
         // stands.
         update: { note },
-    });
-
-    await awardXp(prisma, {
-        studentId: user.userId,
-        courseId: practiceDay.courseId,
-        source: XpSource.PRACTICE_COMPLETE,
-        refId: practiceDayId,
     });
 
     return completion;

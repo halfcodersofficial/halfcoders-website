@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { z, type ZodType } from "zod";
 import { SettingFacts, SettingSection } from "@/components/admin/settings/SettingSection";
 import { CertificatePreview, QueueExample, SequenceDiagram } from "@/components/admin/settings/SettingPreviews";
-import XpRules, { MAX_XP, XP_SOURCE_KEYS } from "@/components/admin/settings/XpRules";
+import XpRules, { MAX_XP, XP_RULE_KEYS } from "@/components/admin/settings/XpRules";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ const KEY = ["admin", "settings"] as const;
 
 /** Built from the source list, so a new XP source only has to be added there. */
 const xpSchema = z.object(
-    Object.fromEntries(XP_SOURCE_KEYS.map((key) => [key, numericField({ label: "Points", min: 0, max: MAX_XP })])),
+    Object.fromEntries(XP_RULE_KEYS.map((key) => [key, numericField({ label: "Points", min: 0, max: MAX_XP })])),
 );
 const supportSchema = z.object({ slotMinutes: numericField({ label: "Minutes per student", min: 1, max: 60 }) });
 const certificateSchema = z.object({
@@ -104,7 +104,7 @@ function useSettingForm<TValues extends FormValues, TOut>(schema: ZodType<TOut, 
 }
 
 const xpToForm = (rules: Record<string, number>) =>
-    Object.fromEntries(XP_SOURCE_KEYS.map((key) => [key, String(rules[key] ?? 0)])) as Record<string, string>;
+    Object.fromEntries(XP_RULE_KEYS.map((key) => [key, String(rules[key] ?? 0)])) as Record<string, string>;
 
 /**
  * Platform settings: the four things that change how Half Coders behaves for
@@ -297,7 +297,7 @@ function SettingsBoard({ settings }: { settings: PlatformSettings }) {
                     id="xp"
                     icon={Trophy}
                     title="XP & leaderboard"
-                    purpose="Points students earn as they learn. Each course's leaderboard ranks by them."
+                    purpose="Points students earn for finishing modules and handing assignments in on time — nothing else earns XP. Each course's leaderboard ranks by them."
                     dirty={xp.isDirty}
                     changedAt={changedAt["xp.rules"]}
                     onReset={() => resetToDefault("xp.rules")}

@@ -794,7 +794,7 @@ export type AdminCourse = CourseCard & {
 
 /** The platform's tunables — one stored row each, over a built-in default. */
 export interface PlatformSettingValues {
-    /** Points per XpSource. */
+    /** Points for each XP rule: MODULE_ON_TIME, MODULE_LATE, ASSIGNMENT_ON_TIME. */
     "xp.rules": Record<string, number>;
     "support.slotMinutes": number;
     "certificate.prefix": string;
