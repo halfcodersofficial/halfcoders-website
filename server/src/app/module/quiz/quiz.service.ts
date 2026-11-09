@@ -1,5 +1,5 @@
 import status from "http-status";
-import { NotificationType, QuizAttemptStatus, XpSource } from "../../../generated/prisma/enums";
+import { NotificationType, QuizAttemptStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
@@ -7,7 +7,6 @@ import { STUDENT_NAME_ONLY } from "../../lib/studentPrivacy";
 import { assertCanManageCourse, assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
-import { awardXp } from "../leaderboard/leaderboard.service";
 import { createNotification } from "../notification/notification.service";
 
 // ---------------------------------------------------------------------------
@@ -481,13 +480,6 @@ const submitQuiz = async (
     });
 
     logger.update("Quiz submitted", { quizId, studentId: user.userId, percentage });
-
-    await awardXp(prisma, {
-        studentId: user.userId,
-        courseId: quiz.courseId,
-        source: XpSource.QUIZ_COMPLETE,
-        refId: quizId,
-    });
 
     return result;
 };

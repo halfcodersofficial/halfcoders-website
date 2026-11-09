@@ -1,6 +1,5 @@
 import status from "http-status";
 import z from "zod";
-import { XpSource } from "../../generated/prisma/enums";
 import AppError from "../errorHelpers/AppError";
 import { prisma } from "../lib/prisma";
 import { logger } from "./logger";
@@ -12,24 +11,27 @@ export const SETTING_KEYS = {
     SEQUENTIAL_LEARNING: "learning.sequential",
 } as const;
 
-export type XpRules = Record<XpSource, number>;
-
 /**
- * Defaults straight from the plan (§25, §29, §31). These are the values a
- * fresh install runs on; an admin can override any of them through the
- * settings endpoints without a migration or redeploy.
+ * The only things that earn XP — nothing else does:
+ *
+ * - A module finished within 24 hours of its clock starting (see
+ *   `moduleOnTimeStart`): `MODULE_ON_TIME`; finished later: `MODULE_LATE`.
+ * - An assignment first handed in by its deadline: `ASSIGNMENT_ON_TIME`.
+ *   A late hand-in earns nothing.
+ *
+ * An admin can change the amounts from Settings without a redeploy.
  */
+export const XP_RULE_KEYS = ["MODULE_ON_TIME", "MODULE_LATE", "ASSIGNMENT_ON_TIME"] as const;
+export type XpRules = Record<(typeof XP_RULE_KEYS)[number], number>;
+
 export const DEFAULT_XP_RULES: XpRules = {
-    VIDEO_COMPLETE: 10,
-    ASSIGNMENT_SUBMIT: 50,
-    ASSIGNMENT_SCORE: 100,
-    PRACTICE_COMPLETE: 20,
-    QUIZ_COMPLETE: 30,
-    MODULE_COMPLETE: 50,
-    MILESTONE_COMPLETE: 200,
-    COURSE_COMPLETE: 500,
-    SUPPORT_PARTICIPATION: 10,
+    MODULE_ON_TIME: 2,
+    MODULE_LATE: 1,
+    ASSIGNMENT_ON_TIME: 3,
 };
+
+/** How long a student has to finish a module and still earn `MODULE_ON_TIME`. */
+export const MODULE_ON_TIME_MS = 24 * 60 * 60 * 1000;
 
 export const MAX_XP_AWARD = 10_000;
 
@@ -84,14 +86,19 @@ export const setSetting = async (key: string, value: unknown, description?: stri
 };
 
 /**
- * Stored rules over the defaults, so a source the stored row doesn't name —
- * one added to `XpSource` after the row was saved, or dropped by an older
- * admin screen that didn't list it — earns its default instead of nothing.
+ * Stored amounts over the defaults, one rule at a time: a rule the stored row
+ * doesn't name earns its default, and anything else in the row (the old
+ * per-event amounts, say) is ignored.
  */
-export const getXpRules = async (): Promise<XpRules> => ({
-    ...DEFAULT_XP_RULES,
-    ...(await getSetting<Partial<XpRules>>(SETTING_KEYS.XP_RULES, DEFAULT_XP_RULES)),
-});
+export const getXpRules = async (): Promise<XpRules> => {
+    const stored = (await getSetting<Record<string, unknown> | null>(SETTING_KEYS.XP_RULES, null)) ?? {};
+    return Object.fromEntries(
+        XP_RULE_KEYS.map((key) => {
+            const value = stored[key];
+            return [key, typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_XP_RULES[key]];
+        }),
+    ) as XpRules;
+};
 
 export const getSupportSlotMinutes = (): Promise<number> =>
     getSetting<number>(SETTING_KEYS.SUPPORT_SLOT_MINUTES, 5);
@@ -110,7 +117,7 @@ const xpAward = z.number().int().min(0).max(MAX_XP_AWARD);
  */
 const SETTING_SCHEMAS: Record<string, z.ZodType> = {
     [SETTING_KEYS.XP_RULES]: z
-        .object(Object.fromEntries(Object.values(XpSource).map((source) => [source, xpAward])))
+        .object(Object.fromEntries(XP_RULE_KEYS.map((key) => [key, xpAward])))
         .partial()
         .strict(),
     [SETTING_KEYS.SUPPORT_SLOT_MINUTES]: z.number().int().min(1).max(60),

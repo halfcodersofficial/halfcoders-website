@@ -6,6 +6,7 @@ import {
     BookOpen,
     CalendarClock,
     ClipboardCheck,
+    Clock,
     FileText,
     Flag,
     HelpCircle,
@@ -21,26 +22,28 @@ import { formatDateTime } from "@/lib/utils";
 import { leaderboardService } from "@/services";
 import type { XpHistoryEntry, XpSource } from "@/types/domain.types";
 
+// Only modules and on-time assignments earn XP now; the other sources stay
+// here so XP earned before the change still reads properly in the history.
 const SOURCE_META: Record<XpSource, { label: string; icon: LucideIcon }> = {
+    MODULE_COMPLETE: { label: "Module finished", icon: ClipboardCheck },
+    ASSIGNMENT_SUBMIT: { label: "Assignment handed in on time", icon: FileText },
     VIDEO_COMPLETE: { label: "Lesson completed", icon: BookOpen },
-    ASSIGNMENT_SUBMIT: { label: "Assignment submitted", icon: FileText },
     ASSIGNMENT_SCORE: { label: "Assignment scored", icon: Award },
     PRACTICE_COMPLETE: { label: "Practice completed", icon: ClipboardCheck },
-    MODULE_COMPLETE: { label: "Module completed", icon: ClipboardCheck },
     MILESTONE_COMPLETE: { label: "Milestone completed", icon: Flag },
     COURSE_COMPLETE: { label: "Course completed", icon: Trophy },
     SUPPORT_PARTICIPATION: { label: "Support session attended", icon: CalendarClock },
 };
 
-const EARN_RULES: { source: XpSource; blurb: string }[] = [
-    { source: "VIDEO_COMPLETE", blurb: "Finish a lesson video." },
-    { source: "PRACTICE_COMPLETE", blurb: "Complete a practice day." },
-    { source: "ASSIGNMENT_SUBMIT", blurb: "Submit an assignment." },
-    { source: "ASSIGNMENT_SCORE", blurb: "Score well on a reviewed assignment." },
-    { source: "MODULE_COMPLETE", blurb: "Finish every lesson in a module." },
-    { source: "MILESTONE_COMPLETE", blurb: "Clear a full milestone." },
-    { source: "COURSE_COMPLETE", blurb: "Complete an entire course." },
-    { source: "SUPPORT_PARTICIPATION", blurb: "Join a live support session." },
+/** The default amounts (the API's `DEFAULT_XP_RULES`). */
+const EARN_RULES: { key: string; icon: LucideIcon; blurb: string }[] = [
+    {
+        key: "module-on-time",
+        icon: ClipboardCheck,
+        blurb: "Finish a module within 24 hours — 2 XP. On a bootcamp the 24 hours start when the module is released; on a self-paced course, when you start it.",
+    },
+    { key: "module-late", icon: Clock, blurb: "Finish a module after that — 1 XP." },
+    { key: "assignment", icon: FileText, blurb: "Hand in an assignment by its deadline — 3 XP. A late hand-in earns none." },
 ];
 
 /**
@@ -105,7 +108,7 @@ export function XpHistoryPanel({
                         <Trophy className="mx-auto mb-3 size-8 text-muted-foreground" />
                         <p className="font-medium">No XP yet</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Finish a lesson to start earning.
+                            Finish a module to start earning.
                         </p>
                     </div>
                 ) : (
@@ -162,16 +165,16 @@ function EarnInfoModal({ onClose }: { onClose: () => void }) {
                     </button>
                 </div>
                 <ul className="space-y-2.5 text-sm text-muted-foreground">
-                    {EARN_RULES.map((rule) => {
-                        const Icon = SOURCE_META[rule.source].icon;
-                        return (
-                            <li key={rule.source} className="flex items-start gap-2.5">
-                                <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
-                                <span>{rule.blurb}</span>
-                            </li>
-                        );
-                    })}
+                    {EARN_RULES.map(({ key, icon: Icon, blurb }) => (
+                        <li key={key} className="flex items-start gap-2.5">
+                            <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+                            <span>{blurb}</span>
+                        </li>
+                    ))}
                 </ul>
+                <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                    Nothing else earns XP. Each module and assignment counts once.
+                </p>
             </div>
         </div>
     );

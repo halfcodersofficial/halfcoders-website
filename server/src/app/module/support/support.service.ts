@@ -5,7 +5,6 @@ import {
     NotificationType,
     SupportQueueStatus,
     SupportSessionStatus,
-    XpSource,
 } from "../../../generated/prisma/enums";
 import { Role } from "../../lib/roles";
 import AppError from "../../errorHelpers/AppError";
@@ -18,7 +17,6 @@ import { assertCanManageCourse, requireCourseAccess, requireEnrollment } from ".
 import { assertSupportOpen } from "../../utils/coursePhase";
 import { logger } from "../../utils/logger";
 import { getSupportSlotMinutes } from "../../utils/platformSettings";
-import { awardXp } from "../leaderboard/leaderboard.service";
 import { createNotification, createNotificationsFor } from "../notification/notification.service";
 import { dhakaClock, dhakaWhen } from "../../utils/dhakaTime";
 
@@ -744,14 +742,6 @@ const joinQueue = async (user: IRequestUser, sessionId: string, topic?: string) 
         await prisma.supportQueue.delete({ where: { id: entry.id } });
         return inLine[0];
     }
-
-    // Once per session, however many turns (unique per student, source and session).
-    await awardXp(prisma, {
-        studentId: user.userId,
-        courseId: session.courseId,
-        source: XpSource.SUPPORT_PARTICIPATION,
-        refId: sessionId,
-    });
 
     await broadcastQueue(sessionId);
     return entry;

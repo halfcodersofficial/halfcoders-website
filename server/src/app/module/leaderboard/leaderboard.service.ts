@@ -7,7 +7,6 @@ import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
 import { adminCourseSelect, AdminCourseCard } from "../../utils/adminCourseSelect";
 import { logger } from "../../utils/logger";
-import { getXpRules } from "../../utils/platformSettings";
 
 /** Prisma client or an interactive transaction client — both work here. */
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -15,25 +14,26 @@ type Db = Prisma.TransactionClient | typeof prisma;
 interface AwardXpInput {
     studentId: string;
     courseId: string;
+    /** MODULE_COMPLETE or ASSIGNMENT_SUBMIT — the only events that earn XP (see `XpRules`). */
     source: XpSource;
-    /** Id of the video / submission / milestone that earned the points. */
+    /** Id of the module / assignment that earned the points. */
     refId: string;
-    /** Overrides the configured rule — used for score-proportional awards. */
-    points?: number;
+    /** From the XP rules — the caller knows whether it was on time. */
+    points: number;
 }
 
 /**
  * Records an XP award and bumps the student's course total.
  *
- * Awards are idempotent on `(studentId, source, refId)`: re-marking a video
- * complete, or a mentor re-grading the same submission, must not inflate the
- * leaderboard. The unique index does the enforcing, and a duplicate is
- * swallowed rather than surfaced — the caller's real work (recording progress)
- * has already succeeded and must not be rolled back over a double award.
+ * Awards are idempotent on `(studentId, source, refId)`: finishing a module
+ * again after a new lesson reopened it, or handing an assignment in again,
+ * must not inflate the leaderboard. The unique index does the enforcing, and
+ * a duplicate is swallowed rather than surfaced — the caller's real work
+ * (recording progress) has already succeeded and must not be rolled back over
+ * a double award.
  */
 export const awardXp = async (db: Db, input: AwardXpInput): Promise<number> => {
-    const rules = await getXpRules();
-    const points = input.points ?? rules[input.source] ?? 0;
+    const { points } = input;
 
     if (points <= 0) return 0;
 

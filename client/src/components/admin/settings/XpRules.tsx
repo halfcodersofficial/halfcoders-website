@@ -9,43 +9,36 @@ import { cn } from "@/lib/utils";
 export const MAX_XP = 10_000;
 
 /**
- * Every XpSource, grouped the way a student meets them, with exactly when
- * each is awarded (see `awardXp` and its callers on the API). Each award is
- * once per thing — re-completing a lesson or re-grading an assignment never
- * stacks.
+ * The only things that earn XP (the API's `XpRules`), grouped the way a
+ * student meets them, with exactly when each is awarded. Each award is once
+ * per module or assignment — finishing a module again or resubmitting never
+ * stacks. Nothing else (lessons, quizzes, practice, support, marks) earns XP.
  */
 export const XP_GROUPS = [
     {
-        label: "Learning",
+        label: "Modules",
         sources: [
-            { key: "VIDEO_COMPLETE", label: "Lesson completed", when: "Each lesson a student finishes — once per lesson." },
-            { key: "QUIZ_COMPLETE", label: "Quiz submitted", when: "A module's quiz handed in — once per quiz, whatever the score." },
-            { key: "MODULE_COMPLETE", label: "Module completed", when: "Every lesson in a module finished." },
-            { key: "MILESTONE_COMPLETE", label: "Milestone completed", when: "A whole milestone finished." },
-            { key: "COURSE_COMPLETE", label: "Course completed", when: "The course finished end to end." },
+            {
+                key: "MODULE_ON_TIME",
+                label: "Module finished in 24 hours",
+                when: "Every lesson done within 24 hours — of the module's release on a bootcamp, of starting it on a self-paced course.",
+            },
+            { key: "MODULE_LATE", label: "Module finished later", when: "Every lesson done, but after those 24 hours." },
         ],
     },
     {
         label: "Assignments",
         sources: [
-            { key: "ASSIGNMENT_SUBMIT", label: "Assignment submitted", when: "Handed in — once per assignment." },
             {
-                key: "ASSIGNMENT_SCORE",
-                label: "Assignment accepted",
-                when: "At full marks; a lower mark earns its share — half marks, half the XP.",
+                key: "ASSIGNMENT_ON_TIME",
+                label: "Assignment handed in on time",
+                when: "First handed in by the deadline. A late hand-in earns nothing.",
             },
-        ],
-    },
-    {
-        label: "Practice & support",
-        sources: [
-            { key: "PRACTICE_COMPLETE", label: "Practice day done", when: "A bootcamp practice day marked complete." },
-            { key: "SUPPORT_PARTICIPATION", label: "Joined a support session", when: "Taking a place in a session's queue — once per session." },
         ],
     },
 ] as const;
 
-export const XP_SOURCE_KEYS = XP_GROUPS.flatMap((group) => group.sources.map((source) => source.key));
+export const XP_RULE_KEYS = XP_GROUPS.flatMap((group) => group.sources.map((source) => source.key));
 
 /**
  * The XP table: each award with when it fires, a bar for its weight against
@@ -63,7 +56,7 @@ export default function XpRules({
         const value = Number(form.values[key]);
         return Number.isFinite(value) && value > 0 ? value : 0;
     };
-    const largest = Math.max(1, ...XP_SOURCE_KEYS.map(points));
+    const largest = Math.max(1, ...XP_RULE_KEYS.map(points));
 
     return (
         <div className="space-y-6">

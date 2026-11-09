@@ -393,7 +393,7 @@ const submitAssignment = async (
 
     const existing = await prisma.assignmentSubmission.findUnique({
         where: { assignmentId_studentId: { assignmentId, studentId: user.userId } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, maxScore: true },
     });
 
     if (existing?.status === SubmissionStatus.ACCEPTED) {
@@ -454,13 +454,20 @@ const submitAssignment = async (
         },
     });
 
-    // Idempotent on (student, source, refId): resubmitting doesn't farm XP.
-    await awardXp(prisma, {
-        studentId: user.userId,
-        courseId: assignment.courseId,
-        source: XpSource.ASSIGNMENT_SUBMIT,
-        refId: assignmentId,
-    });
+    // XP only for a hand-in by the deadline (see `XpRules`), judged by the
+    // *first* submission like the late windows are — a first hand-in with no
+    // late cap (`maxScore` null) was on time. Idempotent on (student, source,
+    // assignment): resubmitting doesn't farm XP.
+    const onTime = existing ? existing.maxScore === null : window.status === "ON_TIME";
+    if (onTime) {
+        await awardXp(prisma, {
+            studentId: user.userId,
+            courseId: assignment.courseId,
+            source: XpSource.ASSIGNMENT_SUBMIT,
+            refId: assignmentId,
+            points: (await getXpRules()).ASSIGNMENT_ON_TIME,
+        });
+    }
 
     await notifyMentorsOfHandIn(user, assignment, { resubmitted: Boolean(existing), late: maxScore !== null });
 
@@ -664,24 +671,6 @@ const reviewSubmission = async (
                 : {}),
         },
     });
-
-    if (payload.status === SubmissionStatus.ACCEPTED && payload.score !== undefined) {
-        // XP scales with the mark: full marks earns the configured award, half
-        // marks earns half. Idempotent per assignment, so re-grading the same
-        // submission never stacks.
-        const rules = await getXpRules();
-        const proportional = Math.round(
-            (rules.ASSIGNMENT_SCORE * payload.score) / submission.assignment.totalMarks,
-        );
-
-        await awardXp(prisma, {
-            studentId: submission.studentId,
-            courseId: submission.assignment.courseId,
-            source: XpSource.ASSIGNMENT_SCORE,
-            refId: submission.assignmentId,
-            points: proportional,
-        });
-    }
 
     const outcome =
         payload.status === SubmissionStatus.ACCEPTED
