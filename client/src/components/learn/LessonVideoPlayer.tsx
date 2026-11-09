@@ -52,6 +52,16 @@ const formatTime = (totalSeconds: number) => {
 
 const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
 
+/**
+ * How far YouTube's frame runs past the stage above and below, in the frame's
+ * own pixels. When paused, YouTube pins the video's title and channel to the
+ * top edge of its frame (and "More videos" to the bottom). A frame taller than
+ * 16:9 letterboxes the video in its middle, so with this much extra height the
+ * video still fills the stage exactly while those strips sit outside it, cut
+ * off by the stage's `overflow-hidden`.
+ */
+const frameBleed = (videoHeight: number) => Math.max(96, Math.round(videoHeight / 4));
+
 // Volume and speed carry over from one lesson to the next — someone who
 // watches at 1.5× shouldn't have to pick it again on every video.
 const PREFS_KEY = "hc-lesson-player";
@@ -103,10 +113,10 @@ interface LessonVideoPlayerProps {
  * YouTube's own controls are switched off and every control here is ours.
  * The YouTube frame itself can't be clicked, tapped, hovered or tabbed into
  * (`inert`), so its title, channel link and logo can't take a student off to
- * YouTube. Measured in a real browser: with controls off and no pointer over
- * it, YouTube draws none of its own UI while a video is ready, playing or
- * paused — only its end screen, which our "You finished this video" screen
- * covers — so the frame needs no cropping and plays at full quality.
+ * YouTube. Even with controls off, YouTube still shows the video's title and
+ * channel when paused, so its frame is drawn taller than the stage and the
+ * edges where it pins those are cut off (see `frameBleed`). Its end screen
+ * is covered by our "You finished this video" screen.
  */
 export default function LessonVideoPlayer({
     youtubeVideoId,
@@ -524,12 +534,21 @@ export default function LessonVideoPlayer({
             : (qualityOptions.find((choice) => QUALITY_FRAME_HEIGHT[choice] < QUALITY_FRAME_HEIGHT[quality]) ?? "auto");
 
     // "Auto" fills the stage at its real size; a chosen quality draws the frame
-    // at the size YouTube plays that quality at, then scales it to fit.
+    // at the size YouTube plays that quality at, then scales it to fit. Either
+    // way the frame runs past the stage above and below (see FRAME_BLEED), so
+    // YouTube's title strip and "More videos" row fall outside the picture.
     const frameStyle = (() => {
-        if (quality === "auto" || stageWidth === 0) return undefined;
-        const height = QUALITY_FRAME_HEIGHT[quality] / pixelRatio;
-        const width = (height * 16) / 9;
-        return { width, height, transform: `scale(${stageWidth / width})` };
+        if (stageWidth === 0) return undefined;
+        const videoHeight = quality === "auto" ? (stageWidth * 9) / 16 : QUALITY_FRAME_HEIGHT[quality] / pixelRatio;
+        const width = (videoHeight * 16) / 9;
+        const scale = stageWidth / width;
+        const bleed = frameBleed(videoHeight);
+        return {
+            width,
+            height: videoHeight + 2 * bleed,
+            top: -bleed * scale,
+            transform: quality === "auto" ? undefined : `scale(${scale})`,
+        };
     })();
 
     const shownTime = scrubTime ?? current;
@@ -611,9 +630,15 @@ export default function LessonVideoPlayer({
                 </div>
             )}
 
-            {/* Paused: the same play button as the cover, a size smaller and still. */}
+            {/* Paused: the same play button as the cover, a size smaller and
+                still, dead centre on a soft dark spot so it reads on a white
+                whiteboard as well as a dark frame. */}
             {started && status === "paused" && scrubTime === null && (
                 <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+                    <span
+                        aria-hidden
+                        className="absolute left-1/2 top-1/2 size-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(0_0_0/0.32),transparent)] sm:size-52"
+                    />
                     <PlayBadge className="size-14 sm:size-16" />
                 </div>
             )}
@@ -876,8 +901,8 @@ export default function LessonVideoPlayer({
 }
 
 /**
- * The play button: a violet core in a frosted-glass ring, so it stands out
- * on a bright whiteboard frame and a dark one alike. On the cover it sends
+ * The play button: a violet core in a dark glass ring with an even glow, so it
+ * stands out on a bright whiteboard frame and a dark one alike. On the cover it sends
  * out a slow ripple asking to be pressed (still, for anyone whose device
  * asks for less motion) and grows a touch under the pointer.
  */
@@ -899,14 +924,18 @@ function PlayBadge({
                     style={{ animationDuration: "2.2s" }}
                 />
             )}
-            {/* The frosted ring — and the keyboard focus ring, when the cover has focus. */}
-            <span className="absolute -inset-2 rounded-full bg-white/20 shadow-[0_2px_12px_rgb(0_0_0/0.18)] ring-1 ring-white/50 backdrop-blur-md transition-colors duration-300 group-hover:bg-white/30 group-focus-visible:ring-2 group-focus-visible:ring-white sm:-inset-2.5" />
-            <span className="relative grid size-full place-items-center rounded-full bg-[linear-gradient(145deg,var(--violet-400),var(--violet-600)_55%,var(--violet-800))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_14px_36px_-8px_rgb(96_34_207/0.85)] transition-transform duration-300 ease-out group-hover:scale-[1.07] group-active:scale-95">
+            {/* An even violet glow on every side, so the button looks centred. */}
+            <span className="absolute -inset-3 rounded-full bg-violet-500/35 blur-xl transition-opacity duration-300 group-hover:opacity-80 sm:-inset-4" />
+            {/* The glass ring — and the keyboard focus ring, when the cover has focus. */}
+            <span className="absolute -inset-1.5 rounded-full bg-black/25 ring-1 ring-white/35 backdrop-blur-md transition-colors duration-300 group-hover:bg-black/35 group-focus-visible:ring-2 group-focus-visible:ring-white sm:-inset-2" />
+            <span className="relative grid size-full place-items-center rounded-full bg-[linear-gradient(145deg,var(--violet-400),var(--violet-600)_55%,var(--violet-800))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),inset_0_-3px_8px_rgb(0_0_0/0.18)] transition-transform duration-300 ease-out group-hover:scale-[1.07] group-active:scale-95">
                 {loading ? (
                     <LoaderCircle className="size-[42%] animate-spin" />
                 ) : (
-                    // A rounded triangle, nudged right so it looks centred.
-                    <svg viewBox="0 0 24 24" className="ml-[9%] size-[50%] drop-shadow-[0_1px_2px_rgb(0_0_0/0.35)]">
+                    // A rounded triangle. The viewBox starts 0.8 in, which moves it
+                    // left until its visual middle (between its box's centre and
+                    // its centroid) sits on the circle's centre.
+                    <svg viewBox="0.8 0 24 24" className="size-[50%] drop-shadow-[0_1px_2px_rgb(0_0_0/0.35)]">
                         <path
                             fill="currentColor"
                             d="M7 5.27v13.46c0 1.17 1.28 1.89 2.28 1.28l10.9-6.73a1.5 1.5 0 0 0 0-2.56L9.28 3.99C8.28 3.38 7 4.1 7 5.27z"
