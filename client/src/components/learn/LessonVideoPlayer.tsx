@@ -31,6 +31,7 @@ import {
     loadYouTubeApi,
     QUALITY_CHOICES,
     QUALITY_FRAME_HEIGHT,
+    QUALITY_HEIGHT,
     QUALITY_LABEL,
     YT_HOST,
     YT_STATE,
@@ -170,6 +171,9 @@ export default function LessonVideoPlayer({
     const [quality, setQuality] = useState<QualityChoice | "auto">("auto");
     const [availableQualities, setAvailableQualities] = useState<string[]>([]);
     const [currentQuality, setCurrentQuality] = useState("");
+    // The quality just picked, until YouTube plays it (a few seconds) or gives up.
+    const [switchingTo, setSwitchingTo] = useState<QualityChoice | null>(null);
+    const switchTimerRef = useRef<number | undefined>(undefined);
     const [chromeAwake, setChromeAwake] = useState(true);
     const [nativeFullscreen, setNativeFullscreen] = useState(false);
     const [canNativeFullscreen, setCanNativeFullscreen] = useState(true);
@@ -186,7 +190,13 @@ export default function LessonVideoPlayer({
         hideTimerRef.current = window.setTimeout(() => setChromeAwake(false), 2500);
     }, []);
 
-    useEffect(() => () => window.clearTimeout(hideTimerRef.current), []);
+    useEffect(
+        () => () => {
+            window.clearTimeout(hideTimerRef.current);
+            window.clearTimeout(switchTimerRef.current);
+        },
+        [],
+    );
 
     /**
      * Starts playback from our play button. Browsers may refuse to start a
@@ -437,10 +447,19 @@ export default function LessonVideoPlayer({
         }
     };
 
+    // The menu stays open, so the student sees the switch happen ("Switching
+    // to 1080p…", then "Playing now: 1080p"). YouTube moves over by itself
+    // in 2–4 seconds once the frame is resized — measured, no seek needed.
     const changeQuality = (next: QualityChoice | "auto") => {
         setQuality(next);
         writePrefs({ quality: next });
-        setMenuOpen(false);
+        window.clearTimeout(switchTimerRef.current);
+        if (!started || next === "auto") {
+            setSwitchingTo(null);
+            return;
+        }
+        setSwitchingTo(next);
+        switchTimerRef.current = window.setTimeout(() => setSwitchingTo(null), 6000);
     };
 
     const changeRate = (next: number) => {
@@ -533,9 +552,21 @@ export default function LessonVideoPlayer({
             ? quality
             : (qualityOptions.find((choice) => QUALITY_FRAME_HEIGHT[choice] < QUALITY_FRAME_HEIGHT[quality]) ?? "auto");
 
+    // A picked quality is a ceiling, not a promise: YouTube can't be made to
+    // play it (it ignores every "set quality" call), and on a slow connection
+    // it plays lower. Then the menu says so in plain words, instead of showing
+    // "1080p" picked next to "Playing now: 360p" with no reason.
+    const playingLabel = QUALITY_LABEL[currentQuality];
+    const switching = switchingTo !== null && currentQuality !== switchingTo;
+    const playingLower =
+        !switching &&
+        shownQuality !== "auto" &&
+        playingLabel !== undefined &&
+        QUALITY_HEIGHT[currentQuality] < QUALITY_HEIGHT[shownQuality];
+
     // "Auto" fills the stage at its real size; a chosen quality draws the frame
     // at the size YouTube plays that quality at, then scales it to fit. Either
-    // way the frame runs past the stage above and below (see FRAME_BLEED), so
+    // way the frame runs past the stage above and below (see `frameBleed`), so
     // YouTube's title strip and "More videos" row fall outside the picture.
     const frameStyle = (() => {
         if (stageWidth === 0) return undefined;
@@ -810,8 +841,17 @@ export default function LessonVideoPlayer({
                 >
                     <p className="mb-2 flex items-baseline justify-between gap-2 text-xs font-semibold text-white/60">
                         Quality
-                        {QUALITY_LABEL[currentQuality] && (
-                            <span className="font-normal text-white/50">Playing now: {QUALITY_LABEL[currentQuality]}</span>
+                        {switching && switchingTo ? (
+                            <span className="inline-flex items-center gap-1 font-normal text-white/75">
+                                <LoaderCircle className="size-3 animate-spin self-center" aria-hidden />
+                                Switching to {QUALITY_LABEL[switchingTo]}…
+                            </span>
+                        ) : (
+                            playingLabel && (
+                                <span className={cn("font-normal", playingLower ? "text-warning" : "text-white/50")}>
+                                    Playing now: {playingLabel}
+                                </span>
+                            )
                         )}
                     </p>
                     <div className="grid grid-cols-4 gap-1">
@@ -825,9 +865,17 @@ export default function LessonVideoPlayer({
                             </MenuChip>
                         ))}
                     </div>
-                    <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
-                        The highest it will play. On a slow connection YouTube may go lower.
-                    </p>
+                    {playingLower ? (
+                        <p role="status" className="mt-1.5 text-[0.6875rem] leading-snug text-warning">
+                            Your internet is too slow for {QUALITY_LABEL[shownQuality]} right now, so YouTube is
+                            playing {playingLabel}. It goes up to {QUALITY_LABEL[shownQuality]} by itself when the
+                            connection gets faster.
+                        </p>
+                    ) : (
+                        <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
+                            The highest it will play. On a slow connection YouTube may go lower.
+                        </p>
+                    )}
 
                     <p className="mb-2 mt-3 border-t border-white/10 pt-2.5 text-xs font-semibold text-white/60">
                         Playback speed
