@@ -8,6 +8,8 @@ export interface YTPlayer {
     pauseVideo(): void;
     seekTo(seconds: number, allowSeekAhead: boolean): void;
     cueVideoById(videoId: string): void;
+    /** Loads (and plays) a video from a given second, with a fresh buffer. */
+    loadVideoById(options: { videoId: string; startSeconds?: number }): void;
     mute(): void;
     unMute(): void;
     isMuted(): boolean;
@@ -99,8 +101,10 @@ export function loadYouTubeApi(): Promise<YTNamespace> {
  *   1080 → 1080p · 720 → 720p · 480 → 720p · 360 → 480p · smaller → still 480p
  *
  * — so 480p is the lowest that can be asked for, and each level below maps
- * to the frame height that lands on it. It's a ceiling: on a slow connection
- * YouTube can still drop lower.
+ * to the frame height that lands on it. It's a ceiling: YouTube can still
+ * pick lower, and no API call can stop it (`setPlaybackQuality` exists but
+ * does nothing; `vq` and raw player messages are ignored — all measured).
+ * The lesson player holds playback instead until YouTube plays the choice.
  */
 export const QUALITY_FRAME_HEIGHT = {
     hd2160: 2160,
