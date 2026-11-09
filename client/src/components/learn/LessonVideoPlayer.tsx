@@ -63,6 +63,41 @@ const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
  */
 const frameBleed = (videoHeight: number) => Math.max(96, Math.round(videoHeight / 4));
 
+/**
+ * The quality a choice comes to for this video: the choice itself, or the
+ * best one under it this video has. Null for "Auto" — nothing to hold for.
+ */
+const lockedQuality = (choice: QualityChoice | "auto", levels: string[]): QualityChoice | null => {
+    if (choice === "auto") return null;
+    return (
+        QUALITY_CHOICES.find(
+            (level) => levels.includes(level) && QUALITY_FRAME_HEIGHT[level] <= QUALITY_FRAME_HEIGHT[choice],
+        ) ?? null
+    );
+};
+
+/** Whether YouTube's quality code `playing` is at least `wanted`. */
+const reaches = (playing: string, wanted: QualityChoice) =>
+    (QUALITY_HEIGHT[playing] ?? 0) >= QUALITY_HEIGHT[wanted];
+
+// While a picked quality loads, the video waits. YouTube is asked again every
+// few seconds; if it still won't play that quality after the limit, the video
+// carries on at what YouTube gives, rather than leaving the student stuck.
+const HOLD_RETRY_MS = 4000;
+const HOLD_LIMIT_MS = 20000;
+
+interface QualityHold {
+    target: QualityChoice;
+    /** The second the video is held at, and reloaded from. */
+    at: number;
+    /** Play once the quality is there (otherwise stay paused). */
+    resume: boolean;
+    /** A reload is on its way and hasn't settled yet. */
+    loading: boolean;
+    retryTimer?: number;
+    limitTimer?: number;
+}
+
 // Volume and speed carry over from one lesson to the next — someone who
 // watches at 1.5× shouldn't have to pick it again on every video.
 const PREFS_KEY = "hc-lesson-player";
@@ -171,9 +206,14 @@ export default function LessonVideoPlayer({
     const [quality, setQuality] = useState<QualityChoice | "auto">("auto");
     const [availableQualities, setAvailableQualities] = useState<string[]>([]);
     const [currentQuality, setCurrentQuality] = useState("");
-    // The quality just picked, until YouTube plays it (a few seconds) or gives up.
-    const [switchingTo, setSwitchingTo] = useState<QualityChoice | null>(null);
-    const switchTimerRef = useRef<number | undefined>(undefined);
+    // The picked quality, for the player's event handlers.
+    const qualityRef = useRef<QualityChoice | "auto">("auto");
+    // Set while the video waits for its picked quality ("Loading 1080p…").
+    const holdRef = useRef<QualityHold | null>(null);
+    const [holding, setHolding] = useState<QualityChoice | null>(null);
+    // YouTube wouldn't play the picked quality within the limit: don't hold
+    // again for it until the student picks a quality again.
+    const holdGaveUpRef = useRef(false);
     const [chromeAwake, setChromeAwake] = useState(true);
     const [nativeFullscreen, setNativeFullscreen] = useState(false);
     const [canNativeFullscreen, setCanNativeFullscreen] = useState(true);
@@ -193,9 +233,126 @@ export default function LessonVideoPlayer({
     useEffect(
         () => () => {
             window.clearTimeout(hideTimerRef.current);
-            window.clearTimeout(switchTimerRef.current);
+            window.clearTimeout(holdRef.current?.retryTimer);
+            window.clearTimeout(holdRef.current?.limitTimer);
         },
         [],
+    );
+
+    /* ---- Holding for the picked quality -----------------------------------
+     * YouTube can't be told which quality to play — the frame's size only
+     * caps it (see QUALITY_FRAME_HEIGHT) — and when the cap goes up mid-video
+     * it keeps playing what it already downloaded at the old quality for a few
+     * more seconds. So for a picked quality the video waits behind
+     * "Loading 1080p…": it's reloaded from the same second with an empty
+     * buffer (the picture is then the new quality from its first frame —
+     * measured), kept paused while YouTube offers less, and only plays once
+     * YouTube plays the picked quality. Like YouTube's own menu, it would
+     * rather load than drop quality — up to HOLD_LIMIT_MS.
+     */
+
+    /** Stops waiting: plays (or stays paused) at whatever YouTube has now. */
+    const endHold = useCallback((player: YTPlayer, reached: boolean) => {
+        const hold = holdRef.current;
+        if (!hold) return;
+        window.clearTimeout(hold.retryTimer);
+        window.clearTimeout(hold.limitTimer);
+        holdRef.current = null;
+        if (!reached) holdGaveUpRef.current = true;
+        if (hold.resume) player.playVideo();
+        else player.pauseVideo();
+        setStatus(hold.resume ? "playing" : "paused");
+        setCurrent(player.getCurrentTime());
+        setCurrentQuality(player.getPlaybackQuality());
+        setHolding(null);
+    }, []);
+
+    /** Reloads from the held second, so nothing old-quality is left to play. */
+    const reloadForHold = useCallback(
+        (player: YTPlayer) => {
+            const hold = holdRef.current;
+            if (!hold) return;
+            window.clearTimeout(hold.retryTimer);
+            hold.loading = true;
+            player.loadVideoById({ videoId: youtubeVideoId, startSeconds: hold.at });
+        },
+        [youtubeVideoId],
+    );
+
+    /** YouTube offered less than the picked quality: stay paused, ask again shortly. */
+    const keepHolding = useCallback(
+        (player: YTPlayer) => {
+            const hold = holdRef.current;
+            if (!hold) return;
+            hold.loading = false;
+            player.pauseVideo();
+            window.clearTimeout(hold.retryTimer);
+            hold.retryTimer = window.setTimeout(() => reloadForHold(player), HOLD_RETRY_MS);
+        },
+        [reloadForHold],
+    );
+
+    /** Starts (or restarts, for a new pick) waiting for `target` at the current second. */
+    const holdFor = useCallback(
+        (player: YTPlayer, target: QualityChoice, resume: boolean, reloadDelay = 0) => {
+            const previous = holdRef.current;
+            if (previous) {
+                window.clearTimeout(previous.retryTimer);
+                window.clearTimeout(previous.limitTimer);
+            }
+            const hold: QualityHold = previous
+                ? { ...previous, target, loading: false }
+                : { target, at: player.getCurrentTime(), resume, loading: false };
+            hold.limitTimer = window.setTimeout(() => endHold(player, false), HOLD_LIMIT_MS);
+            holdRef.current = hold;
+            setHolding(target);
+            setStatus(hold.resume ? "buffering" : "paused");
+            if (reloadDelay > 0) {
+                // Give the frame a moment to take its new size first.
+                hold.retryTimer = window.setTimeout(() => reloadForHold(player), reloadDelay);
+            } else {
+                reloadForHold(player);
+            }
+        },
+        [endHold, reloadForHold],
+    );
+
+    /**
+     * While a quality is picked and nothing is being waited for: if YouTube
+     * plays less than it (at the start, or dropping mid-video), wait for it.
+     */
+    const guardQuality = useCallback(
+        (player: YTPlayer, playing: string) => {
+            if (holdRef.current || holdGaveUpRef.current || !startedRef.current) return;
+            const levels = player.getAvailableQualityLevels() ?? [];
+            const target = levels.length ? lockedQuality(qualityRef.current, levels) : null;
+            if (!target || QUALITY_HEIGHT[playing] === undefined || reaches(playing, target)) return;
+            const state = player.getPlayerState();
+            if (state !== YT_STATE.PLAYING && state !== YT_STATE.BUFFERING) return;
+            holdFor(player, target, true);
+        },
+        [holdFor],
+    );
+
+    /** The player's events while waiting: play once the quality is there. */
+    const onHoldEvent = useCallback(
+        (player: YTPlayer, event: "playing" | "quality", playing: string) => {
+            const hold = holdRef.current;
+            if (!hold) return;
+            if (reaches(playing, hold.target)) {
+                if (!hold.loading) {
+                    // YouTube moved up while paused, but what's downloaded
+                    // is still the old quality — reload to start clean.
+                    reloadForHold(player);
+                } else if (event === "playing" || !hold.resume) {
+                    endHold(player, true);
+                }
+            } else if (QUALITY_HEIGHT[playing] !== undefined && hold.loading) {
+                // Paused before it plays a single frame (or sound) at less.
+                keepHolding(player);
+            }
+        },
+        [endHold, keepHolding, reloadForHold],
     );
 
     /**
@@ -264,6 +421,20 @@ export default function LessonVideoPlayer({
                         },
                         onStateChange: ({ target: player, data }) => {
                             if (cancelled) return;
+                            const hold = holdRef.current;
+                            if (hold) {
+                                // A reload's passing states (paused, unstarted,
+                                // buffering) aren't the student's — skip them.
+                                if (data === YT_STATE.PLAYING) {
+                                    onHoldEvent(player, "playing", player.getPlaybackQuality());
+                                }
+                                if (data !== YT_STATE.ENDED) return;
+                                // Held at the very end: nothing left to wait for.
+                                window.clearTimeout(hold.retryTimer);
+                                window.clearTimeout(hold.limitTimer);
+                                holdRef.current = null;
+                                setHolding(null);
+                            }
                             if (data === YT_STATE.PLAYING) {
                                 if (!startedRef.current) {
                                     startedRef.current = true;
@@ -281,6 +452,7 @@ export default function LessonVideoPlayer({
                                 const levels = player.getAvailableQualityLevels();
                                 if (levels?.length) setAvailableQualities(levels);
                                 setCurrentQuality(player.getPlaybackQuality());
+                                guardQuality(player, player.getPlaybackQuality());
                             } else if (data === YT_STATE.BUFFERING) {
                                 setStatus("buffering");
                             } else if (data === YT_STATE.PAUSED) {
@@ -292,7 +464,12 @@ export default function LessonVideoPlayer({
                             }
                         },
                         onPlaybackRateChange: ({ data }) => !cancelled && setRate(data),
-                        onPlaybackQualityChange: ({ data }) => !cancelled && setCurrentQuality(data),
+                        onPlaybackQualityChange: ({ target: player, data }) => {
+                            if (cancelled) return;
+                            setCurrentQuality(data);
+                            if (holdRef.current) onHoldEvent(player, "quality", data);
+                            else guardQuality(player, data);
+                        },
                         onError: () => !cancelled && setFailed(true),
                     },
                 });
@@ -309,20 +486,23 @@ export default function LessonVideoPlayer({
             playerRef.current = null;
             host.replaceChildren();
         };
-    }, [youtubeVideoId, beginPlayback, reportDuration]);
+    }, [youtubeVideoId, beginPlayback, reportDuration, onHoldEvent, guardQuality]);
 
     // The time and the buffered stretch of the seek bar, while playing.
     useEffect(() => {
         if (!active) return;
         const id = window.setInterval(() => {
             const player = playerRef.current;
-            if (!player) return;
+            // While held, a reload's time reads 0 for a moment — keep the bar still.
+            if (!player || holdRef.current) return;
             setCurrent(player.getCurrentTime());
             setBuffered(player.getVideoLoadedFraction());
-            setCurrentQuality(player.getPlaybackQuality());
+            const playing = player.getPlaybackQuality();
+            setCurrentQuality(playing);
+            guardQuality(player, playing);
         }, 250);
         return () => window.clearInterval(id);
-    }, [active]);
+    }, [active, guardQuality]);
 
     useEffect(() => {
         if (started) poke();
@@ -331,7 +511,10 @@ export default function LessonVideoPlayer({
     // The chosen quality carries over between lessons, like volume and speed.
     useEffect(() => {
         const saved = readPrefs().quality;
-        if (saved === "auto" || (saved && saved in QUALITY_FRAME_HEIGHT)) setQuality(saved);
+        if (saved === "auto" || (saved && saved in QUALITY_FRAME_HEIGHT)) {
+            setQuality(saved);
+            qualityRef.current = saved;
+        }
     }, []);
 
     // The stage's width (full screen, a resized window) and the screen's
@@ -390,6 +573,13 @@ export default function LessonVideoPlayer({
     const togglePlay = () => {
         const player = readyPlayer();
         if (!player) return;
+        const hold = holdRef.current;
+        if (hold) {
+            // Still loading the picked quality: just change what happens once it's there.
+            hold.resume = !hold.resume;
+            setStatus(hold.resume ? "buffering" : "paused");
+            return;
+        }
         if (status === "ended") {
             player.seekTo(0, true);
             player.playVideo();
@@ -404,8 +594,15 @@ export default function LessonVideoPlayer({
         const player = readyPlayer();
         if (!player) return;
         const target = clamp(seconds, 0, duration || player.getDuration());
-        player.seekTo(target, true);
         setCurrent(target);
+        const hold = holdRef.current;
+        if (hold) {
+            // Still loading the picked quality: load it from the new spot instead.
+            hold.at = target;
+            reloadForHold(player);
+            return;
+        }
+        player.seekTo(target, true);
     };
 
     const seekBy = (delta: number) => {
@@ -447,19 +644,26 @@ export default function LessonVideoPlayer({
         }
     };
 
-    // The menu stays open, so the student sees the switch happen ("Switching
-    // to 1080p…", then "Playing now: 1080p"). YouTube moves over by itself
-    // in 2–4 seconds once the frame is resized — measured, no seek needed.
+    // A picked quality reloads the video at the same second and waits behind
+    // "Loading 1080p…" until YouTube plays it (see `holdFor`). "Auto" just
+    // lets YouTube fit the frame's real size.
     const changeQuality = (next: QualityChoice | "auto") => {
+        setMenuOpen(false);
+        const player = readyPlayer();
+        const hold = holdRef.current;
+        if (next === qualityRef.current && !hold) return;
         setQuality(next);
+        qualityRef.current = next;
         writePrefs({ quality: next });
-        window.clearTimeout(switchTimerRef.current);
-        if (!started || next === "auto") {
-            setSwitchingTo(null);
+        holdGaveUpRef.current = false;
+        if (!player) return;
+        if (next === "auto") {
+            if (hold) endHold(player, true);
             return;
         }
-        setSwitchingTo(next);
-        switchTimerRef.current = window.setTimeout(() => setSwitchingTo(null), 6000);
+        if (!started || status === "ended") return;
+        const target = lockedQuality(next, player.getAvailableQualityLevels() ?? []) ?? next;
+        holdFor(player, target, active, 150);
     };
 
     const changeRate = (next: number) => {
@@ -552,18 +756,6 @@ export default function LessonVideoPlayer({
             ? quality
             : (qualityOptions.find((choice) => QUALITY_FRAME_HEIGHT[choice] < QUALITY_FRAME_HEIGHT[quality]) ?? "auto");
 
-    // A picked quality is a ceiling, not a promise: YouTube can't be made to
-    // play it (it ignores every "set quality" call), and on a slow connection
-    // it plays lower. Then the menu says so in plain words, instead of showing
-    // "1080p" picked next to "Playing now: 360p" with no reason.
-    const playingLabel = QUALITY_LABEL[currentQuality];
-    const switching = switchingTo !== null && currentQuality !== switchingTo;
-    const playingLower =
-        !switching &&
-        shownQuality !== "auto" &&
-        playingLabel !== undefined &&
-        QUALITY_HEIGHT[currentQuality] < QUALITY_HEIGHT[shownQuality];
-
     // "Auto" fills the stage at its real size; a chosen quality draws the frame
     // at the size YouTube plays that quality at, then scales it to fit. Either
     // way the frame runs past the stage above and below (see `frameBleed`), so
@@ -655,16 +847,32 @@ export default function LessonVideoPlayer({
                 onDoubleClick={() => started && toggleFullscreen()}
             />
 
-            {started && status === "buffering" && (
+            {started && status === "buffering" && !holding && (
                 <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
                     <LoaderCircle className="size-10 animate-spin text-white/80" aria-hidden />
+                </div>
+            )}
+
+            {/* Loading the picked quality: the video waits under here, and
+                anything YouTube shows at a lower quality meanwhile is hidden. */}
+            {holding && (
+                <div
+                    role="status"
+                    className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-black/70 backdrop-blur-md"
+                >
+                    <div className="flex flex-col items-center gap-3">
+                        <LoaderCircle className="size-10 animate-spin text-white/85" aria-hidden />
+                        <p className="text-sm font-medium text-white/90 sm:text-base">
+                            Loading {QUALITY_LABEL[holding]}…
+                        </p>
+                    </div>
                 </div>
             )}
 
             {/* Paused: the same play button as the cover, a size smaller and
                 still, dead centre on a soft dark spot so it reads on a white
                 whiteboard as well as a dark frame. */}
-            {started && status === "paused" && scrubTime === null && (
+            {started && status === "paused" && scrubTime === null && !holding && (
                 <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
                     <span
                         aria-hidden
@@ -841,15 +1049,15 @@ export default function LessonVideoPlayer({
                 >
                     <p className="mb-2 flex items-baseline justify-between gap-2 text-xs font-semibold text-white/60">
                         Quality
-                        {switching && switchingTo ? (
+                        {holding ? (
                             <span className="inline-flex items-center gap-1 font-normal text-white/75">
                                 <LoaderCircle className="size-3 animate-spin self-center" aria-hidden />
-                                Switching to {QUALITY_LABEL[switchingTo]}…
+                                Loading {QUALITY_LABEL[holding]}…
                             </span>
                         ) : (
-                            playingLabel && (
-                                <span className={cn("font-normal", playingLower ? "text-warning" : "text-white/50")}>
-                                    Playing now: {playingLabel}
+                            QUALITY_LABEL[currentQuality] && (
+                                <span className="font-normal text-white/50">
+                                    Playing now: {QUALITY_LABEL[currentQuality]}
                                 </span>
                             )
                         )}
@@ -865,17 +1073,11 @@ export default function LessonVideoPlayer({
                             </MenuChip>
                         ))}
                     </div>
-                    {playingLower ? (
-                        <p role="status" className="mt-1.5 text-[0.6875rem] leading-snug text-warning">
-                            Your internet is too slow for {QUALITY_LABEL[shownQuality]} right now, so YouTube is
-                            playing {playingLabel}. It goes up to {QUALITY_LABEL[shownQuality]} by itself when the
-                            connection gets faster.
-                        </p>
-                    ) : (
-                        <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
-                            The highest it will play. On a slow connection YouTube may go lower.
-                        </p>
-                    )}
+                    <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
+                        {shownQuality === "auto"
+                            ? "Picks the best quality for your screen and internet."
+                            : `The video loads in ${QUALITY_LABEL[shownQuality]} first, then plays.`}
+                    </p>
 
                     <p className="mb-2 mt-3 border-t border-white/10 pt-2.5 text-xs font-semibold text-white/60">
                         Playback speed
