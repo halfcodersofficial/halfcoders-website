@@ -69,7 +69,7 @@ function OutlineLoading() {
             <div className="editor relative overflow-hidden border-b border-editor-line">
                 <div aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0" />
                 <div className="h-8 border-b border-editor-line bg-editor-panel" />
-                <div className="container-page relative grid gap-8 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
+                <div className="container-page relative grid grid-cols-1 gap-8 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
                     <div className="space-y-4">
                         <Skeleton className="h-4 w-36" />
                         <Skeleton className="h-11 w-3/4" />
@@ -79,7 +79,7 @@ function OutlineLoading() {
                     <Skeleton className="h-44 w-full rounded-panel" />
                 </div>
             </div>
-            <div className="container-page grid gap-8 py-8 sm:py-10 lg:grid-cols-[17rem_minmax(0,1fr)]">
+            <div className="container-page grid grid-cols-1 gap-8 py-8 sm:py-10 lg:grid-cols-[17rem_minmax(0,1fr)]">
                 <Skeleton className="hidden h-96 rounded-panel lg:block" />
                 <div className="space-y-3">
                     {Array.from({ length: 4 }, (_, index) => (
@@ -129,7 +129,7 @@ function SelfPacedOutline({ data, slug }: { data: CourseOutline; slug: string })
                     </nav>
                 </div>
 
-                <div className="container-page grid gap-8 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end lg:gap-12">
+                <div className="container-page grid grid-cols-1 gap-8 py-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end lg:gap-12">
                     <div className="min-w-0">
                         <div className={cn(RISE, "flex flex-wrap items-center gap-x-3 gap-y-2")}>
                             <Eyebrow>Course outline</Eyebrow>
@@ -164,7 +164,7 @@ function SelfPacedOutline({ data, slug }: { data: CourseOutline; slug: string })
                     </div>
 
                     {syllabus.modules.length > 0 && (
-                        <div className={cn(RISE, "delay-300")}>
+                        <div className={cn(RISE, "delay-300 min-w-0")}>
                             <AtAGlancePanel syllabus={syllabus} milestoneLabel={course.milestoneLabel} moduleLabel={course.moduleLabel} />
                         </div>
                     )}

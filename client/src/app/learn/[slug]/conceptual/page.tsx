@@ -12,6 +12,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { linkify } from "@/lib/linkify";
 import { cn, formatHoursMinutes } from "@/lib/utils";
 import { conceptualService } from "@/services/conceptual";
 import type { ConceptualCourse, ConceptualRecording, ConceptualTopic } from "@/types/conceptual.types";
@@ -87,7 +88,7 @@ export default function ConceptualPlayerPage() {
 
     if (isLoading) {
         return (
-            <div className="container mx-auto grid gap-8 p-4 sm:p-6 lg:grid-cols-[1fr_400px]">
+            <div className="container mx-auto grid grid-cols-1 gap-8 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_400px]">
                 <div className="space-y-4">
                     <Skeleton className="aspect-video rounded-2xl" />
                     <Skeleton className="h-4 w-56" />
@@ -224,7 +225,7 @@ export default function ConceptualPlayerPage() {
 
                             {active.session.description && (
                                 <p className="max-w-3xl whitespace-pre-line border-t border-border pt-5 text-sm leading-relaxed text-muted-foreground">
-                                    {active.session.description}
+                                    {linkify(active.session.description)}
                                 </p>
                             )}
                         </>
@@ -320,7 +321,7 @@ function Player({
                 >
                     <span
                         aria-hidden
-                        className="pointer-events-none absolute left-1/2 top-1/2 size-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
+                        className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
                     />
                     <span className="relative grid size-20 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105">
                         <svg viewBox="0 0 24 24" className="ml-1 size-8 fill-white" aria-hidden>

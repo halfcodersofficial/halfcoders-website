@@ -196,7 +196,7 @@ function StreakPage() {
                                 className={cn(RISE, "overflow-hidden rounded-panel border border-border bg-card shadow-card")}
                                 style={{ animationDelay: `${100 + index * 100}ms` }}
                             >
-                                <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+                                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem]">
                                     <div className="flex flex-col p-6 sm:p-8">
                                         <div className="flex items-center gap-4">
                                             <Link

@@ -21,9 +21,9 @@ router.patch("/manage/:reviewId", checkAuth(...ADMINS), validateRequest(moderate
 // A course's staff: every review of it, students by name only.
 router.get("/course/:courseId", checkAuth(...STAFF), CourseReviewController.getForStaff);
 
-// Students: their own review of a course they're on.
+// Students: their own review of a course they're on — given once, never
+// changed or removed by them afterwards.
 router.get("/mine/:courseId", checkAuth(Role.STUDENT), CourseReviewController.getMine);
-router.put("/mine/:courseId", checkAuth(Role.STUDENT), validateRequest(upsertReviewZodSchema), CourseReviewController.upsert);
-router.delete("/mine/:courseId", checkAuth(Role.STUDENT), CourseReviewController.removeMine);
+router.put("/mine/:courseId", checkAuth(Role.STUDENT), validateRequest(upsertReviewZodSchema), CourseReviewController.create);
 
 export const CourseReviewRoutes = router;

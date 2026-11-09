@@ -89,7 +89,7 @@ function StudentDashboardView() {
     if (isLoading || !data) {
         return (
             <div className="container-page space-y-8 py-8 sm:py-10">
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                     <div className="space-y-8">
                         <Skeleton className="h-64 rounded-panel" />
                         <Skeleton className="h-72 rounded-card" />
@@ -132,8 +132,10 @@ function StudentDashboardView() {
             </header>
 
             {/* Up next and the courses on the left, the week beside them —
-                on a phone: up next, the week, then the courses. */}
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr]">
+                on a phone: up next, the week, then the courses. `grid-cols-1`
+                (not the implicit `auto` column) so a long one-line course
+                name can't stretch the column past the screen. */}
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr]">
                 <div className={cn(RISE, "min-w-0 lg:col-start-1 lg:row-start-1")}>
                     {continueLearning ? (
                         <UpNext enrollment={continueLearning} />
@@ -145,7 +147,7 @@ function StudentDashboardView() {
                     )}
                 </div>
 
-                <aside className={cn(RISE, "delay-100 space-y-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start")}>
+                <aside className={cn(RISE, "delay-100 min-w-0 space-y-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start")}>
                     {streakEnrollment?.streak && streakEnrollment.streak.history.length > 0 && (
                         <StreakWeek enrollment={streakEnrollment} />
                     )}
@@ -191,7 +193,7 @@ function StudentDashboardView() {
                                         No {courseFilter.toLowerCase()} courses.
                                     </p>
                                 ) : (
-                                    <div className="grid gap-5 sm:grid-cols-2">
+                                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                         {filteredEnrollments.map((enrollment) => (
                                             <CourseTile key={enrollment.id} enrollment={enrollment} />
                                         ))}
@@ -212,7 +214,7 @@ function StudentDashboardView() {
                                         Courses that came free with yours, and free courses you joined. Learn them any time.
                                     </p>
                                 </div>
-                                <div className="grid gap-5 sm:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                     {rewardCourses.map((enrollment) => (
                                         <CourseTile key={enrollment.id} enrollment={enrollment} />
                                     ))}
@@ -303,7 +305,7 @@ function UpNext({ enrollment }: { enrollment: Enrollment & { upNext?: UpNextPlan
                 <span className="text-syn-string">{enrollment.progress}% complete</span>
             </p>
 
-            <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[1fr_auto] md:items-center lg:grid-cols-[12rem_1fr_auto]">
+            <div className="grid grid-cols-1 gap-6 p-6 sm:p-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-center lg:grid-cols-[12rem_minmax(0,1fr)_auto]">
                 <div className="relative hidden aspect-video overflow-hidden rounded-md bg-white/5 shadow-2xl ring-1 ring-white/10 lg:block">
                     <SafeImage
                         src={enrollment.course.thumbnail}

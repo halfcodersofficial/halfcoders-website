@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { linkify } from "@/lib/linkify";
 import { cn, formatDateTime } from "@/lib/utils";
 import { lessonQaService } from "@/services";
 import type { LessonQuestion, QaPerson } from "@/types/domain.types";
@@ -158,7 +159,7 @@ function QuestionThread({ question, highlighted, onChange }: { question: LessonQ
                             </span>
                         )}
                     </p>
-                    <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{question.body}</p>
+                    <p className="mt-1 whitespace-pre-line text-sm leading-relaxed wrap-break-word">{linkify(question.body)}</p>
 
                     {question.answers.length > 0 && (
                         <ul className="mt-3 space-y-3 border-l-2 border-border pl-4">
@@ -178,7 +179,7 @@ function QuestionThread({ question, highlighted, onChange }: { question: LessonQ
                                             </button>
                                         )}
                                     </p>
-                                    <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed">{entry.body}</p>
+                                    <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed wrap-break-word">{linkify(entry.body)}</p>
                                 </li>
                             ))}
                         </ul>

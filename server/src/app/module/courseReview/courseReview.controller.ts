@@ -11,13 +11,8 @@ const getMine = catchAsync(async (req: Request, res: Response) => {
     ok(res, "Review retrieved", await CourseReviewService.getMine(req.user, req.params.courseId as string));
 });
 
-const upsert = catchAsync(async (req: Request, res: Response) => {
-    ok(res, "Thanks — your review is with us for approval", await CourseReviewService.upsert(req.user, req.params.courseId as string, req.body));
-});
-
-const removeMine = catchAsync(async (req: Request, res: Response) => {
-    await CourseReviewService.removeMine(req.user, req.params.courseId as string);
-    ok(res, "Review removed", null);
+const create = catchAsync(async (req: Request, res: Response) => {
+    ok(res, "Thanks — your review is with us for approval", await CourseReviewService.create(req.user, req.params.courseId as string, req.body));
 });
 
 const getPublic = catchAsync(async (req: Request, res: Response) => {
@@ -41,4 +36,4 @@ const moderate = catchAsync(async (req: Request, res: Response) => {
     ok(res, "Review updated", await CourseReviewService.moderate(req.user, req.params.reviewId as string, req.body.status));
 });
 
-export const CourseReviewController = { getMine, upsert, removeMine, getPublic, getForStaff, getForAdmin, getCounts, moderate };
+export const CourseReviewController = { getMine, create, getPublic, getForStaff, getForAdmin, getCounts, moderate };

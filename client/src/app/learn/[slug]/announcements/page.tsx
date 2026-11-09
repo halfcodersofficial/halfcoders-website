@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { linkify } from "@/lib/linkify";
 import { cn, formatDateTime } from "@/lib/utils";
 import { announcementService } from "@/services";
 
@@ -110,7 +111,7 @@ export default function CourseAnnouncementsPage() {
                                 <span aria-hidden>·</span>
                                 <time dateTime={announcement.createdAt}>{formatDateTime(announcement.createdAt)}</time>
                             </p>
-                            <p className="mt-4 whitespace-pre-line leading-relaxed">{announcement.body}</p>
+                            <p className="mt-4 whitespace-pre-line leading-relaxed wrap-break-word">{linkify(announcement.body)}</p>
                         </li>
                     ))}
                 </ol>

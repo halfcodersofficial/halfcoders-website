@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { linkify } from "@/lib/linkify";
 import { cn, formatDateTime } from "@/lib/utils";
 import { notificationService } from "@/services";
 import type { AppNotification } from "@/types/domain.types";
@@ -25,37 +26,8 @@ export const TYPE_VARIANT: Record<string, "default" | "secondary" | "success" | 
 
 const PAGE_SIZE = 12;
 
-const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
-const TRAILING_PUNCTUATION = /[.,;:!?)\]}'"]+$/;
-
-/**
- * A broadcast's message is free-text an admin typed, sometimes with a raw
- * URL in it ("More info: https://…") rather than the structured `link`
- * field. Turning those into real, new-tab anchors is what makes them usable
- * instead of just visually implying they're clickable.
- */
-export const linkifyMessage = (text: string) =>
-    text.split(URL_PATTERN).map((part, index) => {
-        if (!part.startsWith("http://") && !part.startsWith("https://")) return part;
-
-        const trailingMatch = part.match(TRAILING_PUNCTUATION);
-        const trailing = trailingMatch ? trailingMatch[0] : "";
-        const url = trailing ? part.slice(0, -trailing.length) : part;
-
-        return (
-            <span key={index}>
-                <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline underline-offset-2 hover:text-primary/80"
-                >
-                    {url}
-                </a>
-                {trailing}
-            </span>
-        );
-    });
+/** A broadcast's message, with any raw URL in it as a new-tab link (see `linkify`). */
+export const linkifyMessage = linkify;
 
 /**
  * The student's full-page notification inbox (`/dashboard/announcements`): a
