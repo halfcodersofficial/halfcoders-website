@@ -724,20 +724,34 @@ function MainCourseCard({ enrollment }: { enrollment: Enrollment }) {
 
     return (
         <article className="group flex flex-col overflow-hidden rounded-card border border-border bg-card transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-card-hover sm:flex-row">
-            {/* At least 16:9, and as tall as the details beside it — never stretched. */}
+            {/* At least 16:9, and as tall as the details beside it. The whole
+                picture always shows — nothing of the course's artwork is cut
+                off — and any room above and below it is filled with a soft,
+                blurred copy of the same picture rather than a bare band. */}
             <Link
                 href={href}
                 tabIndex={-1}
                 aria-hidden
-                className="relative aspect-video shrink-0 overflow-hidden bg-secondary sm:w-1/2 sm:max-w-md"
+                className="relative isolate aspect-video shrink-0 overflow-hidden bg-secondary sm:w-1/2 sm:max-w-md"
             >
                 <SafeImage
                     src={enrollment.course.thumbnail}
                     alt=""
                     fill
+                    sizes="64px"
+                    className="-z-10 scale-125 object-cover opacity-70 blur-2xl saturate-150"
+                    fallback={null}
+                    wrapperClassName="absolute inset-0 -z-10"
+                />
+                <span aria-hidden className="absolute inset-0 -z-10 bg-black/25" />
+                <SafeImage
+                    src={enrollment.course.thumbnail}
+                    alt=""
+                    fill
                     sizes="(max-width: 640px) 100vw, 448px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    className="object-contain drop-shadow-[0_8px_24px_rgb(0_0_0/0.35)] transition-transform duration-500 group-hover:scale-[1.02]"
                     fallback={<BookOpen className="size-8 text-muted-foreground" />}
+                    wrapperClassName="absolute inset-0"
                 />
             </Link>
 
