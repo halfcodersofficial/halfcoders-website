@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSession } from "@/hooks/useSession";
 import { confirmAction, infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { adminService } from "@/services/admin";
@@ -12,12 +13,13 @@ interface StudentRef {
 }
 
 /**
- * Block, reactivate and password reset for a student, with their
+ * Block, reactivate, password reset and delete for a student, with their
  * confirmations — shared by the Students register and a student's detail
  * page so both ask and answer the same way.
  */
 export function useStudentActions() {
     const queryClient = useQueryClient();
+    const { user } = useSession();
 
     const setStatus = useMutation({
         mutationFn: ({ userId, next }: { userId: string; next: string }) => adminService.setUserStatus(userId, next),
@@ -37,6 +39,20 @@ export function useStudentActions() {
             });
         },
         onError: (error) => toast.error(getApiErrorMessage(error, "Couldn't send a password reset link.")),
+    });
+
+    const deleteStudent = useMutation({
+        mutationFn: ({ student }: { student: StudentRef; onDeleted?: () => void }) => adminService.deleteStudent(student.id),
+        onSuccess: (_result, { student, onDeleted }) => {
+            toast.success(`${student.name} has been deleted.`);
+            void queryClient.invalidateQueries({
+                queryKey: ["admin"],
+                // Their own detail page would only 404 now, and is being left.
+                predicate: ({ queryKey }) => !(queryKey[1] === "student" && queryKey[2] === student.id),
+            });
+            onDeleted?.();
+        },
+        onError: (error) => toast.error(getApiErrorMessage(error, "Couldn't delete that student.")),
     });
 
     const block = async (student: StudentRef) => {
@@ -65,11 +81,33 @@ export function useStudentActions() {
         }
     };
 
+    /** `onDeleted` runs once they're gone — the detail page uses it to leave. */
+    const remove = async (student: StudentRef, onDeleted?: () => void) => {
+        if (
+            await confirmAction({
+                title: `Delete ${student.name} for good?`,
+                text:
+                    "Their account and everything about them will be erased: courses and progress, assignments, quiz results, " +
+                    "certificates, payments and refund requests, reviews, notes and notifications. " +
+                    "Their payments will disappear from the sales figures too. This can't be undone. " +
+                    "To only stop them signing in, block them instead.",
+                confirmText: "Delete student",
+                typeToConfirm: "DELETE",
+            })
+        ) {
+            deleteStudent.mutate({ student, onDeleted });
+        }
+    };
+
     return {
         block,
         reactivate,
         resetPassword,
+        remove,
+        /** Deleting wipes payment records, so only a super admin may. */
+        canDelete: user?.role === "SUPER_ADMIN",
         isChangingStatus: (studentId: string) => setStatus.isPending && setStatus.variables?.userId === studentId,
         isResetting: (studentId: string) => sendReset.isPending && sendReset.variables === studentId,
+        isDeleting: (studentId: string) => deleteStudent.isPending && deleteStudent.variables?.student.id === studentId,
     };
 }

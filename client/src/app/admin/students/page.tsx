@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Ban, CheckCircle2, Eye, KeyRound, RotateCw, UserPlus, X } from "lucide-react";
+import { Ban, CheckCircle2, Eye, KeyRound, RotateCw, Trash2, UserPlus, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -223,6 +223,21 @@ function StudentsScreen() {
                     separatorBefore: true,
                     onSelect: () => studentActions.reactivate(student),
                 },
+            {
+                label: "Delete student",
+                icon: Trash2,
+                destructive: true,
+                hidden: !studentActions.canDelete,
+                disabled: studentActions.isDeleting(student.id),
+                onSelect: () =>
+                    void studentActions.remove(student, () =>
+                        setSelected((current) => {
+                            const next = new Set(current);
+                            next.delete(student.id);
+                            return next;
+                        }),
+                    ),
+            },
         ];
     };
 

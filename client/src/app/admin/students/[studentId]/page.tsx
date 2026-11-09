@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock, Copy, KeyRound, Mail, MessageCircle, Phone, UserPlus } from "lucide-react";
-import { useParams } from "next/navigation";
+import { AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock, Copy, KeyRound, Mail, MessageCircle, Phone, Trash2, UserPlus } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import DetailTabs from "@/components/admin/DetailTabs";
@@ -131,6 +131,7 @@ export default function AdminStudentDetailPage() {
 function StudentHero({ data, onEnroll }: { data: StudentOverview; onEnroll: () => void }) {
     const { student, stats, profile } = data;
     const actions = useStudentActions();
+    const router = useRouter();
     const isActive = student.status === "ACTIVE";
 
     const copyId = async () => {
@@ -215,6 +216,17 @@ function StudentHero({ data, onEnroll }: { data: StudentOverview; onEnroll: () =
                                     onClick={() => actions.reactivate(student)}
                                 >
                                     <CheckCircle2 /> Reactivate
+                                </Button>
+                            )}
+                            {actions.canDelete && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    isLoading={actions.isDeleting(student.id)}
+                                    onClick={() => void actions.remove(student, () => router.replace("/admin/students"))}
+                                >
+                                    <Trash2 /> Delete
                                 </Button>
                             )}
                         </div>

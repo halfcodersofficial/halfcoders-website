@@ -3,7 +3,9 @@ import { Prisma } from "../../../generated/prisma/client";
 import { AccountStatus, EnrollmentStatus, LearningStatus } from "../../../generated/prisma/enums";
 import {
     deleteFileFromCloudinary,
+    deletePrivateFileFromCloudinary,
     isOwnCloudinaryAsset,
+    isSubmissionFile,
     uploadFileToCloudinary,
 } from "../../config/cloudinary.config";
 import AppError from "../../errorHelpers/AppError";
@@ -557,6 +559,62 @@ const resetUserPassword = async (actor: IRequestUser, userId: string) => {
     return { userId, sentTo: account.email };
 };
 
+/**
+ * Removes a student from Half Coders for good — not a block, not a soft
+ * delete. The account goes, and with it everything hanging off it:
+ * enrolments and progress, hand-ins, quiz attempts, certificates, orders and
+ * their payments, refund requests, reviews, questions, notes, notifications,
+ * XP, profile pages, sign-ins, and any testimonial quoting them. Their photo
+ * and hand-in files are then removed from Cloudinary.
+ *
+ * The database refuses to drop an account that still owns orders, bundle
+ * checkouts, enrolments or certificates (`Restrict`, see the
+ * deleteProtection test) so nothing removes them by accident. Those are
+ * deleted here on purpose, in one transaction with the account: if any step
+ * fails, nothing is removed.
+ *
+ * Students only — a mentor's or admin's account carries courses and history
+ * other people rely on.
+ */
+const deleteStudent = async (actor: IRequestUser, userId: string) => {
+    if (actor.userId === userId) {
+        throw new AppError(status.BAD_REQUEST, "You cannot delete your own account.");
+    }
+
+    const student = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, role: true, image: true, submissions: { select: { fileUrls: true } } },
+    });
+    if (!student) throw new AppError(status.NOT_FOUND, "Student not found.");
+    if (student.role !== Role.STUDENT) {
+        throw new AppError(status.FORBIDDEN, "Only student accounts can be deleted here.");
+    }
+
+    logger.delete("Permanently deleting student", { userId, email: student.email, actorId: actor.userId });
+
+    const ownedByStudent = { where: { studentId: userId } };
+    await prisma.$transaction([
+        prisma.certificate.deleteMany(ownedByStudent),
+        // Takes progress, hand-ins, practice and quiz attempts with it.
+        prisma.enrollment.deleteMany(ownedByStudent),
+        // Takes payments and refund requests with it.
+        prisma.order.deleteMany(ownedByStudent),
+        prisma.bundleOrder.deleteMany(ownedByStudent),
+        // Only unlinked by the database otherwise.
+        prisma.testimonial.deleteMany(ownedByStudent),
+        // Everything else cascades from the account.
+        prisma.user.delete({ where: { id: userId } }),
+    ]);
+
+    // Files only once the rows pointing at them are gone.
+    if (isOwnCloudinaryAsset(student.image)) void deleteFileFromCloudinary(student.image);
+    for (const url of student.submissions.flatMap((submission) => submission.fileUrls)) {
+        if (isSubmissionFile(url)) void deletePrivateFileFromCloudinary(url);
+    }
+
+    return { userId, name: student.name };
+};
+
 /** A super admin adding an administrator, on a temporary password they change at first sign-in. */
 const createAdmin = async (actor: IRequestUser, input: { name: string; email: string; password: string; phone?: string }) => {
     const taken = await prisma.user.findFirst({ where: { email: { equals: input.email.trim(), mode: "insensitive" } }, select: { id: true } });
@@ -619,6 +677,7 @@ export const UserService = {
     updateMentorPhoto,
     changeUserStatus,
     createAdmin,
+    deleteStudent,
     changeUserRole,
     resetUserPassword,
     getAdmins,

@@ -220,6 +220,10 @@ export const adminService = {
     setUserStatus: (userId: string, status: string) =>
         httpClient.patch(`/users/${userId}/status`, { status }).then(() => undefined),
 
+    /** Removes a student and everything about them for good. Super admins only. */
+    deleteStudent: (userId: string) =>
+        httpClient.delete(`/users/students/${userId}`).then(() => undefined),
+
     /**
      * Credential recovery: the person is emailed a reset code to choose a new
      * password. No password is ever shown to the admin.

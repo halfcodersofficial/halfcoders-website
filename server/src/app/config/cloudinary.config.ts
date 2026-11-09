@@ -153,6 +153,22 @@ const PRIVATE_DOWNLOAD_TTL_SECONDS = 10 * 60;
  * having the real signed URL is what grants the file, same as before.
  */
 export const privateFileDownloadUrl = (signedUrl: string | null | undefined): string | null => {
+    const file = parsePrivateFileUrl(signedUrl);
+    if (!file) return null;
+
+    return cloudinary.utils.private_download_url(file.publicId, file.format, {
+        type: "authenticated",
+        resource_type: file.resourceType,
+        expires_at: Math.floor(Date.now() / 1000) + PRIVATE_DOWNLOAD_TTL_SECONDS,
+    });
+};
+
+/**
+ * Which private file a stored signed URL names (see
+ * `uploadPrivateFileToCloudinary`), or null for anything that isn't one of
+ * ours or whose signature doesn't check out.
+ */
+const parsePrivateFileUrl = (signedUrl: string | null | undefined) => {
     if (!signedUrl) return null;
     let pathname: string;
     try {
@@ -178,11 +194,24 @@ export const privateFileDownloadUrl = (signedUrl: string | null | undefined): st
     });
     if (decodeURIComponent(new URL(expected).pathname) !== pathname) return null;
 
-    return cloudinary.utils.private_download_url(publicId, format, {
-        type: "authenticated",
-        resource_type: resourceType,
-        expires_at: Math.floor(Date.now() / 1000) + PRIVATE_DOWNLOAD_TTL_SECONDS,
-    });
+    return { resourceType, publicId, format };
+};
+
+/**
+ * Deletes a private file by its stored signed URL. Like the other deletes it
+ * never throws — an orphaned file costs storage, not correctness.
+ */
+export const deletePrivateFileFromCloudinary = async (signedUrl: string) => {
+    const file = parsePrivateFileUrl(signedUrl);
+    if (!file) return;
+    // A raw file's public id keeps its extension; an image's or video's doesn't.
+    const publicId = file.resourceType === "raw" ? `${file.publicId}.${file.format}` : file.publicId;
+    try {
+        await cloudinary.uploader.destroy(publicId, { type: "authenticated", resource_type: file.resourceType, invalidate: true });
+        logger.delete(`Private file ${publicId} deleted from Cloudinary`);
+    } catch (error) {
+        logger.error("Error deleting private file from Cloudinary", error);
+    }
 };
 
 export const deleteAuthenticatedFileFromCloudinary = async (publicId: string) => {

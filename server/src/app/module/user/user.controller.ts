@@ -219,6 +219,17 @@ const changeUserRole = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const deleteStudent = catchAsync(async (req: Request, res: Response) => {
+    const result = await UserService.deleteStudent(req.user, req.params.userId as string);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: `${result.name} and all their data have been deleted.`,
+        data: result,
+    });
+});
+
 const resetUserPassword = catchAsync(async (req: Request, res: Response) => {
     const result = await UserService.resetUserPassword(req.user, req.params.userId as string);
 
@@ -277,6 +288,7 @@ export const UserController = {
     updateMentorPhoto,
     changeUserStatus,
     changeUserRole,
+    deleteStudent,
     resetUserPassword,
     getAdmins,
 };
