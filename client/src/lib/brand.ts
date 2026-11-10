@@ -42,7 +42,15 @@ export const DEFAULT_SOCIAL_IMAGE = {
  * live "open now" line shows the line closed that day.
  */
 export const SUPPORT_EMAIL = "halfcoders.official@gmail.com";
-export const SUPPORT_PHONES = ["01329-453598", "01889-557133"] as const;
+/**
+ * The phone lines, in the order the pages list them. `whatsapp` says whether
+ * the number takes WhatsApp too; a line without it is calls only, and no
+ * WhatsApp link is shown for it anywhere.
+ */
+export const SUPPORT_PHONES = [
+    { number: "01604-997837", whatsapp: false },
+    { number: "01889-557133", whatsapp: true },
+] as const;
 /** The calling hours, as the pages write them. */
 export const SUPPORT_HOURS = "রবি – বৃহস্পতি, সকাল ১০টা – সন্ধ্যা ৭টা";
 /** The same hours, in the form the live "open now" line reads (components/site/SupportStatus.tsx): days 0 = Sunday … 6 = Saturday, 24-hour clock. */
@@ -52,15 +60,19 @@ export const GOVERNMENT_HOLIDAYS: string[] = [];
 /** Said wherever the calling hours are shown. */
 export const SUPPORT_HOLIDAY_NOTE = "সরকারি ছুটির দিনে কল বন্ধ থাকে, তবে ইমেইল সবসময় খোলা।";
 
-/** A WhatsApp chat with a support number — both are on WhatsApp: "01329-453598" → https://wa.me/8801329453598. */
+/** A WhatsApp chat with a support number (only the ones marked `whatsapp`): "01889-557133" → https://wa.me/8801889557133. */
 export const whatsappLink = (phone: string) => `https://wa.me/88${phone.replace(/\D/g, "")}`;
 
-/** Half Coders' social pages, and WhatsApp on each support number. */
+/** Half Coders' social pages, and WhatsApp on each support number that takes it. */
 export const SOCIAL_LINKS = [
     { network: "facebook", label: "Facebook", href: "https://www.facebook.com/share/1EFpAu3Cpv/" },
     { network: "youtube", label: "YouTube", href: "https://www.youtube.com/@HalfCoders" },
     { network: "github", label: "GitHub", href: "https://github.com/Half-Coders" },
-    ...SUPPORT_PHONES.map((phone) => ({ network: "whatsapp" as const, label: `WhatsApp ${phone}`, href: whatsappLink(phone) })),
+    ...SUPPORT_PHONES.filter((phone) => phone.whatsapp).map((phone) => ({
+        network: "whatsapp" as const,
+        label: `WhatsApp ${phone.number}`,
+        href: whatsappLink(phone.number),
+    })),
     // Not set up yet. Once a page exists, uncomment its line with the real link,
     // and its icon in components/shared/Footer.tsx (SOCIAL_ICON).
     // { network: "instagram", label: "Instagram", href: "https://instagram.com/…" },

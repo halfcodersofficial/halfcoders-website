@@ -85,26 +85,28 @@ export default function ContactPage() {
                             <p className="mt-1 text-xs leading-relaxed text-editor-muted/80">{SUPPORT_HOLIDAY_NOTE}</p>
                             <SupportStatus schedule={SUPPORT_SCHEDULE} holidays={GOVERNMENT_HOLIDAYS} className="mt-3" />
                             <ul className="mt-3 flex flex-wrap gap-2">
-                                {/* Both numbers take calls and WhatsApp. */}
+                                {/* Every number takes calls; the WhatsApp button shows only on the ones that take WhatsApp too. */}
                                 {SUPPORT_PHONES.map((phone) => (
-                                    <li key={phone} className="flex gap-1">
+                                    <li key={phone.number} className="flex gap-1">
                                         <a
-                                            href={`tel:${phone.replace(/-/g, "")}`}
+                                            href={`tel:${phone.number.replace(/-/g, "")}`}
                                             className="inline-flex items-center gap-1.5 rounded-md border border-editor-line px-3 py-1.5 font-mono text-sm font-semibold tabular-nums transition-colors hover:border-violet-400 hover:bg-editor-raised"
                                         >
                                             <Phone className="size-3.5 text-editor-muted" aria-hidden />
-                                            {phone}
+                                            {phone.number}
                                         </a>
-                                        <a
-                                            href={whatsappLink(phone)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            aria-label={`WhatsApp ${phone}`}
-                                            title="WhatsApp"
-                                            className="grid w-9 place-items-center rounded-md border border-editor-line text-syn-string transition-colors hover:border-violet-400 hover:bg-editor-raised"
-                                        >
-                                            <SiWhatsapp className="size-4" aria-hidden />
-                                        </a>
+                                        {phone.whatsapp && (
+                                            <a
+                                                href={whatsappLink(phone.number)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label={`WhatsApp ${phone.number}`}
+                                                title="WhatsApp"
+                                                className="grid w-9 place-items-center rounded-md border border-editor-line text-syn-string transition-colors hover:border-violet-400 hover:bg-editor-raised"
+                                            >
+                                                <SiWhatsapp className="size-4" aria-hidden />
+                                            </a>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
