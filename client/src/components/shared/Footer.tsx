@@ -137,10 +137,10 @@ export default function Footer() {
                                 <dd className="flex items-start gap-2">
                                     <Phone className="mt-0.5 size-4 shrink-0 text-syn-func" aria-hidden />
                                     <span className="flex flex-wrap gap-x-3 gap-y-1">
-                                        {/* Both take WhatsApp too: their chats are among the social icons. */}
+                                        {/* The ones that take WhatsApp have their chat among the social icons. */}
                                         {SUPPORT_PHONES.map((phone) => (
-                                            <a key={phone} href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="text-editor-fg tabular-nums hover:underline">
-                                                {phone}
+                                            <a key={phone.number} href={`tel:${phone.number.replace(/[^\d+]/g, "")}`} className="text-editor-fg tabular-nums hover:underline">
+                                                {phone.number}
                                             </a>
                                         ))}
                                     </span>

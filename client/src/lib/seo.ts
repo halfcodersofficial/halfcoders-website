@@ -65,7 +65,7 @@ export const languageCode = (language: string) => LANGUAGE_CODES[language.trim()
 /** The organization's node in the structured data; a course's `provider` points here. */
 export const ORGANIZATION_ID = `${envConfig.siteUrl}/#organization`;
 
-/** "01329-453598" → "+880-1329-453598", the international form structured data asks for. */
+/** "01604-997837" → "+880-1604-997837", the international form structured data asks for. */
 const international = (phone: string) => `+880-${phone.replace(/^0/, "")}`;
 
 /**
@@ -91,7 +91,7 @@ export const SITE_JSON_LD = {
             contactPoint: SUPPORT_PHONES.map((phone) => ({
                 "@type": "ContactPoint",
                 contactType: "customer support",
-                telephone: international(phone),
+                telephone: international(phone.number),
                 email: SUPPORT_EMAIL,
                 areaServed: "BD",
                 availableLanguage: ["Bengali", "English"],
