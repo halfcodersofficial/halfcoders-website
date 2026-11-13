@@ -29,6 +29,10 @@ const lineTone = (line: string) =>
  * and a small example of how it looks (a code fix with a mentor's comment, a
  * queue number, a certificate check). A real tab list: arrow
  * keys move between the files, Home/End jump to the ends.
+ *
+ * Under `lg` the explorer turns into chips that wrap over the panel, so all
+ * seven are in sight at once, and the example's long lines wrap rather than
+ * run off a phone's edge.
  */
 export default function HomeInside() {
     const [active, setActive] = useState(0);
@@ -67,7 +71,7 @@ export default function HomeInside() {
                         aria-label="Inside a course"
                         aria-orientation="vertical"
                         onKeyDown={onKeyDown}
-                        className="no-scrollbar flex gap-1 overflow-x-auto p-2 lg:flex-col lg:gap-px lg:overflow-visible lg:px-2 lg:pb-4 lg:pt-0"
+                        className="flex flex-wrap gap-2 p-3 sm:p-4 lg:flex-col lg:flex-nowrap lg:gap-px lg:px-2 lg:pb-4 lg:pt-0"
                     >
                         {INSIDE.files.map((item, index) => {
                             const selected = index === active;
@@ -85,8 +89,11 @@ export default function HomeInside() {
                                     tabIndex={selected ? 0 : -1}
                                     onClick={() => setActive(index)}
                                     className={cn(
-                                        "flex shrink-0 items-center gap-2 rounded-sm px-3 py-2 text-left text-sm transition-colors lg:pl-7",
-                                        selected ? "bg-violet-500/20 text-editor-fg" : "text-editor-muted hover:bg-editor-raised hover:text-editor-fg",
+                                        // Chips that wrap on narrower screens (every one in sight, none scrolled away); the explorer's plain rows from `lg`.
+                                        "flex min-h-10 shrink-0 items-center gap-2 rounded-sm border px-3 py-2 text-left text-sm transition-colors lg:min-h-0 lg:border-transparent lg:pl-7",
+                                        selected
+                                            ? "border-violet-400/50 bg-violet-500/20 text-editor-fg"
+                                            : "border-editor-line text-editor-muted hover:bg-editor-raised hover:text-editor-fg",
                                     )}
                                 >
                                     <FileIcon name={item.file} />
@@ -107,7 +114,7 @@ export default function HomeInside() {
                             <span className="font-sans text-[0.78rem] font-medium">{file.label}</span>
                         </span>
                     </div>
-                    <div key={file.id} className="animate-in fade-in duration-300 p-6 motion-reduce:animate-none sm:p-8">
+                    <div key={file.id} className="animate-in fade-in duration-300 p-5 motion-reduce:animate-none sm:p-8">
                         <h3 className="text-h3">{file.title}</h3>
                         <p className="mt-3 max-w-2xl leading-relaxed text-editor-muted">{file.text}</p>
                         <p aria-hidden className="mt-6 text-xs font-semibold uppercase tracking-wider text-editor-gutter">
@@ -115,7 +122,7 @@ export default function HomeInside() {
                         </p>
                         <pre
                             aria-hidden
-                            className="mt-2 overflow-x-auto rounded-md border border-editor-line bg-editor-panel py-3 font-mono text-[0.8rem] leading-7"
+                            className="mt-2 overflow-x-auto whitespace-pre-wrap wrap-break-word rounded-md border border-editor-line bg-editor-panel py-3 font-mono text-[0.75rem] leading-6 sm:text-[0.8rem] sm:leading-7"
                         >
                             {file.preview.map((line) => (
                                 <span key={line} className={cn("block px-4", lineTone(line))}>

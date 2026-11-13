@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AboutAims from "@/components/about/AboutAims";
 import AboutClosing from "@/components/about/AboutClosing";
 import AboutFaq from "@/components/about/AboutFaq";
 import AboutGallery from "@/components/about/AboutGallery";
@@ -50,7 +51,8 @@ const ABOUT_JSON_LD = {
 
 /**
  * The About page, in Bangla and fully static (components/about/content.ts):
- * who we are (with a class on show), what we want learners to leave with,
+ * who we are (with a class on show), our mission and vision, what we want
+ * learners to leave with,
  * the story as a long read, the people and classes in photos, the road so
  * far, the rules, the team, the reviews, questions, and a sign-off.
  */
@@ -61,6 +63,7 @@ export default function AboutPage() {
         <div lang="bn">
             <JsonLd data={ABOUT_JSON_LD} />
             <AboutHero />
+            <AboutAims />
             <AboutGoal />
             <AboutJourney />
             <AboutGallery />

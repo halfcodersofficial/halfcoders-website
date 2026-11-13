@@ -39,6 +39,11 @@ const clock = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${
  * (the bar's end is what moves it, so the two never drift apart). It rests
  * while pointed at or focused, any block can be picked, and with reduced
  * motion asked for it stays where it's put.
+ *
+ * The timeline needs a laptop's width: on anything narrower a half-hour block
+ * would be a sliver. There the day is a list instead, hour by hour, your own
+ * hours grey and the Half Coders ones violet, the one being described lit
+ * green — beside the card on a tablet, over it on a phone.
  */
 export default function HomeDay() {
     const [active, setActive] = useState(0);
@@ -98,8 +103,12 @@ export default function HomeDay() {
             <SectionHeader id="home-day-title" eyebrow={DAY.eyebrow} title={DAY.title} description={DAY.description} />
 
             <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-                <EditorWindow tabs={[{ name: "day.ts", label: DAY.tab, active: true }]} bodyClassName="px-4 pb-5 pt-4 sm:px-6">
-                    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[7rem_minmax(0,1fr)]">
+                <EditorWindow
+                    tabs={[{ name: "day.ts", label: DAY.tab, active: true }]}
+                    bodyClassName="grid grid-cols-1 gap-4 px-4 pb-5 pt-4 sm:px-6 md:grid-cols-2 md:gap-5 lg:grid-cols-1"
+                >
+                    {/* The timeline, from `lg`. */}
+                    <div className="hidden grid-cols-[7rem_minmax(0,1fr)] gap-x-3 lg:grid">
                         {/* The hour ruler. */}
                         <span />
                         <div aria-hidden className="relative mb-2 h-5 font-mono text-[0.65rem] text-editor-gutter">
@@ -123,18 +132,30 @@ export default function HomeDay() {
                         </div>
                     </div>
 
+                    {/* The same day as a list, under `lg`. */}
+                    <Agenda active={active} onPick={setActive} className="lg:hidden" />
+
                     {/* What the playhead is on. */}
-                    <div aria-live="polite" className="relative mt-5 flex gap-4 overflow-hidden rounded-card border border-editor-line bg-editor-panel p-4 sm:p-5">
+                    <div
+                        aria-live="polite"
+                        className="relative flex gap-4 overflow-hidden rounded-card border border-editor-line bg-editor-panel p-4 sm:p-5 md:self-start lg:self-auto"
+                    >
                         <span
                             key={`icon-${current.title}`}
                             className="grid size-11 shrink-0 place-items-center rounded-md border border-syn-string/40 bg-syn-string/10 text-syn-string animate-in zoom-in-50 spin-in-12 duration-300 motion-reduce:animate-none"
                         >
                             <Icon className="size-5" aria-hidden />
                         </span>
-                        <div key={current.title} className="min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300 motion-reduce:animate-none">
-                            <p className="font-mono text-xs text-syn-string">{current.time}</p>
-                            <h3 className="mt-0.5 text-lg font-semibold text-editor-fg">{current.title}</h3>
-                            <p className="mt-1 leading-relaxed text-editor-muted">{current.text}</p>
+                        <div className="grid min-w-0 flex-1">
+                            <div key={current.title} className="col-start-1 row-start-1 min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300 motion-reduce:animate-none">
+                                <Detail block={current} />
+                            </div>
+                            {/* Every block's words again, unseen in the same spot: the card is always as tall as the longest, so nothing under it jumps as it moves on. */}
+                            {LEARN.map((block) => (
+                                <div key={block.title} aria-hidden className="invisible col-start-1 row-start-1 min-w-0">
+                                    <Detail block={block} />
+                                </div>
+                            ))}
                         </div>
                         {/* Counting down to the next block; when it fills, the playhead moves on. */}
                         {!still && (
@@ -150,6 +171,105 @@ export default function HomeDay() {
                 </EditorWindow>
             </div>
         </Section>
+    );
+}
+
+/** What a learning block is: its time, its name, a line about it. */
+function Detail({ block }: { block: DayBlock }) {
+    return (
+        <>
+            <p className="font-mono text-xs text-syn-string">{block.time}</p>
+            <h3 className="mt-0.5 text-lg font-semibold text-editor-fg">{block.title}</h3>
+            <p className="mt-1 leading-relaxed text-editor-muted">{block.text}</p>
+        </>
+    );
+}
+
+/**
+ * The day as a list, for screens too narrow for the timeline: every block in
+ * order with its time, under a key saying which colour is whose. Your own
+ * hours sit quiet in grey; the Half Coders ones are buttons in violet, and
+ * the one the card describes is lit green with the clock beside it, as the
+ * playhead's label shows on the timeline.
+ */
+function Agenda({ active, onPick, className }: { active: number; onPick: (index: number) => void; className?: string }) {
+    return (
+        <div className={className}>
+            <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-editor-muted">
+                <span className="inline-flex items-center gap-1.5">
+                    <span aria-hidden className="size-2.5 rounded-[2px] border border-editor-line bg-editor-raised" />
+                    {DAY.tracks.busy}
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-semibold text-syn-keyword">
+                    <span aria-hidden className="size-2.5 rounded-[2px] border border-violet-400/40 bg-violet-500/20" />
+                    {DAY.tracks.learn}
+                </span>
+            </p>
+            <ol className="space-y-1.5">
+                {DAY.blocks.map((block) => {
+                    const BlockIcon = ICONS[block.icon];
+                    const learnIndex = LEARN.indexOf(block);
+                    const isActive = learnIndex === active;
+
+                    const row = (
+                        <>
+                            <span
+                                aria-hidden
+                                className={cn(
+                                    "grid size-8 shrink-0 place-items-center rounded-sm border transition-colors duration-300",
+                                    block.kind === "busy"
+                                        ? "border-editor-line bg-editor-raised"
+                                        : isActive
+                                          ? "border-syn-string/50 bg-syn-string/20 text-syn-string"
+                                          : "border-violet-400/40 bg-violet-500/20 text-syn-keyword",
+                                )}
+                            >
+                                <BlockIcon className="size-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span
+                                    className={cn(
+                                        "block font-mono text-[0.7rem] leading-5 transition-colors duration-300",
+                                        isActive ? "text-syn-string" : "text-editor-gutter",
+                                    )}
+                                >
+                                    {block.time}
+                                </span>
+                                <span className={cn("block truncate text-sm", block.kind === "learn" && "font-medium text-editor-fg")}>{block.title}</span>
+                            </span>
+                            {isActive && (
+                                <span aria-hidden className="shrink-0 rounded-sm bg-violet-500 px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-white">
+                                    {clock(block.from)}
+                                </span>
+                            )}
+                        </>
+                    );
+
+                    return (
+                        <li key={block.title}>
+                            {block.kind === "learn" ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onPick(learnIndex)}
+                                    aria-label={`${block.time} — ${block.title}`}
+                                    aria-pressed={isActive}
+                                    className={cn(
+                                        "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-sm border px-2.5 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-300",
+                                        isActive
+                                            ? "border-syn-string bg-syn-string/10 shadow-[0_0_14px_-4px_var(--syn-string)]"
+                                            : "border-violet-400/30 bg-violet-500/10 hover:border-syn-string",
+                                    )}
+                                >
+                                    {row}
+                                </button>
+                            ) : (
+                                <div className="flex min-h-12 items-center gap-3 rounded-sm border border-transparent px-2.5 py-1.5 text-editor-muted">{row}</div>
+                            )}
+                        </li>
+                    );
+                })}
+            </ol>
+        </div>
     );
 }
 

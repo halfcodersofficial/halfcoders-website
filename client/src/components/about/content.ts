@@ -40,6 +40,34 @@ export const HERO = {
     note: { label: "মেন্টরের কমেন্ট", text: "লুপটা এবার ঠিক আছে 👍 ভ্যারিয়েবলের নামগুলো আরেকটু বুঝিয়ে দিলে আরও ভালো হতো।" },
 };
 
+export type AimIcon = "mission" | "vision";
+
+/**
+ * The mission (what we do every day) and the vision (where it should lead),
+ * side by side, the first leading into the second. Two items: the band is
+ * drawn for a pair.
+ */
+export const AIMS = {
+    title: "আমাদের মিশন ও ভিশন",
+    description: "প্রতিদিন আমরা কী করার চেষ্টা করি, আর সব মিলিয়ে একদিন কোথায় পৌঁছাতে চাই।",
+    items: [
+        {
+            icon: "mission",
+            label: "আমাদের মিশন",
+            hint: "প্রতিদিন যা করছি",
+            statement: "ঢাকায় থাকুন বা কোনো উপজেলায়, ল্যাপটপ আর ইন্টারনেট থাকলেই যেন যে কেউ বাংলায় গুছিয়ে শিখতে পারেন, আর আটকে গেলে একজন মেন্টরকে পাশে পান।",
+            points: ["সব ক্লাস বাংলায়, একদম গোড়া থেকে", "প্রতিটা অ্যাসাইনমেন্ট মেন্টর নিজে দেখেন", "আটকে গেলে সাপোর্ট সেশনে সরাসরি সাহায্য"],
+        },
+        {
+            icon: "vision",
+            label: "আমাদের ভিশন",
+            hint: "যেখানে পৌঁছাতে চাই",
+            statement: "যা শিখছেন আর কাজের জায়গায় যা লাগে, তার মাঝের দূরত্বটা কমিয়ে আনা। যেন কেউ Half Coders-এর সার্টিফিকেট দেখে বলে, \"ও, এরা তো আসলেই কাজ শিখিয়ে ছাড়ে।\"",
+            points: ["কোডিং, গণিত, AI আর ক্যারিয়ার, সব এক জায়গায়", "এমন কমিউনিটি, যেখানে কেউ একা শেখে না", "এমন সার্টিফিকেট, যেটা সত্যিকারের কাজের প্রমাণ"],
+        },
+    ] satisfies { icon: AimIcon; label: string; hint: string; statement: string; points: string[] }[],
+};
+
 export type GoalIcon = "foundation" | "practice" | "ai";
 
 export const GOAL = {
@@ -80,11 +108,6 @@ export const JOURNEY = {
             "আর নামটা? আমরা কেউই সব জানি না, সবাই অর্ধেক অর্ধেক জানি। বাকিটা একসাথে শিখে নিই। এজন্যই Half Coders।",
         ],
         quote: "আমাদের শুধু একজন দরকার ছিল, যাকে জিজ্ঞেস করা যায়।",
-        /** The mission and vision. */
-        aims: [
-            { key: "আমাদের লক্ষ্য", value: "ঢাকায় থাকুন বা কোনো উপজেলায়, ল্যাপটপ আর নেট থাকলেই যেন গুছিয়ে শিখতে পারেন, আর দরকার হলে একজন মেন্টরকে পাশে পান।" },
-            { key: "আমাদের স্বপ্ন", value: "কেউ যেন Half Coders-এর সার্টিফিকেট দেখে বলে, \"ও, এরা তো আসলেই কাজ শিখিয়ে ছাড়ে।\"" },
-        ],
     },
     who: {
         id: "who",

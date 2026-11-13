@@ -2,20 +2,14 @@
 
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { BookOpen, Check, CheckCircle2, ChevronRight, Hammer, Rocket, Sparkles, Target, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CheckCircle2, ChevronRight, Hammer, Rocket, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import Reveal from "@/components/site/Reveal";
 import Section from "@/components/site/Section";
 import { scrollPageTo } from "@/lib/smoothScroll";
 import { cn } from "@/lib/utils";
 import { JOURNEY } from "./content";
-import { Callout, DocHeading } from "./paper";
-
-/* The mission, then the vision, each called out. */
-const AIM_LOOK = [
-    { icon: Target, tone: "keyword" },
-    { icon: Sparkles, tone: "string" },
-] as const;
+import { DocHeading } from "./paper";
 
 const { why, who, beyond, path, inside } = JOURNEY;
 const BLOCKS = [why, who, beyond, path, inside];
@@ -138,19 +132,6 @@ export default function AboutJourney() {
                                 </span>
                             </blockquote>
                         </figure>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {why.aims.map((aim, index) => (
-                                <div key={aim.key} data-reveal>
-                                    <Callout
-                                        label={aim.key}
-                                        icon={AIM_LOOK[index % AIM_LOOK.length].icon}
-                                        tone={AIM_LOOK[index % AIM_LOOK.length].tone}
-                                    >
-                                        {aim.value}
-                                    </Callout>
-                                </div>
-                            ))}
-                        </div>
                     </Part>
 
                     <Part id={who.id} title={who.title}>

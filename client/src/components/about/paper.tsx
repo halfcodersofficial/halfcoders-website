@@ -1,14 +1,14 @@
 "use client";
 
-import { Link2, type LucideIcon } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { useEffect, useRef, type CSSProperties, type HTMLAttributes, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /*
  * The About page's own kit. The rest of the site is dressed as a code editor;
  * About reads like the project's README, set on paper: `##` headings ruled
- * underneath with a link that shows on hover, cards that tilt like a sheet
- * picked up, and notes called out the way a README does.
+ * underneath with a link that shows on hover, and cards that tilt like a
+ * sheet picked up.
  */
 
 /**
@@ -107,36 +107,6 @@ export function TiltCard({ max = 7, className, style, children, onPointerMove, o
                     background: "radial-gradient(20rem circle at var(--light-x, 50%) var(--light-y, 0%), rgb(255 255 255 / 0.55), transparent 55%)",
                 }}
             />
-        </div>
-    );
-}
-
-const CALLOUT_TONE = {
-    keyword: { box: "border-syn-keyword bg-syn-keyword/5", label: "text-syn-keyword" },
-    string: { box: "border-syn-string bg-syn-string/5", label: "text-syn-string" },
-    func: { box: "border-syn-func bg-syn-func/5", label: "text-syn-func" },
-} as const;
-
-/** A note called out the way a README does: a coloured edge, a labelled first line, the text. */
-export function Callout({
-    label,
-    icon: Icon,
-    tone = "keyword",
-    children,
-}: {
-    label: string;
-    icon: LucideIcon;
-    tone?: keyof typeof CALLOUT_TONE;
-    children: ReactNode;
-}) {
-    const colours = CALLOUT_TONE[tone];
-    return (
-        <div className={cn("rounded-r-md border-l-4 px-5 py-4", colours.box)}>
-            <p className={cn("flex items-center gap-2 text-sm font-semibold", colours.label)}>
-                <Icon className="size-4" aria-hidden />
-                {label}
-            </p>
-            <p className="mt-1.5 leading-relaxed text-foreground/85">{children}</p>
         </div>
     );
 }
