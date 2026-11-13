@@ -22,14 +22,15 @@ export default function ReviewQueuePage() {
 /**
  * The dashboard, inbox, course results and notifications link in with
  * `?course=`, `?assignment=`, `?status=`, `?sort=desc` and `?focus=<hand-in>`,
- * which opens that hand-in ready to mark.
+ * which opens that hand-in ready to mark — and `?recheck=open`, the
+ * "Rechecks" tab a recheck request links to.
  */
 function ReviewQueue() {
     const params = useSearchParams();
     return (
         <ReviewDesk
             initial={{
-                tab: tabFor(params.get("status")),
+                tab: params.get("recheck") === "open" ? "RECHECK" : tabFor(params.get("status")),
                 courseId: params.get("course") ?? "",
                 assignmentId: params.get("assignment") ?? "",
                 sort: params.get("sort") === "desc" ? "desc" : "asc",

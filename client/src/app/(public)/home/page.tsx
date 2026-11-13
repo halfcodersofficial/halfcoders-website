@@ -8,6 +8,7 @@ import HomeFaq from "@/components/home/HomeFaq";
 import HomeHero from "@/components/home/HomeHero";
 import HomeInside from "@/components/home/HomeInside";
 import HomeReviews from "@/components/home/HomeReviews";
+import HomeStats from "@/components/home/HomeStats";
 import HomeSupport from "@/components/home/HomeSupport";
 import HomeTicker from "@/components/home/HomeTicker";
 import HomeTracks from "@/components/home/HomeTracks";
@@ -44,6 +45,9 @@ export default function HomePage() {
 
             {/* The four areas: coding, engineering, building, career */}
             <HomeTracks />
+
+            {/* By the numbers: students, courses, success, counting up */}
+            <HomeStats />
 
             {/* Learning alone against learning here, as a before/after */}
             <HomeWhy />

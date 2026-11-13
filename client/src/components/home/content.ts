@@ -118,6 +118,64 @@ export const TRACKS = {
     cta: "Browse all courses",
 };
 
+export type StatIcon = "students" | "courses" | "success";
+
+/** One figure in a stat, counted up from 0 to `value` as the band scrolls in. */
+export interface StatFigure {
+    value: number;
+    /** Straight after the digits, in the card's colour: "+", "%". */
+    suffix?: string;
+    /** A word after the figure, smaller: "লাইভ". */
+    unit?: string;
+}
+
+/** One card of the numbers band. `note` is the line along its foot. */
+export interface StatItem {
+    icon: StatIcon;
+    figures: StatFigure[];
+    label: string;
+    text: string;
+    note?: string;
+}
+
+/**
+ * Half Coders by the numbers. The one place on the page with real totals, so
+ * keep them true and update them here when they change. The digits stay
+ * Latin, like numbers in code. The courses card draws one block per course
+ * (its first figure live, its second upcoming); the success card fills a bar
+ * to its percentage — keep its `note` in step with the figure.
+ */
+export const STATS: { eyebrow: string; title: string; description: string; items: StatItem[] } = {
+    eyebrow: "সংখ্যায় Half Coders",
+    title: "এখন পর্যন্ত আমরা কতদূর এলাম",
+    description: "প্রতিটা সংখ্যার পেছনে আছে অনেকগুলো মানুষের রোজকার চেষ্টা। শিক্ষার্থীদের, মেন্টরদের, আর আমাদের পুরো টিমের।",
+    items: [
+        {
+            icon: "students",
+            figures: [{ value: 350, suffix: "+" }],
+            label: "ভর্তি হওয়া শিক্ষার্থী",
+            text: "সবাই শিখছেন বাংলায়, মেন্টর আর ব্যাচের অন্যদের সাথে মিলে।",
+            note: "প্রতিটা নতুন ব্যাচে সংখ্যাটা বাড়ছে",
+        },
+        {
+            icon: "courses",
+            figures: [
+                { value: 2, unit: "লাইভ" },
+                { value: 5, unit: "আসছে" },
+            ],
+            label: "কোর্স",
+            text: "২টা কোর্স এখন লাইভ চলছে, আরও ৫টা তৈরি হচ্ছে। একটার পর একটা আসবে।",
+        },
+        {
+            icon: "success",
+            figures: [{ value: 95, suffix: "%" }],
+            label: "সফল শিক্ষার্থী",
+            text: "আটকে গেলে মেন্টর পাশে থাকেন, তাই মাঝপথে হাল ছেড়ে দিতে হয় না।",
+            note: "প্রতি ১০০ জনে ৯৫ জন",
+        },
+    ],
+};
+
 /** Learning alone against learning here, set as a before/after diff. */
 export const WHY = {
     eyebrow: "কেন Half Coders",

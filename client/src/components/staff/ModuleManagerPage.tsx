@@ -1117,10 +1117,11 @@ export default function ModuleManagerPage({
                                                                 );
                                                             }
 
-                                                            // A practice day has no lessons — just its text instructions.
+                                                            // Opens to its own instructions and lessons, like an assignment.
                                                             const practice = item.entry;
                                                             const isLeftover = !allowsPractice;
                                                             const target: Scheduling = { kind: "PRACTICE", id: practice.id, title: practice.title, releaseAt: practice.releaseAt };
+                                                            const lessonCount = practice._count?.materials ?? 0;
                                                             return (
                                                                 <ItemRow
                                                                     key={item.key}
@@ -1130,7 +1131,7 @@ export default function ModuleManagerPage({
                                                                     icon={Dumbbell}
                                                                     typeLabel="Practice day"
                                                                     title={practice.title}
-                                                                    onOpen={isLeftover ? undefined : () => openPracticePanel(milestone.id, practice.id)}
+                                                                    href={isLeftover ? undefined : routes.practice(practice.id)}
                                                                     status={
                                                                         isLeftover ? (
                                                                             <span className="font-medium text-amber-700 dark:text-amber-400">Bootcamp only — hidden from students, remove it</span>
@@ -1138,17 +1139,22 @@ export default function ModuleManagerPage({
                                                                             <StatusText isPublished={practice.isPublished} releaseAt={practice.releaseAt} canSchedule={canSchedule} />
                                                                         )
                                                                     }
-                                                                    meta={[!isLeftover && (practice.instructions ? "instructions added" : "no instructions yet")]}
+                                                                    meta={[
+                                                                        !isLeftover && plural(lessonCount, "lesson"),
+                                                                        !isLeftover && (practice.instructions ? "instructions added" : "no instructions yet"),
+                                                                    ]}
                                                                     onPublish={isLeftover || practice.isPublished ? undefined : () => togglePractice.mutate({ id: practice.id, next: true })}
                                                                     primary={
                                                                         isLeftover ? undefined : (
-                                                                            <Button size="sm" variant="outline" onClick={() => openPracticePanel(milestone.id, practice.id)}>
-                                                                                <FileText /> {practice.instructions ? "Instructions" : "Add instructions"}
+                                                                            <Button asChild size="sm" variant="outline">
+                                                                                <Link href={routes.practice(practice.id)}>
+                                                                                    <FileText /> {lessonCount > 0 || practice.instructions ? "Open" : "Add lessons"}
+                                                                                </Link>
                                                                             </Button>
                                                                         )
                                                                     }
                                                                     actions={[
-                                                                        { label: "Edit", icon: Pencil, hidden: isLeftover, onSelect: () => openPracticePanel(milestone.id, practice.id) },
+                                                                        { label: "Edit the title and instructions", icon: Pencil, hidden: isLeftover, onSelect: () => openPracticePanel(milestone.id, practice.id) },
                                                                         { ...scheduleAction(target, practice.isPublished), hidden: isLeftover || !canSchedule || practice.isPublished },
                                                                         { label: "Unpublish — hide from students", icon: EyeOff, hidden: isLeftover || !practice.isPublished, onSelect: () => togglePractice.mutate({ id: practice.id, next: false }) },
                                                                         {
@@ -1243,6 +1249,12 @@ export default function ModuleManagerPage({
                 milestoneLabel={milestoneName}
                 practice={panelPractice}
                 onSaved={refresh}
+                onCreated={(practiceDayId) =>
+                    // Like a new assignment: its videos, texts and links come next.
+                    toast.success("Practice day added.", {
+                        action: { label: "Add lessons", onClick: () => router.push(routes.practice(practiceDayId)) },
+                    })
+                }
             />
         </div>
     );

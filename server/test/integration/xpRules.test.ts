@@ -110,8 +110,14 @@ describe("XP rules", () => {
 
             expect((await handIn(assignmentId)).status).toBe(201);
             expect(await xpOn(courseId)).toBe(3);
-            expect((await handIn(assignmentId)).status).toBe(201);
-            expect(await xpOn(courseId)).toBe(3);
+            // Resubmitting before the results costs XP (utils/assignmentPenalties.ts) and never earns the award again:
+            // the 3 aren't given twice, and the penalty takes what there is — never below zero.
+            const again = await api()
+                .post(`/api/v1/assignments/${assignmentId}/submit`)
+                .set("Cookie", student.cookie)
+                .send({ content: "Done again", acceptPenalty: true });
+            expect(again.status).toBe(201);
+            expect(await xpOn(courseId)).toBe(0);
         });
 
         it("gives nothing for a late hand-in", async () => {
@@ -122,7 +128,7 @@ describe("XP rules", () => {
             );
 
             expect((await handIn(assignmentId)).status).toBe(201);
-            expect(await xpOn(courseId)).toBe(3);
+            expect(await xpOn(courseId)).toBe(0);
         });
     });
 });

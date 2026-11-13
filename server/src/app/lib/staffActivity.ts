@@ -28,11 +28,13 @@ type Subject =
     | "assignment"
     | "material"
     | "practice"
+    | "practiceMaterial"
     | "outlineWeek"
     | "outlineItem"
     | "supportSession"
     | "queueEntry"
     | "submission"
+    | "recheck"
     | "conceptualTopic"
     | "conceptualSession"
     | "announcement"
@@ -64,6 +66,7 @@ const lookups: Record<Subject, (id: string) => Promise<Found | null>> = {
     assignment: (id) => prisma.assignment.findUnique({ where: { id }, select: titleAndCourse }),
     material: (id) => prisma.assignmentMaterial.findUnique({ where: { id }, select: titleAndCourse }),
     practice: (id) => prisma.practiceDay.findUnique({ where: { id }, select: titleAndCourse }),
+    practiceMaterial: (id) => prisma.practiceMaterial.findUnique({ where: { id }, select: titleAndCourse }),
     outlineWeek: (id) => prisma.outlineWeek.findUnique({ where: { id }, select: titleAndCourse }),
     outlineItem: (id) => prisma.outlineItem.findUnique({ where: { id }, select: titleAndCourse }),
     supportSession: (id) => prisma.supportSession.findUnique({ where: { id }, select: titleAndCourse }),
@@ -76,6 +79,13 @@ const lookups: Record<Subject, (id: string) => Promise<Found | null>> = {
     },
     submission: async (id) => {
         const row = await prisma.assignmentSubmission.findUnique({
+            where: { id },
+            select: { student: { select: { name: true } }, assignment: { select: titleAndCourse } },
+        });
+        return row && { ...row.assignment, student: row.student.name };
+    },
+    recheck: async (id) => {
+        const row = await prisma.assignmentRecheck.findUnique({
             where: { id },
             select: { student: { select: { name: true } }, assignment: { select: titleAndCourse } },
         });
@@ -293,6 +303,21 @@ const CATALOGUE = {
             ...(typeof body.score === "number" ? { score: body.score } : {}),
         }),
     },
+    "assignment.publishResults": {
+        entity: "assignment",
+        about: { subject: "assignment", param: "assignmentId" },
+        summary: (c) => phrase("Published the results of", c.about?.title),
+    },
+    "recheck.decide": {
+        entity: "recheck",
+        about: { subject: "recheck", param: "recheckId" },
+        summary: (c) =>
+            `Decided ${c.about?.student ? `${c.about.student}'s` : "a"} recheck on ${quote(c.about?.title, "an assignment")}`,
+        detail: (body) => ({
+            outcome: String(body.outcome ?? ""),
+            ...(typeof body.score === "number" ? { score: body.score } : {}),
+        }),
+    },
     "submission.claim": {
         entity: "submission",
         about: { subject: "submission", param: "submissionId" },
@@ -338,6 +363,28 @@ const CATALOGUE = {
         entity: "practice",
         about: { subject: "practice", param: "practiceDayId" },
         summary: (c) => phrase("Deleted practice day", c.about?.title),
+    },
+    "practiceMaterial.create": {
+        entity: "practiceMaterial",
+        creates: true,
+        about: { subject: "practice", body: "practiceDayId" },
+        summary: (c) => `Added lesson ${quote(c.result?.title, "a lesson")} to ${quote(c.about?.title, "a practice day")}`,
+    },
+    "practiceMaterial.update": {
+        entity: "practiceMaterial",
+        about: { subject: "practiceMaterial", param: "materialId" },
+        summary: (c) => phrase("Edited practice day lesson", named(c)),
+        fields: true,
+    },
+    "practiceMaterial.delete": {
+        entity: "practiceMaterial",
+        about: { subject: "practiceMaterial", param: "materialId" },
+        summary: (c) => phrase("Deleted practice day lesson", c.about?.title),
+    },
+    "practiceMaterial.reorder": {
+        entity: "practice",
+        about: { subject: "practice", param: "practiceDayId" },
+        summary: (c) => `Reordered the lessons of ${quote(c.about?.title, "a practice day")}`,
     },
 
     // ---- Course outline

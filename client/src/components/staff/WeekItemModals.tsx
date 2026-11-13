@@ -301,7 +301,11 @@ const markdownHint = (
     </>
 );
 
-/** Add or edit one practice day of a week — text instructions only, no lessons. */
+/**
+ * Add or edit one practice day of a week — its title and written
+ * instructions. Its lessons (videos, texts, links) live on its own page, the
+ * way an assignment's do.
+ */
 export function PracticeDayModal({
     open,
     onOpenChange,
@@ -309,6 +313,7 @@ export function PracticeDayModal({
     milestoneLabel,
     practice,
     onSaved,
+    onCreated,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -317,6 +322,8 @@ export function PracticeDayModal({
     /** Set to edit that practice day; null to add one to `milestone`. */
     practice: PracticeDay | null;
     onSaved: () => void;
+    /** Called with the new practice day's id — to offer its lessons next. */
+    onCreated?: (practiceDayId: string) => void;
 }) {
     const weekName = milestone ? `${milestoneLabel} ${String(milestone.order).padStart(2, "0")}` : milestoneLabel;
 
@@ -326,7 +333,7 @@ export function PracticeDayModal({
             onOpenChange={onOpenChange}
             closeOnOutsideClick={false}
             title={practice ? "Edit practice day" : `New practice day — ${weekName}`}
-            description="A hands-on day with written instructions only — no lessons, nothing to submit or grade. Students follow them and mark the day done."
+            description="A hands-on day: written instructions, plus any videos, texts and links you add on its page. Nothing to submit or grade — students work through it and mark the day done."
         >
             {milestone && (
                 <PracticeEditor
@@ -335,6 +342,7 @@ export function PracticeDayModal({
                     practice={practice}
                     onDone={() => onOpenChange(false)}
                     onSaved={onSaved}
+                    onCreated={onCreated}
                 />
             )}
         </Modal>
@@ -346,11 +354,13 @@ function PracticeEditor({
     practice,
     onDone,
     onSaved,
+    onCreated,
 }: {
     milestoneId: string;
     practice: PracticeDay | null;
     onDone: () => void;
     onSaved: () => void;
+    onCreated?: (practiceDayId: string) => void;
 }) {
     const save = useMutation({
         mutationFn: (values: z.output<typeof practiceSchema>) =>
@@ -366,8 +376,10 @@ function PracticeEditor({
                     description: values.description || undefined,
                     instructions: values.instructions || undefined,
                 }),
-        onSuccess: () => {
-            toast.success(practice ? "Practice day saved." : "Practice day added.");
+        onSuccess: (result) => {
+            // A new one is announced by the caller with a way to its lessons, when it offers one.
+            if (!practice && result && onCreated) onCreated(result.id);
+            else toast.success(practice ? "Practice day saved." : "Practice day added.");
             onSaved();
             onDone();
         },

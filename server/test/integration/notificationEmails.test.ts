@@ -56,9 +56,12 @@ describe("notification emails", () => {
         });
     });
 
-    it("emails a student their mark", async () => {
+    it("emails a student their mark, once the results are out", async () => {
         const assignmentId = await createAssignment(courseId, milestoneId, { title: "Marked one", order: 2 });
         const handIn = await api().post(`/api/v1/assignments/${assignmentId}/submit`).set("Cookie", keen.cookie).send({ content: "Done" });
+        // Before the results are published a mark is kept back; after, it's sent as soon as it's given.
+        const published = await api().post(`/api/v1/assignments/manage/${assignmentId}/publish-results`).set("Cookie", mentor.cookie);
+        expect(published.status).toBe(200);
         sent.length = 0;
         const res = await api()
             .patch(`/api/v1/assignments/submissions/${handIn.body.data.id}/review`)

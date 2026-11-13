@@ -27,7 +27,6 @@ import {
     ListTree,
     Lock,
     Megaphone,
-    MessageSquare,
     NotebookPen,
     PlayCircle,
     RotateCcw,
@@ -43,18 +42,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
+import AssignmentResult from "@/components/learn/AssignmentResult";
+import LessonMaterials from "@/components/learn/LessonMaterials";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import RateCourse from "@/components/learn/RateCourse";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import QuizPane from "@/components/shared/QuizPane";
-import { Avatar } from "@/components/ui/avatar";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { infoAlert } from "@/lib/confirm";
+import { confirmAction, infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { linkify } from "@/lib/linkify";
@@ -1972,6 +1972,9 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [draft, setDraft] = useState("");
     const [files, setFiles] = useState<AttachedFile[]>([]);
+    // A resubmission that costs marks opens only when asked for — never by accident.
+    const [editing, setEditing] = useState(false);
+    useEffect(() => setEditing(false), [assignmentId]);
 
     const { data, isLoading, isError, error } = useQuery({
         queryKey: ["assignment", assignmentId],
@@ -1994,20 +1997,31 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
         setFiles(submittedFiles ? submittedFiles.split("\n").map(attachedFrom) : []);
     }, [assignmentId, submittedFiles]);
 
+    const refresh = () => {
+        void queryClient.invalidateQueries({ queryKey: ["assignment", assignmentId] });
+        void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
+    };
+
     const submit = useMutation({
-        mutationFn: (content: string) => {
+        mutationFn: ({ content, acceptPenalty }: { content: string; acceptPenalty: boolean }) => {
             const urlMatch = content.match(/https?:\/\/\S+/);
             const submissionUrl = urlMatch ? urlMatch[0].replace(/[.,;:!?)\]]+$/, "") : undefined;
             return assignmentService.submit(assignmentId, {
                 content: content || undefined,
                 submissionUrl,
                 fileUrls: files.map((file) => file.url),
+                acceptPenalty: acceptPenalty || undefined,
             });
         },
-        onSuccess: () => {
-            toast.success("Submitted — your mentor will review it shortly.");
-            void queryClient.invalidateQueries({ queryKey: ["assignment", assignmentId] });
-            void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
+        onSuccess: (result) => {
+            toast.success(
+                result?.penalty
+                    ? `Resubmitted — ${result.penalty.marks} marks${result.penalty.xp ? ` and ${result.penalty.xp} XP` : ""} were taken.`
+                    : "Submitted — your mentor will review it shortly.",
+            );
+            setEditing(false);
+            refresh();
+            void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
         },
         onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't submit your work.")),
     });
@@ -2033,7 +2047,16 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
         );
     }
 
-    const statusMeta = submission ? SUBMISSION_STATUS_META[submission.status] : null;
+    // Waiting, before the results: it may well be marked already — the mark just isn't out yet.
+    const statusMeta = submission
+        ? submission.status === "SUBMITTED" && !data.resultsPublished
+            ? { label: "Marks & feedback in progress", variant: "secondary" as const }
+            : SUBMISSION_STATUS_META[submission.status]
+        : null;
+    // A resubmission that costs marks and XP, before the results are out.
+    const paid = data.resubmitCost;
+    const showForm = data.canSubmit && (!paid || editing);
+    const resubmissions = submission?.adjustments.filter((entry) => entry.kind === "RESUBMIT_PENALTY").length ?? 0;
     const description = data.description ?? "";
     const isLongDescription = description.length > 420;
     const shownDescription =
@@ -2171,133 +2194,12 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
 
             {/* The assignment's own lessons — what to watch, read or open before
                 submitting. Visible whenever the assignment is. */}
-            {data.materials.length > 0 && (
-                <div className="space-y-4 rounded-xl border border-border bg-card p-6 shadow-sm">
-                    <h2 className="font-semibold">
-                        Lessons{" "}
-                        <span className="font-normal text-muted-foreground">· {data.materials.length}</span>
-                    </h2>
-                    <ol className="space-y-5">
-                        {data.materials.map((material, index) => (
-                            <li key={material.id} className="space-y-2">
-                                <p className="flex items-center gap-2 text-sm font-medium">
-                                    <span className="font-mono text-xs text-muted-foreground">
-                                        {String(index + 1).padStart(2, "0")}
-                                    </span>
-                                    {material.type === "VIDEO" ? (
-                                        <PlayCircle className="size-4 text-primary" aria-hidden />
-                                    ) : material.type === "TEXT" ? (
-                                        <FileText className="size-4 text-primary" aria-hidden />
-                                    ) : (
-                                        <LinkIcon className="size-4 text-primary" aria-hidden />
-                                    )}
-                                    {material.title}
-                                </p>
-                                {material.description && (
-                                    <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">
-                                        {linkify(material.description)}
-                                    </p>
-                                )}
+            <LessonMaterials materials={data.materials} intro="Watch, read or open these before you submit." />
 
-                                {material.type === "VIDEO" && material.youtubeVideoId && (
-                                    <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
-                                        <iframe
-                                            src={`https://www.youtube-nocookie.com/embed/${material.youtubeVideoId}?rel=0&modestbranding=1`}
-                                            title={material.title}
-                                            loading="lazy"
-                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                            className="size-full"
-                                        />
-                                    </div>
-                                )}
-
-                                {material.type === "TEXT" && material.content && (
-                                    <div
-                                        className="rounded-lg border border-border bg-secondary/20 p-4 text-[15px] leading-relaxed"
-                                        // Escaped and link-restricted by renderLightMarkdown.
-                                        dangerouslySetInnerHTML={{ __html: renderLightMarkdown(material.content) }}
-                                    />
-                                )}
-
-                                {material.type === "RESOURCE" && material.resourceUrl && (
-                                    <Button asChild variant="outline" size="sm">
-                                        <a href={material.resourceUrl} target="_blank" rel="noopener noreferrer">
-                                            Open resource · {hostnameOf(material.resourceUrl)}
-                                            <ExternalLink className="size-3.5" />
-                                        </a>
-                                    </Button>
-                                )}
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            )}
-
-            {/* Mentor feedback, whenever a verdict exists. */}
-            {submission?.reviewedAt && (
-                <div
-                    className={cn(
-                        "rounded-xl border p-6 shadow-sm",
-                        submission.status === "ACCEPTED"
-                            ? "border-success/40 bg-success/5"
-                            : "border-accent/40 bg-accent/5",
-                    )}
-                >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h2 className="flex items-center gap-2 font-semibold">
-                            <MessageSquare className="size-4" /> Mentor feedback
-                        </h2>
-                        {submission.score !== null && (
-                            <span className="text-lg font-bold">
-                                {submission.score}
-                                <span className="text-sm font-normal text-muted-foreground">
-                                    /{data.totalMarks}
-                                    {submission.maxScore !== null && ` · late, marked out of ${submission.maxScore}`}
-                                </span>
-                            </span>
-                        )}
-                    </div>
-
-                    {submission.feedback && (
-                        <p className="mt-3 whitespace-pre-line text-sm">{submission.feedback}</p>
-                    )}
-
-                    {(submission.rubricScores?.length ?? 0) > 0 && (
-                        <ul className="mt-4 divide-y divide-border/60 rounded-lg border border-border/60 bg-card/60 text-sm">
-                            {data.rubric.map((line) => {
-                                const given = submission.rubricScores?.find((score) => score.criterionId === line.id);
-                                if (!given) return null;
-                                return (
-                                    <li key={line.id} className="px-3 py-2">
-                                        <span className="flex items-baseline justify-between gap-4">
-                                            <span className="font-medium">{line.title}</span>
-                                            <span className="shrink-0 tabular-nums">
-                                                <span className="font-semibold">{given.points}</span>
-                                                <span className="text-muted-foreground"> / {line.maxPoints}</span>
-                                            </span>
-                                        </span>
-                                        {given.comment && <span className="mt-0.5 block text-xs text-muted-foreground">{given.comment}</span>}
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    )}
-
-                    {submission.reviewedBy && (
-                        <div className="mt-3 flex items-center gap-2 border-t border-border/50 pt-3">
-                            <Avatar
-                                src={submission.reviewedBy.image}
-                                name={submission.reviewedBy.name}
-                                size={28}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                                {submission.reviewedBy.name} · {formatDateTime(submission.reviewedAt)}
-                            </span>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* The verdict, whenever the student may see one: the final mark with
+                how it was reached and the rechecks, or the feedback on work sent
+                back. A mark waiting for the results shows nothing here. */}
+            {submission?.reviewedAt && <AssignmentResult assignment={data} submission={submission} onChanged={refresh} />}
 
             {/* Submission — a single box, the same way the reference platform
                 takes a link and a description as one free-text paste rather
@@ -2307,10 +2209,10 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
                     {submission ? "Your submission" : "Submit your work"}
                 </h2>
 
-                {data.canSubmit ? (
+                {showForm ? (
                     <form
                         className="space-y-4"
-                        onSubmit={(e) => {
+                        onSubmit={async (e) => {
                             e.preventDefault();
                             if (!draft.trim() && files.length === 0) {
                                 toast.error(
@@ -2318,7 +2220,19 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
                                 );
                                 return;
                             }
-                            submit.mutate(draft.trim());
+                            // What it costs, asked once more right before it's taken.
+                            if (
+                                paid &&
+                                !(await confirmAction({
+                                    title: `Resubmit for ${paid.marks} marks and ${paid.xp} XP?`,
+                                    text: `${paid.marks} marks come off your final mark and ${paid.xp} XP off your course XP. Your new work replaces the old one and goes back to your mentor.`,
+                                    confirmText: "Resubmit",
+                                    tone: "default",
+                                }))
+                            ) {
+                                return;
+                            }
+                            submit.mutate({ content: draft.trim(), acceptPenalty: Boolean(paid) });
                         }}
                     >
                         <textarea
@@ -2350,22 +2264,59 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
                             </p>
                         )}
 
-                        <Button type="submit" size="lg" isLoading={submit.isPending}>
-                            {submission ? "Resubmit" : "Submit assignment"}
-                        </Button>
+                        {paid && (
+                            <p className="flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning-ink">
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                                Resubmitting now costs {paid.marks} marks off your final mark and {paid.xp} XP. Your new work
+                                replaces the old one and goes back to your mentor.
+                            </p>
+                        )}
+
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="submit" size="lg" isLoading={submit.isPending}>
+                                {!submission ? "Submit assignment" : paid ? `Resubmit · −${paid.marks} marks, −${paid.xp} XP` : "Resubmit"}
+                            </Button>
+                            {paid && (
+                                <Button type="button" size="lg" variant="outline" onClick={() => setEditing(false)} disabled={submit.isPending}>
+                                    Cancel
+                                </Button>
+                            )}
+                        </div>
                     </form>
                 ) : (
                     <div className="space-y-4">
                         {submission?.status === "ACCEPTED" && (
                             <p className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success">
                                 <CheckCircle2 className="size-4" />
-                                This assignment has been accepted — nothing more to do.
+                                {data.canRecheck
+                                    ? "Your result is in. Think the mark is wrong? Ask for a recheck above."
+                                    : "Your result is in — nothing more to do."}
                             </p>
                         )}
 
-                        {submission?.status === "SUBMITTED" && (
+                        {submission?.status === "SUBMITTED" && !data.resultsPublished && (
+                            <div className="space-y-3 rounded-lg bg-secondary p-3 text-sm">
+                                <p className="text-muted-foreground">
+                                    Your mentor will mark it. Marks and feedback show here once the results are published —
+                                    you&apos;ll be notified.
+                                </p>
+                                {/* Before the results: resubmitting is open, at a cost. */}
+                                {paid && (
+                                    <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-3">
+                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+                                            <RotateCcw className="size-3.5" /> Resubmit
+                                        </Button>
+                                        <span className="text-xs text-muted-foreground">
+                                            Costs {paid.marks} marks and {paid.xp} XP each time, until the results are published.
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {submission?.status === "SUBMITTED" && data.resultsPublished && (
                             <p className="rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
-                                Waiting for your mentor. You&apos;ll be notified when there&apos;s feedback.
+                                The results are out, but yours hasn&apos;t been marked yet. It shows here as soon as it is.
                             </p>
                         )}
 
@@ -2388,6 +2339,9 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
                                 Submitted {formatDateTime(submission.submittedAt)}
                                 {submission.maxScore !== null &&
                                     ` · late, so marked out of ${submission.maxScore} of ${data.totalMarks}`}
+                                {/* What resubmitting has cost so far. */}
+                                {resubmissions > 0 &&
+                                    ` · resubmitted ${resubmissions} ${resubmissions === 1 ? "time" : "times"}: −${resubmissions * data.penalties.resubmitMarks} marks${submission.xpDeducted ? `, −${submission.xpDeducted} XP` : ""}`}
                             </p>
                         )}
 

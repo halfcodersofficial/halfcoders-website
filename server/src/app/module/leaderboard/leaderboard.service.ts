@@ -68,6 +68,56 @@ export const awardXp = async (db: Db, input: AwardXpInput): Promise<number> => {
     return points;
 };
 
+/**
+ * Takes XP back — a penalty, written to the ledger as a negative row and
+ * taken off the course total. Never takes the total below zero: it takes what
+ * there is, up to `points`, and returns how much that was (what to show the
+ * student). Idempotent on `(studentId, source, refId)` like an award; meant to
+ * run inside the transaction that caused it, so it checks for the row first
+ * rather than leaning on the unique index (a failed insert would abort the
+ * whole transaction — which the index still does, as a last line of defence).
+ */
+export const deductXp = async (
+    db: Db,
+    input: { studentId: string; courseId: string; source: XpSource; refId: string; points: number; note?: string },
+): Promise<number> => {
+    if (input.points <= 0) return 0;
+
+    const already = await db.xpTransaction.findUnique({
+        where: { studentId_source_refId: { studentId: input.studentId, source: input.source, refId: input.refId } },
+        select: { id: true },
+    });
+    if (already) return 0;
+
+    const total = await db.courseXp.findUnique({
+        where: { studentId_courseId: { studentId: input.studentId, courseId: input.courseId } },
+        select: { totalXp: true },
+    });
+    const amount = Math.min(input.points, Math.max(0, total?.totalXp ?? 0));
+    if (amount === 0) return 0;
+
+    // Conditional on there still being enough, so a deduction racing another can't drive the total negative.
+    const taken = await db.courseXp.updateMany({
+        where: { studentId: input.studentId, courseId: input.courseId, totalXp: { gte: amount } },
+        data: { totalXp: { decrement: amount } },
+    });
+    if (taken.count === 0) return 0;
+
+    await db.xpTransaction.create({
+        data: {
+            studentId: input.studentId,
+            courseId: input.courseId,
+            source: input.source,
+            refId: input.refId,
+            points: -amount,
+            note: input.note,
+        },
+    });
+
+    logger.update("XP deducted", { studentId: input.studentId, source: input.source, points: amount });
+    return amount;
+};
+
 const studentCard = {
     id: true,
     name: true,
@@ -182,6 +232,8 @@ const XP_GROUP: Record<XpSource, XpGroup> = {
     QUIZ_COMPLETE: "lessons",
     ASSIGNMENT_SUBMIT: "assignments",
     ASSIGNMENT_SCORE: "assignments",
+    // Negative rows: resubmitting takes XP back off what assignments earned.
+    ASSIGNMENT_RESUBMIT_PENALTY: "assignments",
     PRACTICE_COMPLETE: "practice",
     SUPPORT_PARTICIPATION: "support",
     MODULE_COMPLETE: "milestones",

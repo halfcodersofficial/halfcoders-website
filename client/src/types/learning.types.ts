@@ -7,7 +7,12 @@ export interface AssignmentSubmission {
     submissionUrl: string | null;
     fileUrls: string[];
     status: SubmissionStatus;
+    /** The mentor's mark, before penalties and refunds. Null while unmarked — or until the results are published. */
     score: number | null;
+    /** The mark that counts: `score` after every penalty and refund, never below zero. */
+    finalScore: number | null;
+    /** Marked, but kept back until the assignment's results are published. */
+    resultHidden: boolean;
     /** The most this submission can score — set when it came in late; null means full marks. */
     maxScore: number | null;
     feedback: string | null;
@@ -16,6 +21,53 @@ export interface AssignmentSubmission {
     reviewedBy: UserSummary | null;
     /** Points per rubric line, once reviewed with the rubric. */
     rubricScores?: { criterionId: string; points: number; comment: string | null }[];
+    /** How many times it's been handed in (1 = the first hand-in only). */
+    attempts: number;
+    /** The sum of every adjustment below — negative means marks taken. */
+    markAdjustment: number;
+    /** XP taken back for resubmitting, in all. */
+    xpDeducted: number;
+    /** A recheck is waiting for a mentor. */
+    recheckOpen: boolean;
+    adjustments: MarkAdjustment[];
+    /** Newest first. */
+    rechecks: AssignmentRecheck[];
+}
+
+export type MarkAdjustmentKind = "RESUBMIT_PENALTY" | "RECHECK_FEE" | "RECHECK_REFUND" | "RECHECK_PENALTY";
+
+/** One change to a hand-in's marks besides the mentor's own mark — `marks` is negative when taken. */
+export interface MarkAdjustment {
+    id: string;
+    kind: MarkAdjustmentKind;
+    marks: number;
+    note: string | null;
+    createdAt: string;
+}
+
+export type RecheckStatus = "PENDING" | "VALID" | "INVALID";
+
+/** A request to look at a published mark again, and what came of it. */
+export interface AssignmentRecheck {
+    id: string;
+    reason: string;
+    status: RecheckStatus;
+    scoreBefore: number;
+    /** Higher when VALID, the same when INVALID; null while waiting. */
+    scoreAfter: number | null;
+    reviewerNote: string | null;
+    reviewedAt: string | null;
+    createdAt: string;
+    /** On the staff side: who decided it. */
+    reviewedBy?: { id: string; name: string } | null;
+}
+
+/** What resubmitting and rechecking cost — the API's `ASSIGNMENT_PENALTIES`. */
+export interface AssignmentPenalties {
+    resubmitMarks: number;
+    resubmitXp: number;
+    recheckFeeMarks: number;
+    recheckInvalidMarks: number;
 }
 
 /**
@@ -27,8 +79,11 @@ export interface AssignmentLateTier {
     maxMarks: number;
 }
 
-/** A lesson that comes with an assignment — one of the three lesson types. */
-export interface AssignmentMaterial {
+/**
+ * A lesson that comes with an assignment or a practice day — one of the three
+ * lesson types (a video, a text, a link). Only the field matching `type` is set.
+ */
+export interface LessonMaterial {
     id: string;
     type: LessonType;
     title: string;
@@ -39,6 +94,12 @@ export interface AssignmentMaterial {
     content: string | null;
     resourceUrl: string | null;
 }
+
+/** A lesson that comes with an assignment. */
+export type AssignmentMaterial = LessonMaterial;
+
+/** A lesson that comes with a practice day. */
+export type PracticeMaterial = LessonMaterial;
 
 export interface StudentAssignment {
     id: string;
@@ -66,8 +127,16 @@ export interface StudentAssignment {
         maxScore: number | null;
         until: string | null;
     };
-    /** False once a submission is accepted or awaiting review, or once submissions have closed. */
+    /** Whether a hand-in can be made now: a first one in an open window, work sent back, or a (paid) resubmission before the results. */
     canSubmit: boolean;
+    /** Staff have published the results: marks show, resubmitting is closed, rechecks are open. */
+    resultsPublished: boolean;
+    resultsPublishedAt: string | null;
+    penalties: AssignmentPenalties;
+    /** What the next hand-in costs; null when it's free (the first, or one the mentor asked for). */
+    resubmitCost: { marks: number; xp: number } | null;
+    /** A published mark with no recheck already waiting. */
+    canRecheck: boolean;
 }
 
 export interface StudentPracticeDay {
@@ -78,6 +147,8 @@ export interface StudentPracticeDay {
     order: number;
     milestone: { id: string; title: string; order: number };
     course: { id: string; title: string; slug: string };
+    /** Its lessons — videos, texts and links — in order. */
+    materials: PracticeMaterial[];
     completion: { id: string; note: string | null; completedAt: string } | null;
     isCompleted: boolean;
 }

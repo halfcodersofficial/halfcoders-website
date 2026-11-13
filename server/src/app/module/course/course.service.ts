@@ -38,6 +38,7 @@ import { QueryBuilder } from "../../utils/QueryBuilder";
 import { generateCourseSlug } from "../../utils/slug";
 import { PRACTICE_COURSE_FILTER } from "../../utils/weekItems";
 import { formatDuration } from "../../utils/youtube";
+import { finalScore } from "../../utils/assignmentPenalties";
 import { createNotification } from "../notification/notification.service";
 import { announceSupportClosed, cancelOpenSessions } from "../support/support.service";
 import {
@@ -793,7 +794,7 @@ const getStaffCourseResults = async (user: IRequestUser, courseId: string) => {
                 submissions: {
                     orderBy: { submittedAt: "asc" },
                     select: {
-                        id: true, status: true, score: true, maxScore: true, submittedAt: true, reviewedAt: true,
+                        id: true, status: true, score: true, maxScore: true, markAdjustment: true, submittedAt: true, reviewedAt: true,
                         student: { select: STUDENT_NAME_ONLY },
                     },
                 },
@@ -838,8 +839,10 @@ const getStaffCourseResults = async (user: IRequestUser, courseId: string) => {
                     returned: submissions.filter((row) => row.status === SubmissionStatus.NEEDS_REVISION).length,
                     rejected: submissions.filter((row) => row.status === SubmissionStatus.REJECTED).length,
                 },
-                /** Of accepted work, as a percentage of the assignment's marks. */
-                averagePercent: average(scored.map((row) => ((row.score as number) / Math.max(1, assignment.totalMarks)) * 100)),
+                /** Of accepted work, as a percentage of the assignment's marks — final marks, after resubmission and recheck penalties. */
+                averagePercent: average(
+                    scored.map((row) => ((finalScore(row.score, row.markAdjustment) as number) / Math.max(1, assignment.totalMarks)) * 100),
+                ),
                 submissions,
             };
         }),

@@ -1,41 +1,47 @@
 /// Assignments hang off a milestone, not a module — the plan places two of
 /// them at the end of each milestone (plan §9, §16).
 model Assignment {
-  id           String    @id @default(uuid(7))
-  milestoneId  String
-  courseId     String
-  title        String
-  description  String
-  instructions String?
-  attachments  String[]  @default([])
-  totalMarks   Int       @default(100)
+  id                 String    @id @default(uuid(7))
+  milestoneId        String
+  courseId           String
+  title              String
+  description        String
+  instructions       String?
+  attachments        String[]  @default([])
+  totalMarks         Int       @default(100)
   /// Absolute deadline. Null means the assignment stays open indefinitely.
-  deadline     DateTime?
+  deadline           DateTime?
   /// Late-submission windows after `deadline`, as `[{ until, maxMarks }]`
   /// ordered by `until`: a first submission after the deadline but by a
   /// window's `until` can score at most that window's `maxMarks`, and the
   /// marks only go down window to window. After the last window (or the
   /// deadline, when there are none) submissions close. Set by the admin or
   /// mentor per assignment; validated in the assignment service.
-  lateTiers    Json      @default("[]")
-  order        Int
+  lateTiers          Json      @default("[]")
+  order              Int
   /// Place in the week's mixed list — see `CourseModule.position`.
-  position     Int       @default(0)
-  isPublished  Boolean   @default(false)
+  position           Int       @default(0)
+  isPublished        Boolean   @default(false)
   /// When set, the scheduler publishes it at this instant — same rules as
   /// `CourseModule.releaseAt`.
-  releaseAt    DateTime?
+  releaseAt          DateTime?
   /// Stamped once, the moment `isPublished` first flips true — see
   /// `CourseModule.publishedAt`.
-  publishedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  publishedAt        DateTime?
+  /// When staff published the results. Until then a marked hand-in's score
+  /// and feedback stay hidden from its student and they may resubmit (at a
+  /// cost — utils/assignmentPenalties.ts); from then on resubmitting closes
+  /// and a recheck can be asked for instead. One way: never cleared.
+  resultsPublishedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   milestone   Milestone              @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions AssignmentSubmission[]
   materials   AssignmentMaterial[]
   rubric      RubricCriterion[]
+  rechecks    AssignmentRecheck[]
 
   @@unique([milestoneId, order])
   @@index([courseId])
@@ -75,31 +81,47 @@ model AssignmentMaterial {
 }
 
 model AssignmentSubmission {
-  id            String           @id @default(uuid(7))
-  assignmentId  String
-  studentId     String
-  enrollmentId  String
-  content       String?
-  fileUrls      String[]         @default([])
+  id             String           @id @default(uuid(7))
+  assignmentId   String
+  studentId      String
+  enrollmentId   String
+  content        String?
+  fileUrls       String[]         @default([])
   /// Live demo / repository link — the common case for programming courses.
-  submissionUrl String?
-  status        SubmissionStatus @default(SUBMITTED)
-  score         Int?
+  submissionUrl  String?
+  status         SubmissionStatus @default(SUBMITTED)
+  score          Int?
   /// The most this submission can score, fixed at the first submission by the
   /// late window it landed in — a resubmission the mentor asked for never
   /// moves it. Null means it was on time: the full `totalMarks`.
-  maxScore      Int?
-  feedback      String?
-  reviewedById  String?
-  reviewedAt    DateTime?
-  submittedAt   DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  maxScore       Int?
+  feedback       String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  /// How many times it has been handed in: 1 for the first, +1 for every
+  /// resubmission. Also the guard that lets a resubmission (and its penalty)
+  /// happen once per attempt — see `submitAssignment`.
+  attempts       Int              @default(1)
+  /// The sum of every `SubmissionMarkAdjustment` on it (penalties negative,
+  /// refunds positive). The student's final mark is `score + markAdjustment`,
+  /// never below zero.
+  markAdjustment Int              @default(0)
+  /// XP taken back for resubmitting, in total (positive). The ledger rows
+  /// themselves are in `XpTransaction`.
+  xpDeducted     Int              @default(0)
+  /// A recheck is waiting for staff. Set and cleared in the same transaction
+  /// as the recheck itself, so only one can be open at a time.
+  recheckOpen    Boolean          @default(false)
+  submittedAt    DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  assignment   Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student      User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  reviewedBy   User?         @relation("SubmissionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  assignment   Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      User                       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment                 @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  reviewedBy   User?                      @relation("SubmissionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   rubricScores RubricScore[]
+  adjustments  SubmissionMarkAdjustment[]
+  rechecks     AssignmentRecheck[]
 
   /// One submission row per student per assignment — a resubmission updates
   /// the existing row so mentors never see duplicates in the review queue.
@@ -109,6 +131,64 @@ model AssignmentSubmission {
   @@index([status])
   @@index([assignmentId, status])
   @@map("assignment_submission")
+  @@schema("learning")
+}
+
+/// Every change made to a hand-in's marks other than the mentor's own mark —
+/// append-only, so the history of what was taken and given back is complete.
+/// `marks` is signed: a penalty is negative, a refund positive. Unique on
+/// (submission, kind, refId): the same event can never be counted twice.
+/// `refId` is the attempt number for a resubmission penalty, the recheck's id
+/// for the recheck ones.
+model SubmissionMarkAdjustment {
+  id           String             @id @default(uuid(7))
+  submissionId String
+  kind         MarkAdjustmentKind
+  marks        Int
+  refId        String
+  note         String?
+  createdAt    DateTime           @default(now())
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, kind, refId])
+  @@index([submissionId, createdAt])
+  @@map("submission_mark_adjustment")
+  @@schema("learning")
+}
+
+/// A student asking for their published mark to be looked at again. Asking
+/// costs `RECHECK_FEE` marks at once; staff then decide: VALID (the mark goes
+/// up and the fee comes back) or INVALID (the mark stands and a further
+/// penalty is taken). One open at a time per hand-in (`recheckOpen`); any
+/// number over time.
+model AssignmentRecheck {
+  id           String        @id @default(uuid(7))
+  submissionId String
+  /// Denormalised for the staff queue and access checks.
+  assignmentId String
+  studentId    String
+  reason       String
+  status       RecheckStatus @default(PENDING)
+  /// The mentor's mark when the recheck was asked for…
+  scoreBefore  Int
+  /// …and after the decision: higher when VALID, the same when INVALID.
+  scoreAfter   Int?
+  reviewerNote String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  assignment Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User                 @relation("RecheckStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?                @relation("RecheckReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, createdAt])
+  @@index([assignmentId, status])
+  @@index([status])
+  @@map("assignment_recheck")
   @@schema("learning")
 }
 
@@ -137,10 +217,41 @@ model PracticeDay {
   milestone   Milestone            @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
   completions PracticeCompletion[]
+  materials   PracticeMaterial[]
 
   @@unique([milestoneId, order])
   @@index([courseId])
   @@map("practice_day")
+  @@schema("learning")
+}
+
+/// The lessons that come with a practice day — a video, a written text or a
+/// link, the same three a module's lessons are — worked through before the
+/// student marks the day done. Like `AssignmentMaterial`: kept apart from
+/// module lessons (no course progress, no lesson totals), visible exactly
+/// when the practice day is, and only the field matching `type` is set.
+model PracticeMaterial {
+  id             String     @id @default(uuid(7))
+  practiceDayId  String
+  /// Denormalised from the practice day for access checks without a join.
+  courseId       String
+  type           LessonType @default(VIDEO)
+  title          String
+  description    String?
+  youtubeUrl     String?
+  youtubeVideoId String?
+  content        String?
+  resourceUrl    String?
+  order          Int
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  practiceDay PracticeDay @relation(fields: [practiceDayId], references: [id], onDelete: Cascade)
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceDayId, order])
+  @@index([courseId])
+  @@map("practice_material")
   @@schema("learning")
 }
 

@@ -20,10 +20,14 @@ import type { ApiMeta, SubmissionStatus } from "@/types/api.types";
 import type { ReviewQueueItem } from "@/types/mentor.types";
 import MarkingPane, { STATUS_META } from "./MarkingPane";
 
-export type ReviewTab = "WAITING" | "NEEDS_REVISION" | "ACCEPTED" | "REJECTED" | "ALL";
+export type ReviewTab = "WAITING" | "RECHECK" | "NEEDS_REVISION" | "ACCEPTED" | "REJECTED" | "ALL";
 
+const STATUSES: SubmissionStatus[] = ["SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "NEEDS_REVISION", "REJECTED"];
+
+/* "Rechecks" isn't a state: it's marked hand-ins with a recheck waiting (`?recheck=open`). */
 const TABS: { value: ReviewTab; label: string; statuses: SubmissionStatus[]; empty: string }[] = [
     { value: "WAITING", label: "Waiting", statuses: ["SUBMITTED", "UNDER_REVIEW"], empty: "You're all caught up — new hand-ins land here, oldest first." },
+    { value: "RECHECK", label: "Rechecks", statuses: [], empty: "No recheck requests waiting." },
     { value: "NEEDS_REVISION", label: "Changes asked", statuses: ["NEEDS_REVISION"], empty: "Nothing sent back for changes." },
     { value: "ACCEPTED", label: "Accepted", statuses: ["ACCEPTED"], empty: "Nothing accepted yet." },
     { value: "REJECTED", label: "Rejected", statuses: ["REJECTED"], empty: "Nothing rejected." },
@@ -91,8 +95,10 @@ export default function ReviewDesk({
     });
     const countOf = (value: ReviewTab) => {
         if (!counts.data) return null;
+        if (value === "RECHECK") return counts.data.RECHECK ?? 0;
         const statuses = TABS.find((entry) => entry.value === value)?.statuses ?? [];
-        const keys = statuses.length ? statuses : (Object.keys(counts.data) as SubmissionStatus[]);
+        // "All" is every state — not the recheck count, which counts some of them again.
+        const keys = statuses.length ? statuses : STATUSES;
         return keys.reduce((sum, key) => sum + (counts.data?.[key] ?? 0), 0);
     };
 
@@ -102,6 +108,7 @@ export default function ReviewDesk({
         queryFn: ({ pageParam }): Promise<Page> =>
             assignmentService.reviewQueue({
                 status: statuses.length ? statuses : undefined,
+                recheck: tab === "RECHECK" ? "open" : undefined,
                 sortOrder,
                 courseId: courseId || undefined,
                 assignmentId: assignmentId || undefined,
@@ -254,7 +261,9 @@ export default function ReviewDesk({
                                         <span
                                             className={cn(
                                                 "min-w-5 rounded-sm px-1.5 text-center text-[0.6875rem] font-semibold tabular-nums",
-                                                option.value === "WAITING" && count > 0 ? "bg-primary text-primary-foreground" : "bg-card/80 text-muted-foreground",
+                                                (option.value === "WAITING" || option.value === "RECHECK") && count > 0
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "bg-card/80 text-muted-foreground",
                                             )}
                                         >
                                             {count}
@@ -368,7 +377,11 @@ export default function ReviewDesk({
                                                 <span className="min-w-0 flex-1">
                                                     <span className="flex items-baseline gap-2">
                                                         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.student.name}</span>
-                                                        {pending ? (
+                                                        {item.recheckOpen ? (
+                                                            <span className="shrink-0 rounded-sm bg-amber-500/10 px-2 py-px text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-400">
+                                                                Recheck
+                                                            </span>
+                                                        ) : pending ? (
                                                             <span
                                                                 className={cn(
                                                                     "shrink-0 text-xs tabular-nums",

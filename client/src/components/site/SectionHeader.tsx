@@ -54,7 +54,7 @@ export default function SectionHeader({
                     {title}
                 </Heading>
                 {description && (
-                    <p lang={textLang(description)} className="mt-3 leading-relaxed text-muted-foreground sm:text-lg [.editor_&]:text-editor-muted">
+                    <p lang={textLang(description)} className="mt-3 leading-relaxed text-muted-foreground sm:text-lg in-[.editor]:text-editor-muted">
                         {description}
                     </p>
                 )}
