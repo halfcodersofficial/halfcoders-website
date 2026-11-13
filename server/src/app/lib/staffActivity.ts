@@ -33,6 +33,7 @@ type Subject =
     | "supportSession"
     | "queueEntry"
     | "submission"
+    | "recheck"
     | "conceptualTopic"
     | "conceptualSession"
     | "announcement"
@@ -76,6 +77,13 @@ const lookups: Record<Subject, (id: string) => Promise<Found | null>> = {
     },
     submission: async (id) => {
         const row = await prisma.assignmentSubmission.findUnique({
+            where: { id },
+            select: { student: { select: { name: true } }, assignment: { select: titleAndCourse } },
+        });
+        return row && { ...row.assignment, student: row.student.name };
+    },
+    recheck: async (id) => {
+        const row = await prisma.assignmentRecheck.findUnique({
             where: { id },
             select: { student: { select: { name: true } }, assignment: { select: titleAndCourse } },
         });
@@ -290,6 +298,21 @@ const CATALOGUE = {
             `Reviewed ${c.about?.student ? `${c.about.student}'s` : "a"} submission to ${quote(c.about?.title, "an assignment")}`,
         detail: (body) => ({
             status: String(body.status ?? ""),
+            ...(typeof body.score === "number" ? { score: body.score } : {}),
+        }),
+    },
+    "assignment.publishResults": {
+        entity: "assignment",
+        about: { subject: "assignment", param: "assignmentId" },
+        summary: (c) => phrase("Published the results of", c.about?.title),
+    },
+    "recheck.decide": {
+        entity: "recheck",
+        about: { subject: "recheck", param: "recheckId" },
+        summary: (c) =>
+            `Decided ${c.about?.student ? `${c.about.student}'s` : "a"} recheck on ${quote(c.about?.title, "an assignment")}`,
+        detail: (body) => ({
+            outcome: String(body.outcome ?? ""),
             ...(typeof body.score === "number" ? { score: body.score } : {}),
         }),
     },

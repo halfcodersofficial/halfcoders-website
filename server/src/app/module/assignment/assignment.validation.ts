@@ -50,6 +50,8 @@ export const submitAssignmentZodSchema = z
         content: z.string().trim().max(20000).optional(),
         submissionUrl: z.string().url("Enter a valid link").optional(),
         fileUrls: z.array(z.string().url()).max(10).optional(),
+        /** The student has seen and accepted what resubmitting costs — required whenever it costs anything. */
+        acceptPenalty: z.boolean().optional(),
     })
     // An empty submission is almost always a mis-click, and it would otherwise
     // sit in the mentor's review queue with nothing to review.
@@ -73,6 +75,44 @@ export const setRubricZodSchema = z.object({
 });
 
 export const claimSubmissionZodSchema = z.object({ takeOver: z.boolean().optional() });
+
+/** Why the student thinks their mark is wrong — staff read it before deciding. */
+export const requestRecheckZodSchema = z.object({
+    reason: z
+        .string()
+        .trim()
+        .min(10, "Say what you think was marked wrong — a sentence or two")
+        .max(2000, "Keep it under 2000 characters"),
+});
+
+/**
+ * A recheck's decision. VALID raises the mark — a new score, or the rubric's
+ * lines again; INVALID keeps it, and must say why.
+ */
+export const decideRecheckZodSchema = z
+    .object({
+        outcome: z.enum(["VALID", "INVALID"]),
+        score: z.number().int().min(0).max(1000).optional(),
+        rubric: z
+            .array(
+                z.object({
+                    criterionId: z.string().trim().min(1),
+                    points: z.number().int().min(0).max(1000),
+                    comment: z.string().trim().max(500).optional(),
+                }),
+            )
+            .max(30)
+            .optional(),
+        note: z.string().trim().max(5000).optional(),
+    })
+    .refine((data) => data.outcome !== "VALID" || data.score !== undefined || data.rubric !== undefined, {
+        path: ["score"],
+        message: "Give the new mark",
+    })
+    .refine((data) => data.outcome !== "INVALID" || Boolean(data.note), {
+        path: ["note"],
+        message: "Say why the mark stands",
+    });
 
 export const reviewSubmissionZodSchema = z
     .object({

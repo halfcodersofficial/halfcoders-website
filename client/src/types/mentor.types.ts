@@ -1,5 +1,5 @@
 import type { ClassMode, SubmissionStatus, SupportQueueStatus, SupportSessionStatus } from "./api.types";
-import type { AssignmentLateTier } from "./learning.types";
+import type { AssignmentLateTier, AssignmentPenalties, AssignmentRecheck } from "./learning.types";
 
 /** A student as a mentor sees them — by name, nothing more. */
 export interface StudentName {
@@ -170,6 +170,8 @@ export interface ReviewQueueItem {
         title: string;
         totalMarks: number;
         deadline: string | null;
+        /** Until set, marks stay hidden from students and they may still resubmit. */
+        resultsPublishedAt: string | null;
         course: { id: string; title: string; slug: string; milestoneLabel: string };
         milestone: { id: string; title: string; order: number };
         /** Its marking rubric, in order; empty when it's marked with a single score. */
@@ -177,6 +179,18 @@ export interface ReviewQueueItem {
     };
     /** Points given on each rubric line at the last review. */
     rubricScores: RubricScore[];
+    /** How many times it's been handed in (1 = the first hand-in only). */
+    attempts: number;
+    /** Penalties and refunds in all: the student's mark is `score + markAdjustment`, never below zero. */
+    markAdjustment: number;
+    /** XP taken back for resubmitting, in all. */
+    xpDeducted: number;
+    /** A recheck is waiting — decide it rather than reviewing again. */
+    recheckOpen: boolean;
+    /** Newest first; the open one, if any, on top. */
+    rechecks: AssignmentRecheck[];
+    /** What resubmitting and rechecking cost — the API's one source for the amounts. */
+    penalties: AssignmentPenalties;
 }
 
 /** One line of an assignment's marking rubric. */

@@ -3,6 +3,7 @@ import { CourseType, SubmissionStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
+import { forStudent } from "../../utils/assignmentPenalties";
 import { assertModuleUnlocked, requireCourseAccess } from "../../utils/courseAccess";
 import { isSequentialLearningEnabled } from "../../utils/platformSettings";
 import { PRACTICE_COURSE_FILTER } from "../../utils/weekItems";
@@ -66,7 +67,7 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                 prisma.milestoneProgress.findMany({ where: { enrollmentId: enrollment.id } }),
                 prisma.assignmentSubmission.findMany({
                     where: { enrollmentId: enrollment.id },
-                    select: { assignmentId: true, status: true, score: true, submittedAt: true },
+                    select: { assignmentId: true, status: true, score: true, markAdjustment: true, submittedAt: true },
                 }),
                 prisma.practiceCompletion.findMany({
                     where: { enrollmentId: enrollment.id },
@@ -170,7 +171,9 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
             progress: mProgress?.progress ?? 0,
             modules,
             assignments: milestone.assignments.map((assignment) => {
-                const submission = submissionByAssignment.get(assignment.id);
+                const found = submissionByAssignment.get(assignment.id);
+                // A mark still waiting for its results reads as waiting, here as everywhere a student looks.
+                const submission = found && forStudent(found, assignment.resultsPublishedAt);
                 return {
                     id: assignment.id,
                     title: assignment.title,
@@ -180,7 +183,8 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                     order: assignment.order,
                     position: assignment.position,
                     submissionStatus: submission?.status ?? null,
-                    score: submission?.score ?? null,
+                    // The final mark, after penalties and refunds.
+                    score: submission?.finalScore ?? null,
                     isSubmitted: Boolean(submission),
                     isAccepted: submission?.status === SubmissionStatus.ACCEPTED,
                 };

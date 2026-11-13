@@ -69,6 +69,8 @@ describe("marking rubrics", () => {
         });
         expect(res.status).toBe(200);
         expect(res.body.data.score).toBe(83);
+        // The breakdown reaches the student with the results.
+        expect((await api().post(`/api/v1/assignments/manage/${assignmentId}/publish-results`).set("Cookie", mentor.cookie)).status).toBe(200);
         const mine = await api().get(`/api/v1/assignments/${assignmentId}`).set("Cookie", student.cookie);
         expect(mine.body.data.submission.rubricScores).toHaveLength(3);
         expect(mine.body.data.submission.rubricScores.find((s: { criterionId: string }) => s.criterionId === lines[1].id).comment).toBe("Add tests next time");

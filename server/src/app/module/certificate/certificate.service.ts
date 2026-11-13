@@ -56,11 +56,13 @@ const checkEligibility = async (enrollmentId: string): Promise<EligibilityReport
             prisma.assignment.count({
                 where: { courseId: enrollment.courseId, isPublished: true },
             }),
+            // Only once the assignment's results are out: before that the
+            // student doesn't know it was accepted, and the certificate mustn't tell them.
             prisma.assignmentSubmission.count({
                 where: {
                     enrollmentId,
                     status: SubmissionStatus.ACCEPTED,
-                    assignment: { isPublished: true },
+                    assignment: { isPublished: true, resultsPublishedAt: { not: null } },
                 },
             }),
             // Only milestones that actually hold published modules count. A
@@ -93,7 +95,7 @@ const checkEligibility = async (enrollmentId: string): Promise<EligibilityReport
     }
     if (acceptedAssignments < requiredAssignments) {
         blockers.push(
-            `${acceptedAssignments} of ${requiredAssignments} assignment(s) accepted — all must be accepted.`,
+            `${acceptedAssignments} of ${requiredAssignments} assignment(s) accepted, with results published — all must be.`,
         );
     }
     if (completedMilestones < totalMilestones) {

@@ -384,10 +384,18 @@ export const assignmentService = {
     get: (assignmentId: string) =>
         httpClient.get<ApiResponse<StudentAssignment>>(`/assignments/${assignmentId}`).then(unwrap),
 
+    /** `acceptPenalty`: the student confirmed what resubmitting costs — required whenever it costs anything. */
     submit: (
         assignmentId: string,
-        payload: { content?: string; submissionUrl?: string; fileUrls?: string[] },
-    ) => httpClient.post(`/assignments/${assignmentId}/submit`, payload).then(() => undefined),
+        payload: { content?: string; submissionUrl?: string; fileUrls?: string[]; acceptPenalty?: boolean },
+    ) =>
+        httpClient
+            .post<ApiResponse<{ penalty: { marks: number; xp: number } | null }>>(`/assignments/${assignmentId}/submit`, payload)
+            .then(unwrap),
+
+    /** Once the results are out: ask for the mark to be looked at again. Costs marks at once. */
+    requestRecheck: (assignmentId: string, reason: string) =>
+        httpClient.post(`/assignments/${assignmentId}/recheck`, { reason }).then(() => undefined),
 
     /** A student's files for a hand-in, stored privately; attach the returned links when submitting. */
     uploadFiles: (assignmentId: string, files: File[], onProgress?: (percent: number) => void) => {
@@ -413,11 +421,30 @@ export const assignmentService = {
             .get<ApiResponse<ReviewQueueItem[]>>("/assignments/submissions/queue", { params })
             .then(unwrapList),
 
-    /** How many hand-ins are in each state, within the same course/assignment scope. */
+    /** How many hand-ins are in each state, within the same course/assignment scope — and `RECHECK`, how many have a recheck waiting. */
     reviewCounts: (params?: { courseId?: string; assignmentId?: string }) =>
         httpClient
-            .get<ApiResponse<Record<SubmissionStatus, number>>>("/assignments/submissions/queue/counts", { params })
+            .get<ApiResponse<Record<SubmissionStatus | "RECHECK", number>>>("/assignments/submissions/queue/counts", { params })
             .then(unwrap),
+
+    /** Every marked hand-in's result goes out to its student. One way — it can't be undone. */
+    publishResults: (assignmentId: string) =>
+        httpClient
+            .post<ApiResponse<{ resultsPublishedAt: string; notified: number; waiting: number }>>(
+                `/assignments/manage/${assignmentId}/publish-results`,
+            )
+            .then(unwrap),
+
+    /** VALID raises the mark (a new score, or the rubric again) and refunds the fee; INVALID keeps it, with a reason. */
+    decideRecheck: (
+        recheckId: string,
+        payload: {
+            outcome: "VALID" | "INVALID";
+            score?: number;
+            rubric?: { criterionId: string; points: number; comment?: string }[];
+            note?: string;
+        },
+    ) => httpClient.patch(`/assignments/rechecks/${recheckId}/decide`, payload).then(() => undefined),
 
     review: (
         submissionId: string,

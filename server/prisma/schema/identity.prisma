@@ -66,6 +66,7 @@ model User {
   moduleProgress      ModuleProgress[]
   milestoneProgress   MilestoneProgress[]
   submissions         AssignmentSubmission[]
+  rechecks            AssignmentRecheck[]      @relation("RecheckStudent")
   practiceCompletions PracticeCompletion[]
   quizAttempts        QuizAttempt[]
   certificates        Certificate[]
@@ -84,6 +85,7 @@ model User {
   mentoredCourses  CourseMentor[]
   supportSessions  SupportSession[]
   reviewedWork     AssignmentSubmission[] @relation("SubmissionReviewer")
+  reviewedRechecks AssignmentRecheck[]    @relation("RecheckReviewer")
   createdCourses   Course[]               @relation("CourseCreatedBy")
   sentNotification Notification[]         @relation("NotificationSender")
   createdQuizzes   Quiz[]                 @relation("QuizCreatedBy")

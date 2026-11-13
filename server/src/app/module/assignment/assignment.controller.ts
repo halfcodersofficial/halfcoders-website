@@ -170,6 +170,39 @@ const reviewSubmission = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const publishResults = catchAsync(async (req: Request, res: Response) => {
+    const result = await AssignmentService.publishResults(req.user, req.params.assignmentId as string);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Results published",
+        data: result,
+    });
+});
+
+const requestRecheck = catchAsync(async (req: Request, res: Response) => {
+    const result = await AssignmentService.requestRecheck(req.user, req.params.assignmentId as string, req.body);
+
+    sendResponse(res, {
+        httpStatusCode: status.CREATED,
+        success: true,
+        message: "Recheck requested",
+        data: result,
+    });
+});
+
+const decideRecheck = catchAsync(async (req: Request, res: Response) => {
+    const result = await AssignmentService.decideRecheck(req.user, req.params.recheckId as string, req.body);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Recheck decided",
+        data: result,
+    });
+});
+
 const getSubmissionById = catchAsync(async (req: Request, res: Response) => {
     const result = await AssignmentService.getSubmissionById(
         req.user,
@@ -201,4 +234,7 @@ export const AssignmentController = {
     getRubric,
     setRubric,
     getSubmissionById,
+    publishResults,
+    requestRecheck,
+    decideRecheck,
 };

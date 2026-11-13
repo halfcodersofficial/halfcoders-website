@@ -723,7 +723,9 @@ export type XpSource =
     | "MODULE_COMPLETE"
     | "MILESTONE_COMPLETE"
     | "COURSE_COMPLETE"
-    | "SUPPORT_PARTICIPATION";
+    | "SUPPORT_PARTICIPATION"
+    /** Negative: taken back for resubmitting an assignment before its results. */
+    | "ASSIGNMENT_RESUBMIT_PENALTY";
 
 /** One row of a student's XP ledger — backs the "how you earned this" panel. */
 export interface XpHistoryEntry {

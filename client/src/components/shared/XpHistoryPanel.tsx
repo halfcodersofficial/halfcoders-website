@@ -11,6 +11,7 @@ import {
     Flag,
     HelpCircle,
     Info,
+    RotateCcw,
     Trophy,
     X,
     type LucideIcon,
@@ -18,7 +19,7 @@ import {
 import { useState } from "react";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { leaderboardService } from "@/services";
 import type { XpHistoryEntry, XpSource } from "@/types/domain.types";
 
@@ -33,6 +34,7 @@ const SOURCE_META: Record<XpSource, { label: string; icon: LucideIcon }> = {
     MILESTONE_COMPLETE: { label: "Milestone completed", icon: Flag },
     COURSE_COMPLETE: { label: "Course completed", icon: Trophy },
     SUPPORT_PARTICIPATION: { label: "Support session attended", icon: CalendarClock },
+    ASSIGNMENT_RESUBMIT_PENALTY: { label: "Assignment resubmitted before results", icon: RotateCcw },
 };
 
 /** The default amounts (the API's `DEFAULT_XP_RULES`). */
@@ -139,7 +141,10 @@ function XpHistoryRow({ entry }: { entry: XpHistoryEntry }) {
                 {entry.note && <p className="text-xs text-muted-foreground">{entry.note}</p>}
                 <p className="mt-0.5 text-xs text-muted-foreground">{formatDateTime(entry.createdAt)}</p>
             </div>
-            <span className="shrink-0 text-sm font-semibold text-success">+{entry.points}</span>
+            {/* A penalty is a negative row: shown as taken, not earned. */}
+            <span className={cn("shrink-0 text-sm font-semibold tabular-nums", entry.points < 0 ? "text-destructive" : "text-success")}>
+                {entry.points < 0 ? `−${Math.abs(entry.points)}` : `+${entry.points}`}
+            </span>
         </li>
     );
 }

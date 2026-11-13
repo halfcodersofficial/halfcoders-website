@@ -1,7 +1,23 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check, Copy, CornerDownLeft, ExternalLink, Eye, FileText, Github, Hand, Link2, MessageSquareWarning, Send, Undo2, X, type LucideIcon } from "lucide-react";
+import {
+    Check,
+    Copy,
+    CornerDownLeft,
+    ExternalLink,
+    Eye,
+    FileText,
+    Github,
+    Hand,
+    Link2,
+    Megaphone,
+    MessageSquareWarning,
+    Send,
+    Undo2,
+    X,
+    type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
@@ -23,6 +39,7 @@ import { numericField, optionalTextField } from "@/lib/validation";
 import { assignmentService } from "@/services";
 import type { SubmissionStatus } from "@/types/api.types";
 import type { ReviewQueueItem } from "@/types/mentor.types";
+import RecheckPanel from "./RecheckPanel";
 
 export const STATUS_META: Record<SubmissionStatus, { label: string; tone: string }> = {
     SUBMITTED: { label: "Waiting", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
@@ -32,10 +49,15 @@ export const STATUS_META: Record<SubmissionStatus, { label: string; tone: string
     REJECTED: { label: "Rejected", tone: "bg-destructive/10 text-destructive" },
 };
 
-const DECISIONS: { value: SubmissionStatus; label: string; icon: LucideIcon; hint: (week: string) => string }[] = [
-    { value: "ACCEPTED", label: "Accept", icon: Check, hint: (week) => `Awards the score and the ${week}'s XP.` },
-    { value: "NEEDS_REVISION", label: "Ask for changes", icon: MessageSquareWarning, hint: () => "They can edit and resubmit." },
-    { value: "REJECTED", label: "Reject", icon: X, hint: () => "Closes the submission." },
+const DECISIONS: { value: SubmissionStatus; label: string; icon: LucideIcon; hint: (published: boolean) => string }[] = [
+    {
+        value: "ACCEPTED",
+        label: "Accept",
+        icon: Check,
+        hint: (published) => (published ? "Gives the mark — they see it straight away." : "Gives the mark — they see it when you publish the results."),
+    },
+    { value: "NEEDS_REVISION", label: "Ask for changes", icon: MessageSquareWarning, hint: () => "They can edit and resubmit, free." },
+    { value: "REJECTED", label: "Reject", icon: X, hint: () => "Not accepted — they can resubmit, free." },
 ];
 
 /**
@@ -138,6 +160,34 @@ export default function MarkingPane({
         if (ok) claim.mutate("takeOver");
     };
 
+    // The assignment's results: hidden from every student until published, all at once.
+    const published = Boolean(assignment.resultsPublishedAt);
+    const publish = useMutation({
+        mutationFn: () => assignmentService.publishResults(assignment.id),
+        onSuccess: (result) => {
+            toast.success(
+                `Results published — ${result.notified} ${result.notified === 1 ? "student" : "students"} notified.${
+                    result.waiting ? ` ${result.waiting} still unmarked will show as soon as they're marked.` : ""
+                }`,
+            );
+            onClaimChange();
+        },
+        onError: (error) => {
+            toast.error(getApiErrorMessage(error, "Couldn't publish the results."));
+            onClaimChange();
+        },
+    });
+    const publishResults = async () => {
+        const ok = await confirmAction({
+            title: `Publish the results of “${assignment.title}”?`,
+            text: "Every marked hand-in's mark and feedback go to its student now. Resubmitting closes for everyone, and rechecks open. This can't be undone.",
+            confirmText: "Publish results",
+            tone: "default",
+        });
+        if (ok) publish.mutate();
+    };
+    const final = submission.score === null ? null : Math.max(0, submission.score + submission.markAdjustment);
+
     // The rubric's lines, scored one by one — the mark is their sum (scaled to a late window's marks).
     const rubric = assignment.rubric ?? [];
     const [points, setPoints] = useState<Record<string, string>>(() =>
@@ -208,9 +258,14 @@ export default function MarkingPane({
                         {pending && (
                             <span className={cn(wait.days >= 2 && "font-medium text-amber-700 dark:text-amber-400")}> · waiting {wait.text}</span>
                         )}
+                        {submission.attempts > 1 && <span> · attempt {submission.attempts}</span>}
                     </p>
                 </div>
-                <span className={cn("rounded-sm px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>{STATUS_META[submission.status].label}</span>
+                {submission.recheckOpen ? (
+                    <span className="rounded-sm bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">Recheck</span>
+                ) : (
+                    <span className={cn("rounded-sm px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>{STATUS_META[submission.status].label}</span>
+                )}
             </header>
 
             <div className={cn("space-y-5", compact ? "mt-4" : "px-6 py-5")}>
@@ -230,9 +285,46 @@ export default function MarkingPane({
                             Read the brief
                         </Link>
                     </p>
+                    {/* The results, for the whole assignment: hidden until published, then out for everyone. */}
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/70 pt-3 text-xs">
+                        {published ? (
+                            <span className="text-muted-foreground">
+                                <span className="font-medium text-success">Results published</span> {formatDateTime(assignment.resultsPublishedAt!)} — students see
+                                their marks; rechecks are open.
+                            </span>
+                        ) : (
+                            <>
+                                <span className="min-w-0 flex-1 text-muted-foreground">
+                                    <span className="font-medium text-foreground">Results not published.</span> Students don&apos;t see marks yet, and can
+                                    still resubmit (at a cost).
+                                </span>
+                                <Button type="button" size="sm" variant="brand-outline" onClick={() => void publishResults()} isLoading={publish.isPending}>
+                                    {!publish.isPending && <Megaphone />} Publish results
+                                </Button>
+                            </>
+                        )}
+                    </div>
                 </section>
 
                 <Work submission={submission} />
+
+                {/* What resubmitting and rechecks have cost — the student's mark is the mentor's mark minus this. */}
+                {submission.markAdjustment !== 0 && (
+                    <p className="rounded-card bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground">
+                        Penalties and refunds so far:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">
+                            {submission.markAdjustment > 0 ? "+" : "−"}
+                            {Math.abs(submission.markAdjustment)} marks
+                        </span>
+                        {submission.xpDeducted > 0 && <span className="tabular-nums"> · −{submission.xpDeducted} XP</span>}
+                        {final !== null && (
+                            <span>
+                                {" "}
+                                · their mark: <span className="font-semibold tabular-nums text-foreground">{final}</span> / {total}
+                            </span>
+                        )}
+                    </p>
+                )}
 
                 {!pending && submission.reviewedAt && (
                     <section aria-label="The last review" className="rounded-card border border-dashed border-border px-4 py-3 text-sm">
@@ -249,8 +341,34 @@ export default function MarkingPane({
                         {submission.feedback && <p className="mt-1.5 whitespace-pre-line text-muted-foreground">“{submission.feedback}”</p>}
                     </section>
                 )}
+
+                {/* Earlier rechecks, decided — the open one is decided below. */}
+                {submission.rechecks.some((entry) => entry.status !== "PENDING") && (
+                    <section aria-label="Earlier rechecks" className="space-y-2">
+                        <h3 className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Earlier rechecks</h3>
+                        <ul className="space-y-2">
+                            {submission.rechecks
+                                .filter((entry) => entry.status !== "PENDING")
+                                .map((entry) => (
+                                    <li key={entry.id} className="rounded-card border border-border px-3.5 py-2.5 text-xs">
+                                        <p className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                                            <span className={cn("font-semibold", entry.status === "VALID" ? "text-success" : "text-destructive")}>
+                                                {entry.status === "VALID" ? `Raised ${entry.scoreBefore} → ${entry.scoreAfter}` : `Kept at ${entry.scoreBefore}`}
+                                            </span>
+                                            {entry.reviewedAt && <span>· {formatDateTime(entry.reviewedAt)}</span>}
+                                            {entry.reviewedBy && <span>· {entry.reviewedBy.name}</span>}
+                                        </p>
+                                        <p className="mt-1 text-muted-foreground">“{entry.reason}”</p>
+                                    </li>
+                                ))}
+                        </ul>
+                    </section>
+                )}
             </div>
 
+            {submission.recheckOpen ? (
+                <RecheckPanel submission={submission} onSaved={onSaved} onDirtyChange={onDirtyChange} compact={compact} />
+            ) : (
             <form className={cn("space-y-4 border-t border-border", compact ? "mt-5 pt-5" : "px-6 py-5")} noValidate onSubmit={form.handleSubmit} onKeyDown={onKeyDown}>
                 {pending && (
                     <div
@@ -346,7 +464,7 @@ export default function MarkingPane({
                                             />
                                             {option.label}
                                         </span>
-                                        <span className="text-xs text-muted-foreground">{option.hint(assignment.course.milestoneLabel.toLowerCase())}</span>
+                                        <span className="text-xs text-muted-foreground">{option.hint(published)}</span>
                                     </label>
                                 );
                             })}
@@ -462,6 +580,7 @@ export default function MarkingPane({
                     </div>
                 </fieldset>
             </form>
+            )}
         </article>
     );
 }

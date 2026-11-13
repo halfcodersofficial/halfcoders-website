@@ -46,6 +46,7 @@ export const XP_SOURCE_LABEL: Record<string, string> = {
     MILESTONE_COMPLETE: "Weeks finished",
     COURSE_COMPLETE: "Courses finished",
     SUPPORT_PARTICIPATION: "Support sessions",
+    ASSIGNMENT_RESUBMIT_PENALTY: "Resubmission penalties",
 };
 
 /** "12:05" from seconds, or "1:02:05" past an hour. */

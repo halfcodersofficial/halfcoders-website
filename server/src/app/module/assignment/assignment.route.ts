@@ -9,6 +9,8 @@ import {
     createAssignmentZodSchema,
     reorderAssignmentsZodSchema,
     claimSubmissionZodSchema,
+    decideRecheckZodSchema,
+    requestRecheckZodSchema,
     reviewSubmissionZodSchema,
     setRubricZodSchema,
     submitAssignmentZodSchema,
@@ -56,6 +58,23 @@ router.put(
     trackActivity("assignment.rubric"),
     validateRequest(setRubricZodSchema),
     AssignmentController.setRubric,
+);
+
+// Results go out to every student at once — one way, never undone.
+router.post(
+    "/manage/:assignmentId/publish-results",
+    checkAuth(...STAFF),
+    trackActivity("assignment.publishResults"),
+    AssignmentController.publishResults,
+);
+
+// A recheck's decision: the mark raised (fee refunded), or kept (a further penalty).
+router.patch(
+    "/rechecks/:recheckId/decide",
+    checkAuth(...STAFF),
+    trackActivity("recheck.decide"),
+    validateRequest(decideRecheckZodSchema),
+    AssignmentController.decideRecheck,
 );
 
 router.get("/submissions/queue", checkAuth(...STAFF), AssignmentController.getReviewQueue);
@@ -106,6 +125,14 @@ router.post(
     checkAuth(Role.STUDENT),
     validateRequest(submitAssignmentZodSchema),
     AssignmentController.submitAssignment,
+);
+
+// Once the results are out: ask for the mark to be looked at again (costs marks at once).
+router.post(
+    "/:assignmentId/recheck",
+    checkAuth(Role.STUDENT),
+    validateRequest(requestRecheckZodSchema),
+    AssignmentController.requestRecheck,
 );
 
 export const AssignmentRoutes = router;

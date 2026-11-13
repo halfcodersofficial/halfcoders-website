@@ -155,6 +155,30 @@ enum SubmissionStatus {
   @@schema("learning")
 }
 
+/// What changed a hand-in's marks (`SubmissionMarkAdjustment`).
+enum MarkAdjustmentKind {
+  /// Resubmitting before the results were published.
+  RESUBMIT_PENALTY
+  /// Taken when a recheck is asked for.
+  RECHECK_FEE
+  /// The fee given back: the recheck found the mark too low.
+  RECHECK_REFUND
+  /// Taken on top of the fee: the recheck found the mark was right.
+  RECHECK_PENALTY
+
+  @@schema("learning")
+}
+
+enum RecheckStatus {
+  PENDING
+  /// The mark was too low — raised, and the fee refunded.
+  VALID
+  /// The mark was right — it stands, and a further penalty is taken.
+  INVALID
+
+  @@schema("learning")
+}
+
 enum SupportSessionStatus {
   SCHEDULED
   LIVE
@@ -215,6 +239,9 @@ enum XpSource {
   MILESTONE_COMPLETE
   COURSE_COMPLETE
   SUPPORT_PARTICIPATION
+  /// Taken back (negative points) for resubmitting an assignment before its
+  /// results were published.
+  ASSIGNMENT_RESUBMIT_PENALTY
 
   @@schema("learning")
 }
