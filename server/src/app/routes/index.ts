@@ -27,6 +27,7 @@ import { NotificationRoutes } from "../module/notification/notification.route";
 import { OrderRoutes } from "../module/order/order.route";
 import { OutlineRoutes } from "../module/outline/outline.route";
 import { PracticeRoutes } from "../module/practice/practice.route";
+import { PracticeMaterialRoutes } from "../module/practiceMaterial/practiceMaterial.route";
 import { ProgressRoutes } from "../module/progress/progress.route";
 import { QuizRoutes } from "../module/quiz/quiz.route";
 import { SettingsRoutes } from "../module/settings/settings.route";
@@ -55,6 +56,7 @@ const moduleRoutes = [
     { path: "/assignments", route: AssignmentRoutes },
     { path: "/assignment-materials", route: AssignmentMaterialRoutes },
     { path: "/practice-days", route: PracticeRoutes },
+    { path: "/practice-materials", route: PracticeMaterialRoutes },
     { path: "/quizzes", route: QuizRoutes },
     { path: "/outline", route: OutlineRoutes },
     { path: "/enrollments", route: EnrollmentRoutes },

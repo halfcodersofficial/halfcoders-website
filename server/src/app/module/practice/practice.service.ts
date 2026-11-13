@@ -145,12 +145,24 @@ const deletePracticeDay = async (user: IRequestUser, practiceDayId: string) => {
     });
 };
 
+/**
+ * One practice day as the student sees it: what to do, its lessons (videos,
+ * texts, links — visible exactly when the day is), and whether they've marked
+ * it done.
+ */
 const getPracticeDayForStudent = async (user: IRequestUser, practiceDayId: string) => {
     const practiceDay = await prisma.practiceDay.findFirst({
         where: { id: practiceDayId, isPublished: true, ...PRACTICE_COURSE_FILTER },
         include: {
             milestone: { select: { id: true, title: true, order: true } },
             course: { select: { id: true, title: true, slug: true } },
+            materials: {
+                orderBy: { order: "asc" },
+                select: {
+                    id: true, type: true, title: true, description: true, order: true,
+                    youtubeUrl: true, youtubeVideoId: true, content: true, resourceUrl: true,
+                },
+            },
         },
     });
     if (!practiceDay) throw new AppError(status.NOT_FOUND, "Practice day not found.");

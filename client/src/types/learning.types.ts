@@ -79,8 +79,11 @@ export interface AssignmentLateTier {
     maxMarks: number;
 }
 
-/** A lesson that comes with an assignment — one of the three lesson types. */
-export interface AssignmentMaterial {
+/**
+ * A lesson that comes with an assignment or a practice day — one of the three
+ * lesson types (a video, a text, a link). Only the field matching `type` is set.
+ */
+export interface LessonMaterial {
     id: string;
     type: LessonType;
     title: string;
@@ -91,6 +94,12 @@ export interface AssignmentMaterial {
     content: string | null;
     resourceUrl: string | null;
 }
+
+/** A lesson that comes with an assignment. */
+export type AssignmentMaterial = LessonMaterial;
+
+/** A lesson that comes with a practice day. */
+export type PracticeMaterial = LessonMaterial;
 
 export interface StudentAssignment {
     id: string;
@@ -138,6 +147,8 @@ export interface StudentPracticeDay {
     order: number;
     milestone: { id: string; title: string; order: number };
     course: { id: string; title: string; slug: string };
+    /** Its lessons — videos, texts and links — in order. */
+    materials: PracticeMaterial[];
     completion: { id: string; note: string | null; completedAt: string } | null;
     isCompleted: boolean;
 }

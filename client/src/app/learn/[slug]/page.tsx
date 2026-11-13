@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
 import AssignmentResult from "@/components/learn/AssignmentResult";
+import LessonMaterials from "@/components/learn/LessonMaterials";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import RateCourse from "@/components/learn/RateCourse";
@@ -2193,68 +2194,7 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
 
             {/* The assignment's own lessons — what to watch, read or open before
                 submitting. Visible whenever the assignment is. */}
-            {data.materials.length > 0 && (
-                <div className="space-y-4 rounded-xl border border-border bg-card p-6 shadow-sm">
-                    <h2 className="font-semibold">
-                        Lessons{" "}
-                        <span className="font-normal text-muted-foreground">· {data.materials.length}</span>
-                    </h2>
-                    <ol className="space-y-5">
-                        {data.materials.map((material, index) => (
-                            <li key={material.id} className="space-y-2">
-                                <p className="flex items-center gap-2 text-sm font-medium">
-                                    <span className="font-mono text-xs text-muted-foreground">
-                                        {String(index + 1).padStart(2, "0")}
-                                    </span>
-                                    {material.type === "VIDEO" ? (
-                                        <PlayCircle className="size-4 text-primary" aria-hidden />
-                                    ) : material.type === "TEXT" ? (
-                                        <FileText className="size-4 text-primary" aria-hidden />
-                                    ) : (
-                                        <LinkIcon className="size-4 text-primary" aria-hidden />
-                                    )}
-                                    {material.title}
-                                </p>
-                                {material.description && (
-                                    <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">
-                                        {linkify(material.description)}
-                                    </p>
-                                )}
-
-                                {material.type === "VIDEO" && material.youtubeVideoId && (
-                                    <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
-                                        <iframe
-                                            src={`https://www.youtube-nocookie.com/embed/${material.youtubeVideoId}?rel=0&modestbranding=1`}
-                                            title={material.title}
-                                            loading="lazy"
-                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                            className="size-full"
-                                        />
-                                    </div>
-                                )}
-
-                                {material.type === "TEXT" && material.content && (
-                                    <div
-                                        className="rounded-lg border border-border bg-secondary/20 p-4 text-[15px] leading-relaxed"
-                                        // Escaped and link-restricted by renderLightMarkdown.
-                                        dangerouslySetInnerHTML={{ __html: renderLightMarkdown(material.content) }}
-                                    />
-                                )}
-
-                                {material.type === "RESOURCE" && material.resourceUrl && (
-                                    <Button asChild variant="outline" size="sm">
-                                        <a href={material.resourceUrl} target="_blank" rel="noopener noreferrer">
-                                            Open resource · {hostnameOf(material.resourceUrl)}
-                                            <ExternalLink className="size-3.5" />
-                                        </a>
-                                    </Button>
-                                )}
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            )}
+            <LessonMaterials materials={data.materials} intro="Watch, read or open these before you submit." />
 
             {/* The verdict, whenever the student may see one: the final mark with
                 how it was reached and the rechecks, or the feedback on work sent

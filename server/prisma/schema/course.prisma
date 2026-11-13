@@ -171,6 +171,7 @@ model Course {
   outlineWeeks        OutlineWeek[]
   outlineItems        OutlineItem[]
   assignmentMaterials AssignmentMaterial[]
+  practiceMaterials   PracticeMaterial[]
   staffActivities     StaffActivity[]
   conceptualTopics    ConceptualTopic[]
   conceptualSessions  ConceptualSession[]

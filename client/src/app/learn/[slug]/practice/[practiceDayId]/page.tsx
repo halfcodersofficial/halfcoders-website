@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import LessonMaterials from "@/components/learn/LessonMaterials";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,10 @@ export default function PracticeDayPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* The day's own lessons — videos, texts and links to work through
+                    while practising. Visible whenever the practice day is. */}
+                <LessonMaterials materials={data.materials ?? []} intro="Watch, read and open these while you practise." />
 
                 {/* Practice is self-marked — there's nothing to hand in and no
                     mentor review, which is the point of it being practice. */}

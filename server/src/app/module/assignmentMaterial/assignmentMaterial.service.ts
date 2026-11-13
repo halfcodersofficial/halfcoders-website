@@ -1,12 +1,11 @@
 import status from "http-status";
-import { LessonType } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
 import { assertCanManageCourse } from "../../utils/courseAccess";
+import { type MaterialFields, materialTypeFields, materialUpdateData } from "../../utils/lessonMaterial";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
-import { requireYoutubeVideoId } from "../../utils/youtube";
 
 /**
  * The lessons that come with an assignment — authoring side. Students read
@@ -25,25 +24,10 @@ const loadAssignmentForWrite = async (user: IRequestUser, assignmentId: string) 
     return assignment;
 };
 
-type CreatePayload = {
+type CreatePayload = MaterialFields & {
     assignmentId: string;
-    type: LessonType;
     title: string;
     description?: string;
-    youtubeUrl?: string;
-    content?: string;
-    resourceUrl?: string;
-};
-
-/** Only the columns this type uses — same rule as module lessons. */
-const typeFields = (payload: CreatePayload) => {
-    if (payload.type === LessonType.TEXT) return { type: payload.type, content: payload.content };
-    if (payload.type === LessonType.RESOURCE) return { type: payload.type, resourceUrl: payload.resourceUrl };
-    return {
-        type: payload.type,
-        youtubeUrl: payload.youtubeUrl,
-        youtubeVideoId: requireYoutubeVideoId(payload.youtubeUrl as string),
-    };
 };
 
 const getMaterials = async (user: IRequestUser, assignmentId: string) => {
@@ -53,7 +37,7 @@ const getMaterials = async (user: IRequestUser, assignmentId: string) => {
 
 const createMaterial = async (user: IRequestUser, payload: CreatePayload) => {
     const assignment = await loadAssignmentForWrite(user, payload.assignmentId);
-    const fields = typeFields(payload);
+    const fields = materialTypeFields(payload);
 
     // Appended; positions stay 1..n because delete and reorder close gaps.
     return prisma.$transaction(async (tx) => {
@@ -89,24 +73,10 @@ const updateMaterial = async (
 ) => {
     const material = await loadMaterialForWrite(user, materialId);
 
-    // The type is fixed at creation — a field belonging to another type is a
-    // client bug, refused rather than stored alongside the real one.
-    if (payload.youtubeUrl !== undefined && material.type !== LessonType.VIDEO) {
-        throw new AppError(status.BAD_REQUEST, "Only a video lesson has a YouTube link.");
-    }
-    if (payload.content !== undefined && material.type !== LessonType.TEXT) {
-        throw new AppError(status.BAD_REQUEST, "Only a text lesson has lesson text.");
-    }
-    if (payload.resourceUrl !== undefined && material.type !== LessonType.RESOURCE) {
-        throw new AppError(status.BAD_REQUEST, "Only a resource lesson has a resource link.");
-    }
-
+    // The type is fixed at creation — see `materialUpdateData`.
     return prisma.assignmentMaterial.update({
         where: { id: materialId },
-        data: {
-            ...payload,
-            ...(payload.youtubeUrl !== undefined ? { youtubeVideoId: requireYoutubeVideoId(payload.youtubeUrl) } : {}),
-        },
+        data: materialUpdateData(material.type, payload),
     });
 };
 

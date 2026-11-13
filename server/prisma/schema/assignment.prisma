@@ -217,10 +217,41 @@ model PracticeDay {
   milestone   Milestone            @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
   completions PracticeCompletion[]
+  materials   PracticeMaterial[]
 
   @@unique([milestoneId, order])
   @@index([courseId])
   @@map("practice_day")
+  @@schema("learning")
+}
+
+/// The lessons that come with a practice day — a video, a written text or a
+/// link, the same three a module's lessons are — worked through before the
+/// student marks the day done. Like `AssignmentMaterial`: kept apart from
+/// module lessons (no course progress, no lesson totals), visible exactly
+/// when the practice day is, and only the field matching `type` is set.
+model PracticeMaterial {
+  id             String     @id @default(uuid(7))
+  practiceDayId  String
+  /// Denormalised from the practice day for access checks without a join.
+  courseId       String
+  type           LessonType @default(VIDEO)
+  title          String
+  description    String?
+  youtubeUrl     String?
+  youtubeVideoId String?
+  content        String?
+  resourceUrl    String?
+  order          Int
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  practiceDay PracticeDay @relation(fields: [practiceDayId], references: [id], onDelete: Cascade)
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceDayId, order])
+  @@index([courseId])
+  @@map("practice_material")
   @@schema("learning")
 }
 

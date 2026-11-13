@@ -287,6 +287,8 @@ export interface MentorMilestone {
         isPublished: boolean;
         /** Set while waiting for the scheduler to auto-publish. */
         releaseAt: string | null;
+        /** Its lessons (videos, texts, links). */
+        _count: { materials: number };
     }[];
 }
 

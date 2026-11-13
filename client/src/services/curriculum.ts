@@ -2,7 +2,7 @@ import httpClient from "@/lib/httpClient";
 import type { AdminCourseDetail, AdminQuiz, CourseContentInput, QuizOptionInput } from "@/types/admin.types";
 import type { ApiResponse, ClassMode, CourseDelivery, CourseMode, CoursePhase, CoursePricing, CourseType } from "@/types/api.types";
 import type { LessonType, OutlineItemKind, OutlineWeek } from "@/types/domain.types";
-import type { AssignmentMaterial } from "@/types/learning.types";
+import type { AssignmentMaterial, PracticeMaterial } from "@/types/learning.types";
 import type { CourseResults, MentorMilestone, QuizResultsDetail, RubricLine } from "@/types/mentor.types";
 
 const unwrap = <T>(response: { data: ApiResponse<T> }): T => response.data.data;
@@ -270,13 +270,42 @@ export const curriculumAuthoring = {
         description?: string;
         instructions?: string;
         isPublished?: boolean;
-    }) => httpClient.post("/practice-days/manage", payload).then(() => undefined),
+    }) =>
+        // Returns the new practice day, so the caller can go straight to its lessons.
+        httpClient.post<ApiResponse<{ id: string }>>("/practice-days/manage", payload).then(unwrap),
 
     updatePracticeDay: (practiceDayId: string, payload: Record<string, unknown>) =>
         httpClient.patch(`/practice-days/manage/${practiceDayId}`, payload).then(() => undefined),
 
     deletePracticeDay: (practiceDayId: string) =>
         httpClient.delete(`/practice-days/manage/${practiceDayId}`).then(() => undefined),
+
+    // ---- A practice day's own lessons (videos, texts, links) — like an assignment's
+    listPracticeMaterials: (practiceDayId: string) =>
+        httpClient
+            .get<ApiResponse<PracticeMaterial[]>>(`/practice-materials/practice-day/${practiceDayId}`)
+            .then(unwrap),
+
+    createPracticeMaterial: (payload: {
+        practiceDayId: string;
+        type: LessonType;
+        title: string;
+        description?: string;
+        youtubeUrl?: string;
+        content?: string;
+        resourceUrl?: string;
+    }) => httpClient.post("/practice-materials", payload).then(() => undefined),
+
+    updatePracticeMaterial: (materialId: string, payload: Record<string, unknown>) =>
+        httpClient.patch(`/practice-materials/${materialId}`, payload).then(() => undefined),
+
+    deletePracticeMaterial: (materialId: string) =>
+        httpClient.delete(`/practice-materials/${materialId}`).then(() => undefined),
+
+    reorderPracticeMaterials: (practiceDayId: string, orderedIds: string[]) =>
+        httpClient
+            .patch(`/practice-materials/practice-day/${practiceDayId}/reorder`, { orderedIds })
+            .then(() => undefined),
 
     // ---- Quiz
     /** Null when the module has no quiz yet. */

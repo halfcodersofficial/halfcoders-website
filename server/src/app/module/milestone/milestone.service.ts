@@ -192,7 +192,11 @@ const getMilestonesByCourse = async (user: IRequestUser, courseId: string) => {
                 orderBy: { order: "asc" },
                 include: { _count: { select: { materials: true, submissions: true } } },
             },
-            practiceDays: { orderBy: { order: "asc" } },
+            practiceDays: {
+                orderBy: { order: "asc" },
+                // The week's row says how many lessons it has, like an assignment's.
+                include: { _count: { select: { materials: true } } },
+            },
         },
     });
 };
