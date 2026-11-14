@@ -153,6 +153,12 @@ interface LessonVideoPlayerProps {
     watermark?: string;
     /** Called once with the video's running time, as soon as the player knows it. */
     onDuration?: (seconds: number) => void;
+    /**
+     * Start playing as soon as it mounts, as if the cover had been pressed —
+     * for a player that only mounts on a tap (the checkout's guide video), so
+     * one tap is enough.
+     */
+    autoPlay?: boolean;
 }
 
 /**
@@ -175,12 +181,15 @@ export default function LessonVideoPlayer({
     next,
     watermark,
     onDuration,
+    autoPlay = false,
 }: LessonVideoPlayerProps) {
     const rootRef = useRef<HTMLDivElement>(null);
     const hostRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<YTPlayer | null>(null);
     const startedRef = useRef(false);
-    const pendingPlayRef = useRef(false);
+    // With autoPlay it starts the way a press before the player is ready
+    // does: playback begins in onReady.
+    const pendingPlayRef = useRef(autoPlay);
     const lastPointerRef = useRef("mouse");
     const hideTimerRef = useRef<number | undefined>(undefined);
     const onDurationRef = useRef(onDuration);
@@ -201,7 +210,7 @@ export default function LessonVideoPlayer({
     const [failed, setFailed] = useState(false);
     const [status, setStatus] = useState<Status>("idle");
     const [started, setStarted] = useState(false);
-    const [starting, setStarting] = useState(false);
+    const [starting, setStarting] = useState(autoPlay);
     const [current, setCurrent] = useState(0);
     const [scrubTime, setScrubTime] = useState<number | null>(null);
     const [duration, setDuration] = useState(0);
@@ -528,6 +537,12 @@ export default function LessonVideoPlayer({
     useEffect(() => {
         if (started) poke();
     }, [started, poke]);
+
+    // Mounted by a tap on something that's now gone: keep focus here, so the
+    // keyboard shortcuts work and keyboard users aren't sent back to the top.
+    useEffect(() => {
+        if (autoPlay) rootRef.current?.focus({ preventScroll: true });
+    }, [autoPlay]);
 
     // The stage's width (full screen, a resized window) and the screen's
     // pixel density decide how a chosen quality's frame is scaled to fit.

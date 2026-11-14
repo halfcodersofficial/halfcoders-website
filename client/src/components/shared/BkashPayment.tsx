@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { z } from "zod";
+import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import { CopyButton } from "@/components/shared/FooterBits";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
@@ -173,23 +174,20 @@ function QrFigure() {
 /**
  * How to pay, on video, for whoever would rather watch than read the steps.
  * YouTube's poster with a play button; the player only mounts on a tap, so
- * the checkout doesn't load YouTube for everyone.
+ * the checkout doesn't load YouTube for everyone. It's the same player as the
+ * lessons — our own controls (play/pause, 10s back and forward, volume, speed,
+ * quality, full screen), not YouTube's.
  */
 function PaymentGuideVideo() {
     const [playing, setPlaying] = useState(false);
     const videoId = extractYoutubeId(BKASH.guideVideo);
     if (!videoId) return null;
+    const poster = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
     if (playing) {
         return (
-            <div className="mt-5 overflow-hidden rounded-card border border-border bg-black">
-                <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`}
-                    title="কীভাবে পেমেন্ট করবেন — ভিডিও"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="aspect-video w-full"
-                />
+            <div className="mt-5">
+                <LessonVideoPlayer youtubeVideoId={videoId} title="কীভাবে পেমেন্ট করবেন" coverImage={poster} autoPlay />
             </div>
         );
     }
@@ -202,7 +200,7 @@ function PaymentGuideVideo() {
         >
             <span className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-black sm:w-36">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} alt="" aria-hidden className="size-full object-cover" />
+                <img src={poster} alt="" aria-hidden className="size-full object-cover" />
                 <span className="absolute inset-0 grid place-items-center bg-black/25 transition-colors group-hover:bg-black/35">
                     <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground shadow-lg ring-4 ring-white/15 transition-transform group-hover:scale-105">
                         <Play className="ml-0.5 size-4 fill-current" aria-hidden />
