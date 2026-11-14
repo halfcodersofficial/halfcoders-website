@@ -46,7 +46,7 @@ export default function HomePage() {
             {/* The four areas: coding, engineering, building, career */}
             <HomeTracks />
 
-            {/* By the numbers: students, courses, success, counting up */}
+            {/* By the numbers, as one dashboard: students as dots, success as a ring, courses as a road */}
             <HomeStats />
 
             {/* Learning alone against learning here, as a before/after */}

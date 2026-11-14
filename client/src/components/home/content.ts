@@ -118,62 +118,49 @@ export const TRACKS = {
     cta: "Browse all courses",
 };
 
-export type StatIcon = "students" | "courses" | "success";
-
-/** One figure in a stat, counted up from 0 to `value` as the band scrolls in. */
-export interface StatFigure {
-    value: number;
-    /** Straight after the digits, in the card's colour: "+", "%". */
-    suffix?: string;
-    /** A word after the figure, smaller: "লাইভ". */
-    unit?: string;
-}
-
-/** One card of the numbers band. `note` is the line along its foot. */
-export interface StatItem {
-    icon: StatIcon;
-    figures: StatFigure[];
-    label: string;
-    text: string;
-    note?: string;
-}
-
 /**
- * Half Coders by the numbers. The one place on the page with real totals, so
- * keep them true and update them here when they change. The digits stay
- * Latin, like numbers in code. The courses card draws one block per course
- * (its first figure live, its second upcoming); the success card fills a bar
- * to its percentage — keep its `note` in step with the figure.
+ * Half Coders by the numbers, drawn as one dashboard. The one place on the
+ * page with real totals, so keep them true and update them here when they
+ * change. The digits stay Latin, like numbers in code.
+ *
+ * The pictures are worked out from the figures: the students get a dot per
+ * `perDot` of them (keep `legend` saying the same number), the courses a stop
+ * on the road per course, the success figure a ring filled to it (keep its
+ * `note` in step).
  */
-export const STATS: { eyebrow: string; title: string; description: string; items: StatItem[] } = {
+export const STATS = {
     eyebrow: "সংখ্যায় Half Coders",
-    title: "এখন পর্যন্ত আমরা কতদূর এলাম",
-    description: "প্রতিটা সংখ্যার পেছনে আছে অনেকগুলো মানুষের রোজকার চেষ্টা। শিক্ষার্থীদের, মেন্টরদের, আর আমাদের পুরো টিমের।",
-    items: [
-        {
-            icon: "students",
-            figures: [{ value: 350, suffix: "+" }],
-            label: "ভর্তি হওয়া শিক্ষার্থী",
-            text: "সবাই শিখছেন বাংলায়, মেন্টর আর ব্যাচের অন্যদের সাথে মিলে।",
-            note: "প্রতিটা নতুন ব্যাচে সংখ্যাটা বাড়ছে",
-        },
-        {
-            icon: "courses",
-            figures: [
-                { value: 2, unit: "লাইভ" },
-                { value: 5, unit: "আসছে" },
-            ],
-            label: "কোর্স",
-            text: "২টা কোর্স এখন লাইভ চলছে, আরও ৫টা তৈরি হচ্ছে। একটার পর একটা আসবে।",
-        },
-        {
-            icon: "success",
-            figures: [{ value: 95, suffix: "%" }],
-            label: "সফল শিক্ষার্থী",
-            text: "আটকে গেলে মেন্টর পাশে থাকেন, তাই মাঝপথে হাল ছেড়ে দিতে হয় না।",
-            note: "প্রতি ১০০ জনে ৯৫ জন",
-        },
-    ],
+    title: "শুরুটা ছোট, তবে থেমে নেই",
+    description: "প্রতিটা সংখ্যা সত্যি, আর প্রতিটা নতুন ব্যাচে বাড়ছে। এখন পর্যন্ত আমরা এখানে:",
+    /** The window's tab and its status bar. */
+    tab: "এখন পর্যন্ত",
+    status: "প্রতিটা নতুন ব্যাচে সংখ্যাগুলো বাড়ছে",
+    students: {
+        value: 350,
+        suffix: "+",
+        label: "ভর্তি হওয়া শিক্ষার্থী",
+        text: "সবাই শিখছেন বাংলায়, মেন্টর আর ব্যাচের অন্যদের সাথে মিলে।",
+        perDot: 10,
+        legend: "প্রতিটা বিন্দু = ১০ জন শিক্ষার্থী",
+        /** Beside the empty dots left at the end. */
+        open: "ফাঁকা বিন্দুগুলো পরের ব্যাচের, একটা হতে পারে আপনার",
+    },
+    courses: {
+        live: 8,
+        upcoming: 5,
+        label: "কোর্স",
+        text: "৮টা কোর্স এখন লাইভ চলছে, আরও ৫টা তৈরি হচ্ছে। একটার পর একটা আসবে।",
+        liveLabel: "লাইভ",
+        upcomingLabel: "আসছে",
+        /** Over the last live course on the road. */
+        now: "এখন এখানে",
+    },
+    success: {
+        percent: 95,
+        label: "সফল শিক্ষার্থী",
+        text: "আটকে গেলে মেন্টর পাশে থাকেন, তাই মাঝপথে হাল ছেড়ে দিতে হয় না।",
+        note: "প্রতি ১০০ জনে ৯৫ জন",
+    },
 };
 
 /** Learning alone against learning here, set as a before/after diff. */
