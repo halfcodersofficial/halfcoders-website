@@ -47,6 +47,7 @@ import LessonMaterials from "@/components/learn/LessonMaterials";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import RateCourse from "@/components/learn/RateCourse";
+import ReadingLesson from "@/components/learn/ReadingLesson";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import QuizPane from "@/components/shared/QuizPane";
 import { BackButton } from "@/components/ui/back-button";
@@ -775,9 +776,20 @@ export default function LearnPage() {
         <div className="min-h-dvh bg-background container mx-auto">
             <header className="sticky top-16 z-40 border-b border-border bg-background/90 backdrop-blur-md">
                 <div className="flex h-16 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
-                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
                         <BackButton href="/dashboard" label="Dashboard" compact />
-                        {data.enrollment && <ProgressRing value={data.enrollment.progress} size={38} className="shrink-0" />}
+                        {/* A rule between the way out and the course, so they read as two things. */}
+                        <span aria-hidden className="h-8 w-px shrink-0 bg-border" />
+                        {data.enrollment && (
+                            <ProgressRing value={data.enrollment.progress} size={40} stroke={3.5} className="shrink-0">
+                                {/* "100%" doesn't fit inside the ring — a finished course gets a tick. */}
+                                {Math.round(data.enrollment.progress) >= 100 ? (
+                                    <Check className="size-4 text-primary" strokeWidth={3} aria-hidden />
+                                ) : (
+                                    <span className="text-[0.625rem]">{Math.max(0, Math.round(data.enrollment.progress))}%</span>
+                                )}
+                            </ProgressRing>
+                        )}
                         <div className="min-w-0">
                             {/* Two lines on a phone, so the course name isn't cut to a word or two. */}
                             <h1
@@ -786,7 +798,7 @@ export default function LearnPage() {
                             >
                                 {data.course.title}
                             </h1>
-                            <p className="truncate text-xs tabular-nums text-muted-foreground">
+                            <p className="mt-0.5 truncate text-xs tabular-nums text-muted-foreground">
                                 {/* An upcoming course has no modules until its classes start. */}
                                 {allVideos.length === 0 ? (
                                     data.course.phase === "UPCOMING" ? (
@@ -860,17 +872,7 @@ export default function LearnPage() {
                     ) : activeQuizId ? (
                         <QuizPane quizId={activeQuizId} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "TEXT" && activeVideo.content ? (
-                        <article className="mx-auto w-full max-w-6xl rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
-                            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                <FileText className="size-4" aria-hidden /> Reading ·{" "}
-                                {Math.max(1, Math.round(activeVideo.content.trim().split(/\s+/).length / 200))} min
-                            </p>
-                            <div
-                                className="max-w-3xl text-[15px] leading-relaxed wrap-break-word"
-                                // Escaped and link-restricted by renderLightMarkdown.
-                                dangerouslySetInnerHTML={{ __html: renderLightMarkdown(activeVideo.content) }}
-                            />
-                        </article>
+                        <ReadingLesson key={activeVideo.id} title={activeVideo.title} content={activeVideo.content} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "RESOURCE" && activeVideo.resourceUrl ? (
                         <div className="mx-auto grid w-full max-w-6xl place-items-center rounded-xl border border-border bg-secondary/30 px-6 py-14 text-center">
                             <div className="space-y-3">
