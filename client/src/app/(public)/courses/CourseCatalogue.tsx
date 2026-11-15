@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { catalogueService } from "@/services";
+import { CATALOGUE_SORTS as SORTS, sectionFilters } from "@/lib/catalogueQuery";
 import {
     asMember,
     CLASS_MODES,
@@ -58,12 +59,6 @@ import type { ApiMeta, CoursePhase } from "@/types/api.types";
 import type { CourseCard as CourseCardType, PublicBundle } from "@/types/domain.types";
 
 type ViewMode = "grid" | "list";
-
-/** Courses per page, once one status is chosen. */
-const LIMIT = 12;
-
-/** Courses each status's section shows before "See all" — two rows of the widest grid. */
-const SECTION_LIMIT = 8;
 
 /** The results' top, for "page 2" and the hero's quick picks to bring into view. */
 const RESULTS_ID = "results";
@@ -97,21 +92,6 @@ const LEVELS = [
     { value: "BEGINNER", label: "Beginner", dot: "bg-success" },
     { value: "INTERMEDIATE", label: "Intermediate", dot: "bg-primary" },
     { value: "ADVANCED", label: "Advanced", dot: "bg-destructive" },
-] as const;
-
-/**
- * Every option here maps to a column the API's `courseSortableFields`
- * allow-list accepts. Adding one without adding the column there means the
- * sort silently falls back to the endpoint default.
- */
-const SORTS = [
-    // The main programmes an admin featured first, then the newest.
-    { value: "", label: "Recommended", sortBy: "featured", sortOrder: "desc" },
-    { value: "newest", label: "Newest first", sortBy: "createdAt", sortOrder: "desc" },
-    { value: "oldest", label: "Oldest first", sortBy: "createdAt", sortOrder: "asc" },
-    { value: "price-low", label: "Price: low to high", sortBy: "price", sortOrder: "asc" },
-    { value: "price-high", label: "Price: high to low", sortBy: "price", sortOrder: "desc" },
-    { value: "title", label: "Title: A–Z", sortBy: "title", sortOrder: "asc" },
 ] as const;
 
 /** Bring the results' top into view, just under the bar and the filter rail stuck beneath it. */
@@ -151,10 +131,12 @@ const typingIn = (target: EventTarget | null) =>
  * results stay up, faded, until the new ones arrive — no flash of blank
  * cards; a new page or a search brings the results into view. No course
  * counts anywhere — the filters in force show above the results instead.
+ *
+ * The address comes in as a prop: in the browser it's the real one, and in
+ * the page's prebuilt HTML it's the bare /courses (see `CourseCatalogue`).
  */
-function CoursesBrowser() {
+function CoursesBrowser({ searchParams }: { searchParams: Pick<URLSearchParams, "get" | "toString"> }) {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const searchRef = useRef<HTMLInputElement>(null);
 
     const categoryId = searchParams.get("categoryId") ?? "";
@@ -194,19 +176,17 @@ function CoursesBrowser() {
     const sectionPhases: readonly CoursePhase[] = phase ? [phase] : COURSE_PHASES;
     const results = useQueries({
         queries: sectionPhases.map((sectionPhase) => {
-            const filters = {
-                searchTerm: searchTerm || undefined,
-                categoryId: categoryId || undefined,
-                level: level || undefined,
-                phase: sectionPhase,
+            const filters = sectionFilters(sectionPhase, {
+                searchTerm,
+                categoryId,
+                level,
+                phase,
                 pricing,
                 delivery,
                 mode,
-                sortBy: activeSort.sortBy,
-                sortOrder: activeSort.sortOrder,
-                page: phase ? page : 1,
-                limit: phase ? LIMIT : SECTION_LIMIT,
-            };
+                sort: activeSort,
+                page,
+            });
             return {
                 queryKey: ["courses", filters],
                 queryFn: () => catalogueService.courses(filters),
@@ -217,7 +197,9 @@ function CoursesBrowser() {
         }),
     });
     const isLoading = results.some((result) => result.isLoading);
-    const isError = results.some((result) => result.isError);
+    // Only when there's nothing to show: a refresh that fails behind courses
+    // already on screen (the page's own, from its HTML) leaves them up.
+    const isError = results.some((result) => result.isError && !result.data);
     const isRefetching = results.some((result) => result.isRefetching);
     const isPlaceholderData = results.some((result) => result.isPlaceholderData);
     const refetch = () => results.forEach((result) => void result.refetch());
@@ -263,6 +245,16 @@ function CoursesBrowser() {
             meta: results[index]?.data?.meta,
         }))
         .filter((section) => section.courses.length > 0);
+
+    // Each new set of results rises in. Not the set the page opened with:
+    // those are on screen from the page's HTML already, and the browser's
+    // first render takes over from it in place, so a rise would be a flicker.
+    const resultsKey = sections.flatMap((section) => section.courses.map((course) => course.id)).join();
+    const openingResults = useRef<string | null>(resultsKey || null);
+    useEffect(() => {
+        if (resultsKey !== openingResults.current) openingResults.current = null;
+    }, [resultsKey]);
+    const riseIn = resultsKey !== openingResults.current;
 
     const activeCategory = categories?.find((category) => category.id === categoryId);
     const activeLevel = LEVELS.find((option) => option.value === level && option.value);
@@ -543,8 +535,11 @@ function CoursesBrowser() {
                     // Faded while the next results load; each new set comes in with a short rise.
                     <div aria-busy={isPlaceholderData} className={cn("transition-opacity duration-200", isPlaceholderData && "opacity-50")}>
                         <div
-                            key={sections.flatMap((section) => section.courses.map((course) => course.id)).join()}
-                            className="space-y-16 animate-in fade-in slide-in-from-bottom-2 duration-500 motion-reduce:animate-none"
+                            key={resultsKey}
+                            className={cn(
+                                "space-y-16",
+                                riseIn && "animate-in fade-in slide-in-from-bottom-2 duration-500 motion-reduce:animate-none",
+                            )}
                         >
                             {sections.map((section) => (
                                 <CourseSection
@@ -978,21 +973,28 @@ function Pagination({ page, meta, onPage }: { page: number; meta: ApiMeta | unde
     );
 }
 
+/** The browser's own address, read live — filters and all. */
+function CoursesBrowserAtUrl() {
+    return <CoursesBrowser searchParams={useSearchParams()} />;
+}
+
+/** The bare /courses: no filters, the default sort, page one. */
+const NO_FILTERS = new URLSearchParams();
+
+/**
+ * /courses is built ahead of time, and an address's filters are only known
+ * in the browser, so `useSearchParams` leaves this boundary to the browser.
+ * Its fallback, the part that goes into the page's HTML, is the catalogue
+ * itself as the bare /courses shows it: the heading, the search and the
+ * courses, read on the server (the page's `HydrationBoundary`). That is what
+ * search engines read, and what a visitor sees before the scripts load. In
+ * the browser the live catalogue takes over, with the same courses already
+ * in hand, so an unfiltered visit doesn't change on screen.
+ */
 export default function CourseCatalogue() {
-    // `useSearchParams` requires a Suspense boundary in the app router.
     return (
-        <Suspense
-            fallback={
-                <div className="container-page py-12">
-                    <div className={CARD_GRID}>
-                        {Array.from({ length: 8 }).map((_, index) => (
-                            <CourseCardSkeleton key={index} />
-                        ))}
-                    </div>
-                </div>
-            }
-        >
-            <CoursesBrowser />
+        <Suspense fallback={<CoursesBrowser searchParams={NO_FILTERS} />}>
+            <CoursesBrowserAtUrl />
         </Suspense>
     );
 }

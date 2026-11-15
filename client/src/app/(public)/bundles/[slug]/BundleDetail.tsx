@@ -22,8 +22,12 @@ const bnNumber = (value: number) => value.toLocaleString("bn-BD");
 const bnDate = (value: string) =>
     new Date(value).toLocaleDateString("bn-BD", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Dhaka" });
 
-/** The way in: buy it, sign in to buy it, or why it can't be bought. */
-function BuyButton({ bundle }: { bundle: PublicBundle }) {
+/**
+ * The way in: buy it, sign in to buy it, or why it can't be bought. A
+ * signed-in student waits on the page's own (visitor's) copy for theirs:
+ * whether they own it all, and what they'd pay, comes with it.
+ */
+function BuyButton({ bundle, visitorsCopy }: { bundle: PublicBundle; visitorsCopy: boolean }) {
     const router = useRouter();
     const { isAuthenticated, isLoading, isStudent } = useSession();
     const checkout = useMutation({
@@ -70,8 +74,8 @@ function BuyButton({ bundle }: { bundle: PublicBundle }) {
             size="lg"
             variant="enroll"
             className="w-full"
-            disabled={isLoading}
-            isLoading={checkout.isPending}
+            disabled={isLoading || visitorsCopy}
+            isLoading={checkout.isPending || (!isLoading && visitorsCopy)}
             onClick={() => checkout.mutate()}
         >
             <ShoppingBag /> বান্ডেলটা নিন
@@ -80,7 +84,7 @@ function BuyButton({ bundle }: { bundle: PublicBundle }) {
 }
 
 /** The bundle's price beside buying its courses one by one — and, for someone who owns part of it, theirs. */
-function PriceCard({ bundle }: { bundle: PublicBundle }) {
+function PriceCard({ bundle, visitorsCopy }: { bundle: PublicBundle; visitorsCopy: boolean }) {
     const { quote } = bundle;
     const saving = bundleSavingPercent(bundle);
     const owned = quote.ownedCount > 0 && !quote.ownsAll;
@@ -121,7 +125,7 @@ function PriceCard({ bundle }: { bundle: PublicBundle }) {
             )}
 
             <div className="mt-5">
-                <BuyButton bundle={bundle} />
+                <BuyButton bundle={bundle} visitorsCopy={visitorsCopy} />
             </div>
             {bundle.endsAt && (
                 <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
@@ -139,10 +143,15 @@ function PriceCard({ bundle }: { bundle: PublicBundle }) {
  * checkout. Priced for the viewer, so it's fetched in the browser.
  */
 export default function BundleDetail({ slug }: { slug: string }) {
-    const { data: bundle, isLoading, isError } = useQuery({
+    const { data: bundle, isLoading, dataUpdatedAt } = useQuery({
         queryKey: ["bundle", slug],
         queryFn: () => catalogueService.bundle(slug),
     });
+    // The page's own copy (from its HTML, marked as never fetched here) is
+    // priced for a visitor who isn't signed in. Until the viewer's own
+    // arrives, a signed-in viewer can't buy from it: what they own, and so
+    // what they'd pay, may differ.
+    const visitorsCopy = dataUpdatedAt === 0;
 
     if (isLoading) {
         return (
@@ -166,7 +175,8 @@ export default function BundleDetail({ slug }: { slug: string }) {
         );
     }
 
-    if (isError || !bundle) {
+    // Only with nothing to show: a refresh that fails leaves the page's own copy up.
+    if (!bundle) {
         return (
             <div className="container-page py-16">
                 <EmptyState
@@ -257,7 +267,7 @@ export default function BundleDetail({ slug }: { slug: string }) {
                 </section>
 
                 <aside className="lg:sticky lg:top-24 lg:self-start">
-                    <PriceCard bundle={bundle} />
+                    <PriceCard bundle={bundle} visitorsCopy={visitorsCopy} />
                     <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                         পেমেন্ট একবারেই। আমাদের টিম যাচাই করলেই প্রতিটা কোর্স আলাদা করে আপনার ড্যাশবোর্ডে চলে আসবে, প্রতিটার রসিদও পাবেন।
                     </p>

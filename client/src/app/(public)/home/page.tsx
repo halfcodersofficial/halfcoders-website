@@ -14,8 +14,10 @@ import HomeTicker from "@/components/home/HomeTicker";
 import HomeTracks from "@/components/home/HomeTracks";
 import HomeWhy from "@/components/home/HomeWhy";
 import HomeWorkflow from "@/components/home/HomeWorkflow";
+import { FAQ } from "@/components/home/content";
+import JsonLd from "@/components/shared/JsonLd";
 import { BRAND_NAME } from "@/lib/brand";
-import { pageMetadata } from "@/lib/seo";
+import { faqJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
     title: { absolute: `${BRAND_NAME} — Learn Coding & Career Skills in Bangla` },
@@ -37,6 +39,9 @@ export const metadata: Metadata = pageMetadata({
 export default function HomePage() {
     return (
         <div lang="bn">
+            {/* The questions answered below, for search and AI answer engines. */}
+            <JsonLd data={faqJsonLd(FAQ.items)} />
+
             {/* The promise, a code window, four facts */}
             <HomeHero />
 

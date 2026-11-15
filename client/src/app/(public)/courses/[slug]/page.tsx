@@ -35,8 +35,9 @@ import { courseBatches, hasBatchDates, scheduleOf } from "@/lib/courseBatch";
 import { courseImagesOf } from "@/lib/courseImages";
 import { COURSE_PAGE_TAG } from "@/lib/coursePageCache";
 import envConfig from "@/lib/envConfig";
+import { isMissing } from "@/lib/listedCourses";
 import { emphasiseLatin } from "@/lib/scriptEmphasis";
-import { languageCode, ORGANIZATION_ID, pageMetadata, snippet } from "@/lib/seo";
+import { courseSearchTitle, durationToIso, languageCode, ORGANIZATION_ID, pageMetadata, secondsToIso, snippet } from "@/lib/seo";
 import { cn, discountPercent, effectivePrice } from "@/lib/utils";
 import type { ApiResponse } from "@/types/api.types";
 import type { CourseDetail, PublicCourseReview, RatingSummary } from "@/types/domain.types";
@@ -44,17 +45,38 @@ import type { CourseDetail, PublicCourseReview, RatingSummary } from "@/types/do
 /** The hero's entrance on load: CSS, so it runs from the first paint, with no script to wait for or flash. */
 const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out fill-mode-both motion-reduce:animate-none";
 
+/** A course's level in the words structured data uses; "all levels" says nothing, so it's left out. */
+const EDUCATIONAL_LEVELS: Partial<Record<CourseDetail["level"], string>> = {
+    BEGINNER: "Beginner",
+    INTERMEDIATE: "Intermediate",
+    ADVANCED: "Advanced",
+};
+
+/**
+ * How long the course takes, for structured data: the duration the page
+ * shows (the admin's "2-3 Months"), else the lessons' running time. Not the
+ * running time first: on a course still being recorded, that's only what's
+ * uploaded so far.
+ */
+const workloadOf = (course: CourseDetail) =>
+    (course.duration && durationToIso(course.duration)) ||
+    (course.totalDurationSeconds > 0 ? secondsToIso(course.totalDurationSeconds) : null);
+
+/**
+ * The course, or null when the API says there's no such course (a 4xx). An
+ * API that can't be reached, is busy or fails (a 5xx) throws instead: this page is
+ * cached and rebuilt in the background, and a rebuild that throws keeps the
+ * last good page, where a "not found" would replace it — telling search
+ * engines, for as long as it's cached, that a real course is gone.
+ */
 const getCourse = async (slug: string): Promise<CourseDetail | null> => {
-    try {
-        const res = await fetch(`${envConfig.apiBaseUrl}/courses/${slug}`, {
-            next: { revalidate: 120, tags: [COURSE_PAGE_TAG] },
-        });
-        if (!res.ok) return null;
-        const body = (await res.json()) as ApiResponse<CourseDetail>;
-        return body.data;
-    } catch {
-        return null;
-    }
+    const res = await fetch(`${envConfig.apiBaseUrl}/courses/${slug}`, {
+        next: { revalidate: 120, tags: [COURSE_PAGE_TAG] },
+    });
+    if (isMissing(res.status)) return null;
+    if (!res.ok) throw new Error(`The course API answered ${res.status} for "${slug}"`);
+    const body = (await res.json()) as ApiResponse<CourseDetail>;
+    return body.data;
 };
 
 /** The course's published student reviews — none until an admin publishes one. */
@@ -76,11 +98,12 @@ export async function generateMetadata(
     const { slug } = await params;
     const course = await getCourse(slug);
 
-    if (!course) return { title: "Course not found" };
+    // Without its own robots, the site's "index, follow" would sit beside the "not found"'s noindex.
+    if (!course) return { title: "Course not found", robots: { index: false } };
 
     return {
         ...pageMetadata({
-            title: course.title,
+            title: courseSearchTitle(course.title, course.language),
             description: course.subtitle ?? snippet(course.description),
             path: `/courses/${course.slug}`,
             image: course.thumbnail ?? DEFAULT_SOCIAL_IMAGE,
@@ -140,12 +163,23 @@ export default async function CourseDetailPage(
 
     /* Course structured data. Search engines render this as a rich result with
         the provider, price and star rating attached, which is the difference
-       between a plain blue link and a card in the results. */
+       between a plain blue link and a card in the results. Google's course
+       results need `hasCourseInstance` (how it's taught, and how long it
+       takes or when it runs) on every course, not just a dated batch. Every
+       field is something the page itself shows. */
     const courseUrl = `${envConfig.siteUrl}/courses/${course.slug}`;
     const average = ratings?.summary.average;
+    const language = languageCode(course.language);
+    const workload = workloadOf(course);
+    const instructors = course.mentors.map(({ mentor }) => ({
+        "@type": "Person",
+        name: mentor.name,
+        ...(mentor.image && /^https?:\/\//.test(mentor.image) && { image: mentor.image }),
+    }));
     const jsonLd = {
         "@context": "https://schema.org",
         "@type": "Course",
+        "@id": `${courseUrl}#course`,
         name: course.title,
         description: course.subtitle ?? snippet(course.description, 300),
         url: courseUrl,
@@ -156,13 +190,43 @@ export default async function CourseDetailPage(
             url: envConfig.siteUrl,
         },
         image: course.thumbnail ?? `${envConfig.siteUrl}${DEFAULT_SOCIAL_IMAGE.url}`,
-        inLanguage: languageCode(course.language),
+        inLanguage: language,
+        availableLanguage: [language],
+        ...(EDUCATIONAL_LEVELS[course.level] && { educationalLevel: EDUCATIONAL_LEVELS[course.level] }),
+        ...(course.category && { about: course.category.title }),
+        ...(course.outcomes.length > 0 && { teaches: course.outcomes }),
+        ...(course.requirements.length > 0 && { coursePrerequisites: course.requirements }),
+        // Every course's finishers get a certificate anyone can check at /certificate.
+        educationalCredentialAwarded: {
+            "@type": "EducationalOccupationalCredential",
+            name: `${BRAND_NAME} certificate`,
+            credentialCategory: "Certificate",
+            url: `${envConfig.siteUrl}/certificate`,
+        },
+        ...(course.milestones.length > 0 && {
+            syllabusSections: [...course.milestones]
+                .sort((a, b) => a.order - b.order)
+                .map((milestone) => ({
+                    "@type": "Syllabus",
+                    name: milestone.title,
+                    ...(milestone.description && { description: snippet(milestone.description, 300) }),
+                })),
+        }),
         offers: {
             "@type": "Offer",
             price,
             priceCurrency: "BDT",
             category: free ? "Free" : "Paid",
             url: courseUrl,
+        },
+        hasCourseInstance: {
+            "@type": "CourseInstance",
+            courseMode: course.mode === "OFFLINE" ? "Onsite" : course.mode === "BOTH" ? "Blended" : "Online",
+            ...(course.mode !== "ONLINE" && course.venue && { location: course.venue }),
+            ...(workload && { courseWorkload: workload }),
+            ...(startsAt && { startDate: startsAt.toISOString() }),
+            ...(startsAt && batches?.present.endsAt && { endDate: batches.present.endsAt.toISOString() }),
+            ...(instructors.length > 0 && { instructor: instructors }),
         },
         // Published reviews only, the same ones the page shows.
         ...(hasRatings && average != null
@@ -176,24 +240,15 @@ export default async function CourseDetailPage(
                 },
             }
             : {}),
-        ...(course.mentors.length > 0
-            ? {
-                instructor: course.mentors.map(({ mentor }) => ({
-                    "@type": "Person",
-                    name: mentor.name,
-                })),
-            }
-            : {}),
-        ...(startsAt
-            ? {
-                hasCourseInstance: {
-                    "@type": "CourseInstance",
-                    courseMode: course.mode === "OFFLINE" ? "onsite" : course.mode === "BOTH" ? "blended" : "online",
-                    startDate: startsAt.toISOString(),
-                    ...(batches?.present.endsAt && { endDate: batches.present.endsAt.toISOString() }),
-                },
-            }
-            : {}),
+        ...(studentReviews.length > 0 && {
+            review: studentReviews.slice(0, 10).map((review) => ({
+                "@type": "Review",
+                author: { "@type": "Person", name: review.student.name },
+                datePublished: review.createdAt.slice(0, 10),
+                reviewBody: review.comment,
+                reviewRating: { "@type": "Rating", ratingValue: review.rating, bestRating: 5, worstRating: 1 },
+            })),
+        }),
     };
 
     const faqJsonLd = {

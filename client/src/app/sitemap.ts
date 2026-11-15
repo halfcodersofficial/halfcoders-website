@@ -19,16 +19,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         { url: url("/terms"), changeFrequency: "yearly", priority: 0.2 },
         { url: url("/privacy-policy"), changeFrequency: "yearly", priority: 0.2 },
         { url: url("/refund-policy"), changeFrequency: "yearly", priority: 0.2 },
+        // Each with its picture, so it can turn up in image search too.
         ...courses.map((course) => ({
             url: url(`/courses/${course.slug}`),
             lastModified: course.updatedAt,
             changeFrequency: "weekly" as const,
             priority: 0.9,
+            ...(course.thumbnail && { images: [course.thumbnail] }),
         })),
         ...(bundles?.data ?? []).map((bundle) => ({
             url: url(`/bundles/${bundle.slug}`),
             changeFrequency: "weekly" as const,
             priority: 0.6,
+            ...(bundle.thumbnail && { images: [bundle.thumbnail] }),
         })),
     ];
 }

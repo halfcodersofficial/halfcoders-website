@@ -14,14 +14,17 @@ import { catalogueService } from "@/services";
 /**
  * The bundles on sale, priced for whoever is looking — someone who already
  * owns part of a bundle sees what the rest costs them. Asked of the API in the
- * browser for that reason.
+ * browser for that reason; the page's HTML carries them at a visitor's price
+ * (the page's `HydrationBoundary`) until the viewer's own arrive.
  */
 export default function BundleList() {
-    const { data, isLoading, isError, refetch } = useQuery({
+    const { data, isLoading, isError: failed, refetch } = useQuery({
         queryKey: ["bundles"],
         queryFn: catalogueService.bundles,
         staleTime: 60_000,
     });
+    // Only with nothing to show: a refresh that fails leaves the page's own list up.
+    const isError = failed && !data;
 
     return (
         <>
