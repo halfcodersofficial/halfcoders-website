@@ -36,6 +36,9 @@ export async function generateMetadata(
     return {
         title: `Verify certificate ${certificateNo}`,
         description: `Check the authenticity of Half Coders certificate ${certificateNo}.`,
+        // A student's name is on it. robots.txt already keeps crawlers out;
+        // this keeps it out of results if one reaches it anyway.
+        robots: { index: false, follow: false },
     };
 }
 
@@ -134,7 +137,7 @@ export default async function VerifyCertificatePage(
                             {rows.map((row) => (
                                 <div key={row.key} className="grid gap-1 px-5 py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4">
                                     <dt className="text-sm text-muted-foreground">{row.key}</dt>
-                                    <dd className={cn("min-w-0 break-words font-semibold", row.tone ?? "text-foreground")}>{row.value}</dd>
+                                    <dd className={cn("min-w-0 wrap-break-word font-semibold", row.tone ?? "text-foreground")}>{row.value}</dd>
                                 </div>
                             ))}
                         </dl>

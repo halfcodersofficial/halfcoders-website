@@ -2,15 +2,18 @@
 
 import { revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import type { ApiResponse, Role } from "@/types/api.types";
 import { STAFF_ROLES } from "./access";
 import { COURSE_PAGE_TAG } from "./coursePageCache";
 import envConfig from "./envConfig";
+import { announceCoursePages } from "./indexNow";
 
 /**
  * Drops the cached public course pages, so the next visit reads the course
  * afresh — call it after a change the page shows: its content, its status,
- * who teaches it, or a mentor's profile.
+ * who teaches it, or a mentor's profile. Then lets the IndexNow search
+ * engines know (lib/indexNow.ts).
  *
  * A server action is a public endpoint, so the caller's session is checked
  * with the API first: only staff may clear the cache. Never throws — the
@@ -32,6 +35,8 @@ export async function refreshCoursePages(): Promise<void> {
         if (!STAFF_ROLES.includes(body.data.role)) return;
 
         revalidateTag(COURSE_PAGE_TAG);
+        // Once the admin has their answer: tell Bing & co. the pages changed.
+        after(announceCoursePages);
     } catch {
         // Unreachable API or a bad answer: leave the cache to expire.
     }

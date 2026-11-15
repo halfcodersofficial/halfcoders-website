@@ -10,11 +10,11 @@ import AboutPrinciples from "@/components/about/AboutPrinciples";
 import AboutReviews from "@/components/about/AboutReviews";
 import AboutTeam from "@/components/about/AboutTeam";
 import AboutTimeline from "@/components/about/AboutTimeline";
-import { TEAM } from "@/components/about/content";
+import { FAQ as ABOUT_FAQ, TEAM } from "@/components/about/content";
 import JsonLd from "@/components/shared/JsonLd";
 import { BRAND_NAME } from "@/lib/brand";
 import envConfig from "@/lib/envConfig";
-import { ORGANIZATION_ID, pageMetadata } from "@/lib/seo";
+import { faqJsonLd, ORGANIZATION_ID, pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
     title: "About",
@@ -62,6 +62,7 @@ export default function AboutPage() {
     return (
         <div lang="bn">
             <JsonLd data={ABOUT_JSON_LD} />
+            <JsonLd data={faqJsonLd(ABOUT_FAQ.items)} />
             <AboutHero />
             <AboutAims />
             <AboutGoal />

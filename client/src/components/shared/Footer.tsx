@@ -19,6 +19,8 @@ import {
     SUPPORT_PHONES,
     SUPPORT_SCHEDULE,
 } from "@/lib/brand";
+import { langOf } from "@/lib/lang";
+import { getPublicJson, type Listed } from "@/lib/listedCourses";
 import { cn } from "@/lib/utils";
 
 /* The sitemap, as an editor's file tree: two folders side by side, plain names. */
@@ -43,6 +45,24 @@ const TREE: { folder: string; files: { href: string; file: string; label: string
     },
 ];
 
+/** A file-tree link: a hairline on the left that lights up, and the row nudging right, on hover. */
+const TREE_LINK =
+    "-ml-px flex items-start gap-2 border-l border-transparent py-1.5 pl-3 text-sm text-editor-muted transition-[color,border-color,padding] duration-200 hover:border-violet-400 hover:pl-4 hover:text-editor-fg sm:pl-4 sm:hover:pl-5 motion-reduce:transition-colors";
+
+/** How many courses the footer lists; past that, "All courses" leads to the rest. */
+const FOOTER_COURSES = 9;
+
+/**
+ * The courses the footer lists: the catalogue's own order (featured first),
+ * read on the server and kept for an hour like the catalogue's sitemap.
+ * Every page then links to every course, which is how search engines find
+ * them and judge them worth ranking. None when the API can't be reached.
+ */
+const footerCourses = async () => {
+    const body = await getPublicJson<Listed[]>(`/courses?sortBy=featured&sortOrder=desc&page=1&limit=${FOOTER_COURSES}`);
+    return { courses: body?.data ?? [], more: (body?.meta?.total ?? 0) > FOOTER_COURSES };
+};
+
 const LEGAL_LINKS = [
     { href: "/terms", label: "Terms" },
     { href: "/privacy-policy", label: "Privacy" },
@@ -63,14 +83,17 @@ const SOCIAL_ICON: Record<(typeof SOCIAL_LINKS)[number]["network"], IconType> = 
 /**
  * The site's footer: a dark editor pane on faint graph paper. Along the top
  * the logo, what Half Coders is and the social pages, with the sitemap beside
- * them as two folders of a file tree. Under that, how to reach us as one
+ * them as two folders of a file tree, and the courses as a third folder
+ * across the width under them. Under that, how to reach us as one
  * editor panel split into cells — email (with a copy button), the phone
  * numbers (tap to call), the calling hours with whether the line is open
  * right now, and that we take bKash, shown by its logo. Then the small print,
  * and along the foot a violet status bar — the time in Dhaka and the
  * tagline — as at the bottom of an editor.
  */
-export default function Footer() {
+export default async function Footer() {
+    const { courses, more } = await footerCourses();
+
     return (
         <footer className="editor relative mt-20 overflow-hidden border-t border-editor-line">
             <div aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0 opacity-60" />
@@ -120,10 +143,7 @@ export default function Footer() {
                                 <ul className="mt-4 border-l border-editor-line">
                                     {group.files.map((item) => (
                                         <li key={item.href}>
-                                            <Link
-                                                href={item.href}
-                                                className="-ml-px flex items-start gap-2 border-l border-transparent py-1.5 pl-3 text-sm text-editor-muted transition-[color,border-color,padding] duration-200 hover:border-violet-400 hover:pl-4 hover:text-editor-fg sm:pl-4 sm:hover:pl-5 motion-reduce:transition-colors"
-                                            >
+                                            <Link href={item.href} className={TREE_LINK}>
                                                 <FileIcon name={item.file} className="mt-[3px]" />
                                                 {item.label}
                                             </Link>
@@ -134,6 +154,34 @@ export default function Footer() {
                         );
                     })}
                 </div>
+
+                {/* The courses, a folder across the width: each column its own branch of the tree. */}
+                {courses.length > 0 && (
+                    <nav aria-labelledby="footer-courses" className="mt-12 sm:mt-14">
+                        <h2 id="footer-courses" className="flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-editor-muted">
+                            <FileIcon name="courses/" />
+                            Courses
+                        </h2>
+                        <ul className="mt-4 grid sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-12">
+                            {courses.map((course) => (
+                                <li key={course.slug} className="border-l border-editor-line">
+                                    <Link href={`/courses/${course.slug}`} lang={langOf(course.title)} className={TREE_LINK}>
+                                        <FileIcon name="course.md" className="mt-[3px]" />
+                                        <span className="min-w-0">{course.title ?? course.slug}</span>
+                                    </Link>
+                                </li>
+                            ))}
+                            {more && (
+                                <li className="border-l border-editor-line">
+                                    <Link href="/courses" className={TREE_LINK}>
+                                        <FileIcon name="courses/" className="mt-[3px]" />
+                                        All courses
+                                    </Link>
+                                </li>
+                            )}
+                        </ul>
+                    </nav>
+                )}
 
                 {/* How to reach us, and how to pay: one panel, a cell each. */}
                 <section aria-labelledby="footer-contact" className="mt-12 overflow-hidden rounded-panel border border-editor-line sm:mt-14">

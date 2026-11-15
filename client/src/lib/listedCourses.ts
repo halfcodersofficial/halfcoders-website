@@ -11,7 +11,22 @@ const REVALIDATE = 3600;
 /** The API's page-size cap for the public catalogue. */
 const PAGE_SIZE = 48;
 
-export type Listed = { slug: string; updatedAt?: string };
+/** The fields of a listed course (or bundle) that the sitemap and /llms.txt use. */
+export type Listed = {
+    slug: string;
+    title?: string;
+    subtitle?: string | null;
+    description?: string | null;
+    thumbnail?: string | null;
+    updatedAt?: string;
+};
+
+/**
+ * The API saying there's no such thing (a 4xx) — not that it's busy (408,
+ * 429), which is no answer at all. A page that calls `notFound()` on a busy
+ * API would tell search engines a real course is gone.
+ */
+export const isMissing = (status: number) => status >= 400 && status < 500 && status !== 408 && status !== 429;
 
 /** A public API read; null when the API can't be reached or says no. */
 export const getPublicJson = async <T,>(path: string): Promise<ApiResponse<T> | null> => {
