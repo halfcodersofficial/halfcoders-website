@@ -148,7 +148,8 @@ interface LessonVideoPlayerProps {
     /** The course's cover image, behind the play button before the first play. */
     coverImage?: string | null;
     prev?: { title: string; onSelect: () => void } | null;
-    next?: { title: string; onSelect: () => void } | null;
+    /** `label` names the step when it isn't a lesson ("Finish module"); "Next lesson" otherwise. */
+    next?: { title: string; onSelect: () => void; label?: string } | null;
     /** The viewer's email, drifting over the video so a screen recording names who made it. */
     watermark?: string;
     /** Called once with the video's running time, as soon as the player knows it. */
@@ -926,7 +927,7 @@ export default function LessonVideoPlayer({
                                 onClick={next.onSelect}
                                 className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                             >
-                                Next lesson <ChevronRight className="size-4" aria-hidden />
+                                {next.label ?? "Next lesson"} <ChevronRight className="size-4" aria-hidden />
                             </button>
                         )}
                     </div>
@@ -1035,7 +1036,7 @@ export default function LessonVideoPlayer({
                     )}
                     {next && (
                         <ControlButton
-                            label={`Next lesson: ${next.title}`}
+                            label={`${next.label ?? "Next lesson"}: ${next.title}`}
                             onClick={next.onSelect}
                             className="hidden sm:grid"
                         >
