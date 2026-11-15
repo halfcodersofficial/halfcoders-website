@@ -19,6 +19,7 @@ import {
     Dumbbell,
     ExternalLink,
     FileText,
+    Flag,
     Headphones,
     HelpCircle,
     Hourglass,
@@ -46,6 +47,7 @@ import AssignmentResult from "@/components/learn/AssignmentResult";
 import LessonMaterials from "@/components/learn/LessonMaterials";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
+import ModuleComplete from "@/components/learn/ModuleComplete";
 import RateCourse from "@/components/learn/RateCourse";
 import ReadingLesson from "@/components/learn/ReadingLesson";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
@@ -130,6 +132,19 @@ const weekRows = (milestone: LearningMilestone, withAssignmentsAndPractice: bool
             : []),
     ].sort((a, b) => a.entry.position - b.entry.position || a.rank - b.rank || a.entry.order - b.entry.order);
 
+/** Every lesson of the module done — worked out here, so a "Next" shows at once, before the server answers. */
+const isModuleDone = (courseModule: LearningModule) =>
+    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted);
+
+/** A module and the milestone it sits in. */
+const findModule = (data: CourseLearning, moduleId: string) => {
+    for (const milestone of data.curriculum) {
+        const courseModule = milestone.modules.find((m) => m.id === moduleId);
+        if (courseModule) return { milestone, courseModule };
+    }
+    return null;
+};
+
 export default function LearnPage() {
     const params = useParams<{ slug: string }>();
     const slug = params.slug;
@@ -144,6 +159,8 @@ export default function LearnPage() {
     const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
     // Same idea for a module's quiz.
     const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
+    // …and for a module's "complete" screen, the last stop of every module.
+    const [activeCompleteModuleId, setActiveCompleteModuleId] = useState<string | null>(null);
     const [openMilestones, setOpenMilestones] = useState<Set<string>>(new Set());
     // Modules open in the sidebar. The one being studied opens by itself (see
     // below); the rest are the student's to open or close.
@@ -257,19 +274,32 @@ export default function LearnPage() {
     }, [data, initialisedFromQuery, searchParams, allVideos, reachableIds]);
 
     // Open the student's current milestone and start on the first unwatched
-    // lesson, so returning to the page resumes rather than restarts.
+    // lesson, so returning to the page resumes rather than restarts. With
+    // every open lesson done, it lands on the last finished module's
+    // "complete" screen — the end of the road so far — not back on lesson 1.
     useEffect(() => {
-        if (!data || activeVideoId || activeAssignmentId || activeQuizId || !initialisedFromQuery) return;
+        if (!data || activeVideoId || activeAssignmentId || activeQuizId || activeCompleteModuleId || !initialisedFromQuery) {
+            return;
+        }
 
         const firstUnwatched = allVideos.find((video) => !video.isCompleted && !video.isLocked);
-        const target = firstUnwatched ?? allVideos[0];
-        if (target) setActiveVideoId(target.id);
+        const lastDone = firstUnwatched || data.isPreview ? null : allVideos.findLast((video) => video.isCompleted);
+        const finished = lastDone
+            ? data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === lastDone.id))
+            : null;
+        if (lastDone && finished && isModuleDone(finished)) {
+            setActiveVideoId(lastDone.id);
+            setActiveCompleteModuleId(finished.id);
+        } else {
+            const target = firstUnwatched ?? allVideos[0];
+            if (target) setActiveVideoId(target.id);
+        }
 
         const currentMilestone =
             data.curriculum.find((m) => m.id === data.enrollment?.currentMilestoneId) ??
             data.curriculum[0];
         if (currentMilestone) setOpenMilestones(new Set([currentMilestone.id]));
-    }, [data, activeVideoId, activeAssignmentId, activeQuizId, allVideos, initialisedFromQuery]);
+    }, [data, activeVideoId, activeAssignmentId, activeQuizId, activeCompleteModuleId, allVideos, initialisedFromQuery]);
 
     const activeVideo = allVideos.find((video) => video.id === activeVideoId) ?? null;
 
@@ -285,18 +315,22 @@ export default function LearnPage() {
     }, [data, activeVideoId]);
     const activeLessonNumber = allVideos.findIndex((video) => video.id === activeVideoId) + 1;
 
-    // The module (and its milestone) holding whatever is open — a lesson, or a module's quiz.
+    // The module (and its milestone) holding whatever is open — a lesson, a
+    // module's quiz, or its "complete" screen.
     const activePlace = useMemo(() => {
         if (!data || activeAssignmentId) return null;
         for (const milestone of data.curriculum) {
             for (const courseModule of milestone.modules) {
-                if (activeQuizId ? courseModule.quiz?.id === activeQuizId : courseModule.videos.some((v) => v.id === activeVideoId)) {
-                    return { moduleId: courseModule.id, milestoneId: milestone.id };
-                }
+                const holdsIt = activeCompleteModuleId
+                    ? courseModule.id === activeCompleteModuleId
+                    : activeQuizId
+                        ? courseModule.quiz?.id === activeQuizId
+                        : courseModule.videos.some((v) => v.id === activeVideoId);
+                if (holdsIt) return { moduleId: courseModule.id, milestoneId: milestone.id };
             }
         }
         return null;
-    }, [data, activeVideoId, activeQuizId, activeAssignmentId]);
+    }, [data, activeVideoId, activeQuizId, activeAssignmentId, activeCompleteModuleId]);
     const activeModuleId = activePlace?.moduleId ?? null;
     const activeMilestoneId = activePlace?.milestoneId ?? null;
 
@@ -335,6 +369,7 @@ export default function LearnPage() {
         setActiveVideoId(videoId);
         setActiveAssignmentId(null);
         setActiveQuizId(null);
+        setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
         // The player is above the fold on desktop but below the sidebar on a
         // phone, so a lesson change has to bring it back into view.
@@ -368,6 +403,7 @@ export default function LearnPage() {
     const goToAssignment = (assignmentId: string) => {
         setActiveAssignmentId(assignmentId);
         setActiveQuizId(null);
+        setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -375,9 +411,29 @@ export default function LearnPage() {
     const goToQuiz = (quizId: string) => {
         setActiveQuizId(quizId);
         setActiveAssignmentId(null);
+        setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
+
+    /** A module's "complete" screen, its last stop. Its last lesson stays the one behind it. */
+    const goToModuleComplete = (moduleId: string) => {
+        const lastLesson = data && findModule(data, moduleId)?.courseModule.videos.at(-1);
+        if (lastLesson) setActiveVideoId(lastLesson.id);
+        setActiveCompleteModuleId(moduleId);
+        setActiveAssignmentId(null);
+        setActiveQuizId(null);
+        setMobileCurriculumOpen(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    // Should a "complete" screen ever be open for a module that isn't done —
+    // a last lesson whose save the server turned down — show that lesson again.
+    useEffect(() => {
+        if (!data || !activeCompleteModuleId || pendingCompletionsRef.current > 0) return;
+        const place = findModule(data, activeCompleteModuleId);
+        if (!place || !isModuleDone(place.courseModule)) setActiveCompleteModuleId(null);
+    }, [data, activeCompleteModuleId]);
 
     /** Applies a change to one lesson in the cached course, without waiting on a refetch. */
     const patchLessonInCache = (videoId: string, patch: (video: LearningVideo) => LearningVideo) =>
@@ -718,12 +774,40 @@ export default function LearnPage() {
     // the current lesson as well as from any finished one.
     const nextOpens = Boolean(nextVideo && (canOpen(nextVideo.id) || canComplete));
 
+    // A module's last lesson leads to its "complete" screen, once moving on
+    // from it leaves every lesson of the module done.
+    const activeModule = activeContext?.courseModule ?? null;
+    const moduleLabel = data.course.moduleLabel || "Module";
+    const leadsToModuleComplete = Boolean(
+        activeVideo &&
+            activeModule &&
+            !data.isPreview &&
+            activeModule.videos.at(-1)?.id === activeVideo.id &&
+            activeModule.videos.every((video) => video.isCompleted || (video.id === activeVideo.id && canComplete)),
+    );
+
     const advance = () => {
         if (activeVideo && canComplete) queueComplete(activeVideo.id);
+        if (leadsToModuleComplete && activeModule) {
+            goToModuleComplete(activeModule.id);
+            return;
+        }
         // The page's lesson list doesn't yet show this lesson as done, so open
         // the next one directly rather than through goTo's check.
         if (nextVideo && nextOpens) openLesson(nextVideo.id);
     };
+
+    // The open "complete" screen's module, and the lesson right after it
+    // when the student may open it — where its "Start the next module" goes.
+    const completePlace = activeCompleteModuleId ? findModule(data, activeCompleteModuleId) : null;
+    const lessonAfterComplete = (() => {
+        const last = completePlace?.courseModule.videos.at(-1);
+        if (!last) return null;
+        const after = allVideos[allVideos.findIndex((video) => video.id === last.id) + 1];
+        if (!after || after.isLocked || !canOpen(after.id)) return null;
+        const owner = data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === after.id));
+        return { video: after, moduleTitle: owner?.title ?? after.title };
+    })();
 
     const openNotes = () => {
         setLessonPanel("notes");
@@ -753,6 +837,8 @@ export default function LearnPage() {
         goToAssignment,
         activeQuizId,
         goToQuiz,
+        activeCompleteModuleId: completePlace ? activeCompleteModuleId : null,
+        goToModuleComplete,
         openMilestones,
         toggleMilestone,
         openModules,
@@ -823,7 +909,7 @@ export default function LearnPage() {
                             labelled row under the video, just always in reach. On a
                             phone that row is a short scroll away, so the room goes
                             to the course name instead. */}
-                        {!data.isPreview && !activeAssignmentId && activeVideo && !activeVideo.isLocked && (
+                        {!data.isPreview && !activeAssignmentId && !completePlace && activeVideo && !activeVideo.isLocked && (
                             <span className="hidden items-center gap-1 sm:flex sm:gap-2">
                                 <Button variant="ghost" size="icon" aria-label="Jump to notes" onClick={openNotes}>
                                     <NotebookPen className="size-4" />
@@ -869,6 +955,17 @@ export default function LearnPage() {
                 <div className="min-w-0 space-y-4">
                     {activeAssignmentId ? (
                         <AssignmentPane slug={slug} assignmentId={activeAssignmentId} />
+                    ) : completePlace ? (
+                        <ModuleComplete
+                            key={completePlace.courseModule.id}
+                            data={data}
+                            slug={slug}
+                            milestone={completePlace.milestone}
+                            courseModule={completePlace.courseModule}
+                            nextLesson={lessonAfterComplete}
+                            onOpenLesson={goTo}
+                            onOpenQuiz={goToQuiz}
+                        />
                     ) : activeQuizId ? (
                         <QuizPane quizId={activeQuizId} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "TEXT" && activeVideo.content ? (
@@ -909,7 +1006,13 @@ export default function LearnPage() {
                                     ? { title: prevVideo.title, onSelect: () => goTo(prevVideo.id) }
                                     : null
                             }
-                            next={nextVideo && nextOpens ? { title: nextVideo.title, onSelect: advance } : null}
+                            next={
+                                leadsToModuleComplete
+                                    ? { title: `${moduleLabel} complete`, onSelect: advance, label: `Finish ${moduleLabel.toLowerCase()}` }
+                                    : nextVideo && nextOpens
+                                        ? { title: nextVideo.title, onSelect: advance }
+                                        : null
+                            }
                             watermark={user?.email}
                             onDuration={
                                 activeVideo.duration > 0
@@ -952,7 +1055,7 @@ export default function LearnPage() {
                         </div>
                     )}
 
-                    {!activeAssignmentId && activeVideo && (
+                    {!activeAssignmentId && !completePlace && activeVideo && (
                         <div className="space-y-3">
                             {/* Previous / Next sit beside the lesson title. "Next"
                                 also counts this lesson as done; the last lesson has
@@ -1001,15 +1104,26 @@ export default function LearnPage() {
                                         </Button>
                                     )}
 
-                                    {nextVideo ? (
+                                    {leadsToModuleComplete && !nextVideo && !activeVideo.isCompleted ? (
+                                        // The course's last lesson: "Finish" counts it and opens the module's "complete" screen.
+                                        <Button
+                                            className="rounded-full px-5"
+                                            title={`Finish: ${moduleLabel} complete`}
+                                            onClick={advance}
+                                        >
+                                            <Check className="size-4" /> Finish
+                                        </Button>
+                                    ) : nextVideo || leadsToModuleComplete ? (
                                         <Button
                                             className="rounded-full pl-5 pr-4"
                                             title={
-                                                nextOpens
-                                                    ? `Next: ${nextVideo.title}`
-                                                    : "Finish the lessons before this one first"
+                                                leadsToModuleComplete
+                                                    ? `Next: ${moduleLabel} complete`
+                                                    : nextOpens && nextVideo
+                                                        ? `Next: ${nextVideo.title}`
+                                                        : "Finish the lessons before this one first"
                                             }
-                                            disabled={!nextOpens}
+                                            disabled={!leadsToModuleComplete && !nextOpens}
                                             onClick={advance}
                                         >
                                             Next <ChevronRight className="size-4" />
@@ -1345,6 +1459,9 @@ interface CurriculumSidebarProps {
     goToAssignment: (id: string) => void;
     activeQuizId: string | null;
     goToQuiz: (id: string) => void;
+    /** The module whose "complete" screen is open, if one is. */
+    activeCompleteModuleId: string | null;
+    goToModuleComplete: (moduleId: string) => void;
     openMilestones: Set<string>;
     toggleMilestone: (id: string) => void;
     openModules: Set<string>;
@@ -1379,6 +1496,8 @@ function CurriculumSidebar({
     goToAssignment,
     activeQuizId,
     goToQuiz,
+    activeCompleteModuleId,
+    goToModuleComplete,
     openMilestones,
     toggleMilestone,
     openModules,
@@ -1598,12 +1717,16 @@ function CurriculumSidebar({
                                         isModuleOpen={(id) => Boolean(query) || openModules.has(id)}
                                         onToggleModule={query ? undefined : toggleModule}
                                         slug={slug}
-                                        activeVideoId={activeAssignmentId || activeQuizId ? null : activeVideoId}
+                                        activeVideoId={
+                                            activeAssignmentId || activeQuizId || activeCompleteModuleId ? null : activeVideoId
+                                        }
                                         goTo={goTo}
                                         activeAssignmentId={activeAssignmentId}
                                         goToAssignment={goToAssignment}
                                         activeQuizId={activeQuizId}
                                         goToQuiz={goToQuiz}
+                                        activeCompleteModuleId={activeCompleteModuleId}
+                                        goToModuleComplete={goToModuleComplete}
                                         bookmarkedVideoIds={bookmarkedVideoIds}
                                         onToggleRowBookmark={onToggleRowBookmark}
                                         canOpenLesson={canOpenLesson}
@@ -1669,19 +1792,26 @@ type RouteItem =
     | { kind: "MODULE"; key: string; courseModule: LearningModule; isOpen: boolean }
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule }
     | { kind: "QUIZ"; key: string; quiz: NonNullable<LearningModule["quiz"]> }
+    | { kind: "FINISH"; key: string; courseModule: LearningModule }
     | { kind: "ASSIGNMENT"; key: string; assignment: LearningMilestone["assignments"][number] }
     | { kind: "PRACTICE"; key: string; practice: LearningMilestone["practiceDays"][number] };
 
-const isDone = (item: RouteItem) =>
-    item.kind === "MODULE"
-        ? item.courseModule.isCompleted
-        : item.kind === "VIDEO"
-            ? item.video.isCompleted
-            : item.kind === "QUIZ"
-                ? item.quiz.isCompleted
-                : item.kind === "ASSIGNMENT"
-                    ? item.assignment.isAccepted
-                    : item.practice.isCompleted;
+const isDone = (item: RouteItem) => {
+    switch (item.kind) {
+        case "MODULE":
+            return item.courseModule.isCompleted;
+        case "FINISH":
+            return isModuleDone(item.courseModule);
+        case "VIDEO":
+            return item.video.isCompleted;
+        case "QUIZ":
+            return item.quiz.isCompleted;
+        case "ASSIGNMENT":
+            return item.assignment.isAccepted;
+        case "PRACTICE":
+            return item.practice.isCompleted;
+    }
+};
 
 /**
  * One week of the course as a route: every lesson, quiz, assignment and
@@ -1703,11 +1833,15 @@ function WeekRoute({
     goToAssignment,
     activeQuizId,
     goToQuiz,
+    activeCompleteModuleId,
+    goToModuleComplete,
     bookmarkedVideoIds,
     onToggleRowBookmark,
     canOpenLesson,
 }: {
     canOpenLesson: (videoId: string) => boolean;
+    activeCompleteModuleId: string | null;
+    goToModuleComplete: (moduleId: string) => void;
     milestone: LearningMilestone;
     /** The course's word for a module ("Module", "Chapter", …). */
     moduleLabel: string;
@@ -1738,6 +1872,10 @@ function WeekRoute({
             { kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen },
             ...courseModule.videos.map((video): RouteItem => ({ kind: "VIDEO", key: `VIDEO:${video.id}`, video, courseModule })),
             ...(courseModule.quiz ? [{ kind: "QUIZ" as const, key: `QUIZ:${courseModule.quiz.id}`, quiz: courseModule.quiz }] : []),
+            // The module's finish line — not while searching, when only matching lessons show.
+            ...(withAssignmentsAndPractice && courseModule.videos.length > 0
+                ? [{ kind: "FINISH" as const, key: `FINISH:${courseModule.id}`, courseModule }]
+                : []),
         ];
     });
 
@@ -1906,6 +2044,41 @@ function WeekRoute({
                                             {isBookmarked ? <BookmarkCheck className="size-3.5" /> : <Bookmark className="size-3.5" />}
                                         </button>
                                     )}
+                                </div>
+                            );
+                        })()
+                    ) : item.kind === "FINISH" ? (
+                        (() => {
+                            const done = isModuleDone(item.courseModule);
+                            const isActive = activeCompleteModuleId === item.courseModule.id;
+                            return (
+                                // On the wrapper, not the disabled button — a disabled button shows no tooltip.
+                                <div title={done ? undefined : `Opens once you finish every lesson in this ${moduleLabel.toLowerCase()}`}>
+                                    <button
+                                        type="button"
+                                        disabled={!done}
+                                        onClick={() => goToModuleComplete(item.courseModule.id)}
+                                        aria-current={isActive ? "true" : undefined}
+                                        className={cn(
+                                            rowClass,
+                                            "disabled:cursor-not-allowed disabled:hover:bg-transparent",
+                                            isActive && activeRow,
+                                        )}
+                                    >
+                                        {isActive && <Marker />}
+                                        <Stop state={isActive ? "active" : done ? "done" : "open"} done={done} icon={Flag} />
+                                        <span
+                                            className={cn(
+                                                "min-w-0 flex-1 truncate",
+                                                isActive ? "font-semibold text-primary" : !done && "text-muted-foreground",
+                                            )}
+                                        >
+                                            {moduleLabel} complete
+                                        </span>
+                                        <span className="shrink-0 text-xs text-muted-foreground">
+                                            {done ? "Finished" : "Finish line"}
+                                        </span>
+                                    </button>
                                 </div>
                             );
                         })()
