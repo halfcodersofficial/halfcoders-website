@@ -53,6 +53,7 @@ import {
     PHASE_META,
     PRICING_META,
 } from "@/lib/courseClassification";
+import { paginationRange } from "@/lib/pagination";
 import { scrollPageTo } from "@/lib/smoothScroll";
 import { cn } from "@/lib/utils";
 import type { ApiMeta, CoursePhase } from "@/types/api.types";
@@ -65,27 +66,6 @@ const RESULTS_ID = "results";
 
 /** A menu's "everything" choice — Radix radio items need a non-empty value. */
 const ALL = "all";
-
-/**
- * First, last, current ±1, and an ellipsis over any gap — the numbered strip
- * a catalogue this size needs instead of just "Page 3 of 8", without ever
- * rendering all eight buttons at once.
- */
-const paginationRange = (current: number, total: number): (number | "…")[] => {
-    const pages: number[] = [];
-    for (let i = 1; i <= total; i++) {
-        if (i === 1 || i === total || Math.abs(i - current) <= 1) pages.push(i);
-    }
-
-    const withDots: (number | "…")[] = [];
-    let previous: number | undefined;
-    for (const page of pages) {
-        if (previous !== undefined && page - previous > 1) withDots.push("…");
-        withDots.push(page);
-        previous = page;
-    }
-    return withDots;
-};
 
 const LEVELS = [
     { value: "", label: "All levels", dot: null },

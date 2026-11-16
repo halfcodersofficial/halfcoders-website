@@ -1,6 +1,7 @@
 "use client";
 
-import { BriefcaseBusiness, Cpu, GraduationCap, Shuffle, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, Cpu, GraduationCap, Shuffle, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { useRef } from "react";
 import Section from "@/components/site/Section";
 import SectionHeader from "@/components/site/SectionHeader";
@@ -47,13 +48,31 @@ const TONES: Record<AudienceIcon, { color: string; text: string; tile: string; l
 /** The cards rise in one after another, each icon popping in after its card. */
 const buildEntrance: EntranceBuilder = (root, timeline) => {
     timeline
-        .from(root.querySelectorAll("[data-audience]"), { autoAlpha: 0, y: 30, rotate: -1.5, duration: 0.55, stagger: 0.1, ...SETTLE })
-        .from(root.querySelectorAll("[data-audience-icon]"), { scale: 0, duration: 0.45, stagger: 0.1, ease: "back.out(2.4)", ...SETTLE }, 0.2);
+        .from(root.querySelectorAll("[data-audience]"), {
+            autoAlpha: 0,
+            y: 30,
+            rotate: -1.5,
+            duration: 0.55,
+            stagger: 0.1,
+            ...SETTLE,
+        })
+        .from(
+            root.querySelectorAll("[data-audience-icon]"),
+            {
+                scale: 0,
+                duration: 0.45,
+                stagger: 0.1,
+                ease: "back.out(2.4)",
+                ...SETTLE,
+            },
+            0.2,
+        );
 };
 
 /**
  * Who the courses are for: four kinds of learner, each a card in its own
- * colour with an icon and a line. They rise in one after another; pointed
+ * colour with an icon, a line, and — at its foot — the courses to start with,
+ * as links. They rise in one after another; pointed
  * at, a card lifts, a glow in its colour follows the pointer, a line draws
  * across its top and the icon tile fills and tilts.
  */
@@ -62,7 +81,7 @@ export default function HomeAudience() {
     useScrollEntrance(rootRef, buildEntrance);
 
     return (
-        <Section labelledBy="home-audience-title">
+        <Section tone="surface" labelledBy="home-audience-title">
             <SectionHeader id="home-audience-title" eyebrow={AUDIENCE.eyebrow} title={AUDIENCE.title} description={AUDIENCE.description} />
             <ul ref={rootRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {AUDIENCE.items.map((item) => {
@@ -74,7 +93,7 @@ export default function HomeAudience() {
                             key={item.title}
                             data-audience
                             color={tone.color}
-                            className="group overflow-hidden rounded-card border border-border bg-card p-5 transition-[translate,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-card-hover motion-reduce:hover:translate-y-0 sm:p-6"
+                            className="group flex flex-col overflow-hidden rounded-card border border-border bg-card p-5 transition-[translate,box-shadow] duration-300 ease-out hover:-translate-y-1.5 hover:shadow-card-hover motion-reduce:hover:translate-y-0 sm:p-6"
                         >
                             {/* A line in the card's colour, drawing across the top on hover. */}
                             <span
@@ -103,6 +122,25 @@ export default function HomeAudience() {
                             </span>
                             <h3 className="mt-5 font-semibold leading-snug">{item.title}</h3>
                             <p className="mt-1.5 text-[0.95rem] leading-relaxed text-muted-foreground">{item.text}</p>
+
+                            {/* Where this learner can start: the courses that fit them, as links. */}
+                            <div className="relative mt-auto border-t border-dashed border-border pt-4">
+                                <p className={cn("text-xs font-semibold", tone.text)}>{AUDIENCE.startLabel}</p>
+                                <ul className="mt-2 flex flex-wrap gap-1.5">
+                                    {item.start.map((course) => (
+                                        <li key={course.slug}>
+                                            <Link
+                                                href={`/courses/${course.slug}`}
+                                                lang="en"
+                                                className="inline-flex items-center gap-1 rounded-sm border border-border bg-surface px-2 py-1 text-xs font-semibold transition-colors hover:border-primary/40 hover:text-primary-ink"
+                                            >
+                                                {course.name}
+                                                <ArrowUpRight className="size-3" aria-hidden />
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         </SpotlightCard>
                     );
                 })}

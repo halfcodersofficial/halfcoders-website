@@ -345,6 +345,8 @@
   --animate-blink: blink 1.05s steps(1, end) infinite;
   --animate-scan: scan 1.6s ease-in-out infinite;
   --animate-ticker: ticker 40s linear infinite;
+  /* The same loop the other way, left to right (the footer's brand strip). */
+  --animate-ticker-right: ticker-right 70s linear infinite;
   --animate-type-in: type-in 0.5s steps(24, end) both;
 
   @keyframes blink {
@@ -360,6 +362,11 @@
   @keyframes ticker {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
+  }
+
+  @keyframes ticker-right {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
   }
 
   @keyframes type-in {
@@ -1178,4 +1185,503 @@ html.lenis body {
 @keyframes maintenance-progress {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
+}
+
+/* ============================================================================
+ * The footer's brand showcase (components/site/FooterShowcase.tsx): the logo
+ * in thin outline, and a band of violet light passing over it left to right.
+ * ========================================================================== */
+@layer components {
+  /* The outline at rest: a faint violet hairline, the same width at any size. */
+  .showcase-rest {
+    stroke: color-mix(in srgb, var(--violet-300) 24%, transparent);
+    stroke-width: 1px;
+  }
+
+  /* The outline where the light is: the gradient, a touch heavier. */
+  .showcase-lit {
+    stroke-width: 1.6px;
+  }
+
+  /* Its neon: a tight bright halo, then a wider violet one. */
+  .showcase-glow {
+    filter:
+      drop-shadow(0 0 1.5px color-mix(in srgb, var(--violet-300) 80%, transparent))
+      drop-shadow(0 0 9px color-mix(in srgb, var(--violet-500) 75%, transparent))
+      drop-shadow(0 0 22px color-mix(in srgb, var(--violet-600) 45%, transparent));
+  }
+
+  /* The light: a soft-edged window, 45% of the logo wide, sliding at an even
+     pace from fully off the left to fully off the right, then resting
+     off-stage for a moment before the next pass — so the restart is never
+     seen. With a 45% window, -90% and 190% are just clear of either edge. */
+  .showcase-light {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+    -webkit-mask-size: 45% 100%;
+    mask-size: 45% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: -90% 0;
+    mask-position: -90% 0;
+    animation: showcase-sweep 7s linear infinite;
+  }
+
+  @media (max-width: 40rem) {
+    .showcase-lit {
+      stroke-width: 1.2px;
+    }
+
+    .showcase-glow {
+      filter:
+        drop-shadow(0 0 1px color-mix(in srgb, var(--violet-300) 80%, transparent))
+        drop-shadow(0 0 6px color-mix(in srgb, var(--violet-500) 70%, transparent));
+    }
+  }
+
+  /* Reduced motion: no moving light — the whole logo lit softly, standing still. */
+  @media (prefers-reduced-motion: reduce) {
+    .showcase-light {
+      -webkit-mask-image: none;
+      mask-image: none;
+      animation: none;
+      opacity: 0.55;
+    }
+  }
+}
+
+@keyframes showcase-sweep {
+  0% {
+    -webkit-mask-position: -90% 0;
+    mask-position: -90% 0;
+  }
+  85%,
+  100% {
+    -webkit-mask-position: 190% 0;
+    mask-position: 190% 0;
+  }
+}
+
+/* ============================================================================
+ * The homepage hero (components/home/HomeHero.tsx): the logo row, the
+ * headline's lavender word, and the code drifting faintly behind it all.
+ * ========================================================================== */
+@layer components {
+  /* One logo in the row, as a badge in the tool's official colours (set per
+     logo: `--from`/`--to` the disc, `--fg` the logo): a glossy disc — a
+     highlight up at the top left, shade at the foot, a bright rim — with
+     the logo on it, lifted a touch by its own shadow. On hover the badge
+     rises and glows in its colour. */
+  .hero-tech {
+    --from: #3a3a3a;
+    --to: #000000;
+    --fg: #ffffff;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    background:
+      radial-gradient(circle at 32% 20%, rgb(255 255 255 / 0.3), transparent 48%),
+      linear-gradient(150deg, var(--from), var(--to));
+    color: var(--fg);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.32),
+      inset 0 -5px 9px rgb(0 0 0 / 0.28),
+      0 10px 22px -12px color-mix(in srgb, var(--from) 75%, transparent);
+    transition-property: translate, box-shadow;
+    transition-duration: 250ms;
+    transition-timing-function: ease-out;
+  }
+
+  .hero-tech svg {
+    filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.3));
+  }
+
+  @media (min-width: 40rem) {
+    .hero-tech {
+      width: 3.1rem;
+      height: 3.1rem;
+    }
+  }
+
+  @media (hover: hover) {
+    .hero-tech:hover {
+      translate: 0 -4px;
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.32),
+        inset 0 -5px 9px rgb(0 0 0 / 0.28),
+        0 0 0 4px color-mix(in srgb, var(--from) 24%, transparent),
+        0 16px 30px -10px color-mix(in srgb, var(--from) 80%, transparent);
+    }
+  }
+
+  /* Each logo bobbing gently in place, out of step with its neighbours. */
+  .hero-float {
+    animation: hero-float 6s ease-in-out infinite;
+  }
+
+  /* The headline's last word: lit in the brand's violet-to-lavender. */
+  .hero-mark {
+    background-image: linear-gradient(90deg, var(--violet-400), var(--violet-200) 55%, var(--violet-400));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* The code behind the hero: clear in the middle, where the words are,
+     showing towards the edges — */
+  .hero-code-field {
+    -webkit-mask-image: radial-gradient(ellipse 60% 62% at 50% 44%, transparent 32%, #000 82%);
+    mask-image: radial-gradient(ellipse 60% 62% at 50% 44%, transparent 32%, #000 82%);
+  }
+
+  /* — and scrolling slowly up, like a file being read. The rows repeat every
+     12 lines (12 × 18px), so moving exactly that far loops without a seam. */
+  .hero-code-drift {
+    animation: hero-code-drift 24s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-float,
+    .hero-code-drift {
+      animation: none;
+    }
+
+    .hero-tech {
+      transition: none;
+    }
+
+    .hero-tech:hover {
+      translate: none;
+    }
+  }
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes hero-code-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-216px);
+  }
+}
+
+/* ============================================================================
+ * The homepage's career road (components/home/HomeCareer.tsx): seven step
+ * cards zigzagging down a dashed spine on a soft lavender ground. Phones get
+ * the same road as a plain timeline down the left.
+ * ========================================================================== */
+@layer components {
+  /* Each step's accent, in turn round the brand's violet: dark enough to
+     read as text on a light card, pastel on a dark one. */
+  .career {
+    --career-1: #7432f0;
+    --career-2: #4f46e5;
+    --career-3: #0b6e8a;
+    --career-4: #2f7a12;
+    --career-5: #a8520a;
+    --career-6: #b3245f;
+    --career-7: #a21caf;
+  }
+
+  .dark .career {
+    --career-1: #a57aff;
+    --career-2: #a5b4fc;
+    --career-3: #8edcf0;
+    --career-4: #b5e8a0;
+    --career-5: #ffc08a;
+    --career-6: #ffa8cf;
+    --career-7: #f0abfc;
+  }
+
+  /* The ground: a soft lavender wash, a little pink glow on the right. */
+  .career-ground {
+    background:
+      radial-gradient(55% 45% at 0% 0%, color-mix(in oklch, var(--violet-500) 11%, transparent), transparent 70%),
+      radial-gradient(45% 40% at 100% 65%, color-mix(in oklch, #c026d3 8%, transparent), transparent 70%),
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--violet-500) 6%, var(--background)),
+        var(--background) 45%,
+        color-mix(in oklch, var(--violet-500) 7%, var(--background))
+      );
+  }
+
+  /* …and dot paper over it, fading out towards the edges. */
+  .career-dots {
+    background-image: radial-gradient(color-mix(in oklch, var(--violet-500) 24%, transparent) 1px, transparent 1.6px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 80%);
+    mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 25%, transparent 80%);
+  }
+
+  /* The road's measurements. Phones: the spine runs down the left (`--rail`
+     from the edge), the cards beside it (`--pad` in). */
+  .career-road {
+    --rail: 1.25rem;
+    --pad: 3.5rem;
+    --marker: 2.5rem;
+    --marker-top: 1.5rem;
+    --gap: 0px;
+    position: relative;
+  }
+
+  .career-list {
+    position: relative;
+    display: grid;
+    row-gap: 1.25rem;
+  }
+
+  /* The spine, from the first marker down: faint dashes drifting downward… */
+  .career-spine {
+    position: absolute;
+    top: calc(var(--marker-top) + var(--marker) / 2);
+    bottom: 0;
+    left: var(--rail);
+    width: 2px;
+    translate: -50% 0;
+    background-image: linear-gradient(to bottom, var(--border-strong) 55%, transparent 0);
+    background-size: 2px 10px;
+    animation: career-flow 1.4s linear infinite;
+  }
+
+  /* …and over them the same dashes in the steps' colours, filled in as the
+     page scrolls (scaleY, from HomeCareer). Rendered full. */
+  .career-spine-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: top;
+    background-image: linear-gradient(to bottom, var(--career-1), var(--career-3), var(--career-5), var(--career-7));
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 0);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 0);
+    -webkit-mask-size: 2px 10px;
+    mask-size: 2px 10px;
+    animation: career-flow-mask 1.4s linear infinite;
+  }
+
+  .career-item {
+    position: relative;
+    padding-left: var(--pad);
+  }
+
+  /* A step's marker on the spine: its icon in a ring of its colour. */
+  .career-marker {
+    position: absolute;
+    z-index: 1;
+    top: var(--marker-top);
+    left: var(--rail);
+    translate: -50% 0;
+    display: grid;
+    place-items: center;
+    width: var(--marker);
+    height: var(--marker);
+    border-radius: 9999px;
+    border: 2px solid var(--step);
+    background-color: var(--card);
+    color: var(--step);
+    box-shadow:
+      0 0 0 5px color-mix(in oklch, var(--step) 13%, transparent),
+      0 8px 20px -8px color-mix(in oklch, var(--step) 55%, transparent);
+  }
+
+  /* The short dashed line from the marker to its card. */
+  .career-connector {
+    position: absolute;
+    top: calc(var(--marker-top) + var(--marker) / 2 - 1px);
+    left: calc(var(--rail) + var(--marker) / 2);
+    width: calc(var(--pad) - var(--rail) - var(--marker) / 2);
+    border-top: 2px dashed color-mix(in oklch, var(--step) 55%, transparent);
+  }
+
+  /* The card: a coloured bar down its left edge — the step's indicator. On
+     hover it lifts, takes its colour at the border and glows faintly in it. */
+  .career-card {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--card) 92%, transparent);
+    box-shadow: 0 1px 0 rgb(21 17 42 / 0.04), 0 18px 40px -30px rgb(21 17 42 / 0.3);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    transition-property: translate, border-color, box-shadow;
+    transition-duration: 300ms;
+    transition-timing-function: ease-out;
+  }
+
+  .career-card::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, var(--step), color-mix(in oklch, var(--step) 25%, transparent));
+  }
+
+  @media (hover: hover) {
+    .career-card:hover {
+      translate: 0 -4px;
+      border-color: color-mix(in oklch, var(--step) 45%, var(--border));
+      box-shadow:
+        0 0 0 1px color-mix(in oklch, var(--step) 18%, transparent),
+        0 22px 44px -24px color-mix(in oklch, var(--step) 55%, transparent);
+    }
+  }
+
+  /* A skill on a card, tinted in the step's colour. */
+  .career-tag {
+    border: 1px solid color-mix(in oklch, var(--step) 28%, transparent);
+    background-color: color-mix(in oklch, var(--step) 8%, transparent);
+    color: var(--step);
+  }
+
+  /* A course link on a card. */
+  .career-course {
+    transition-property: color, border-color, background-color;
+    transition-duration: 200ms;
+  }
+
+  .career-course:hover {
+    border-color: color-mix(in oklch, var(--step) 50%, transparent);
+    background-color: color-mix(in oklch, var(--step) 7%, transparent);
+    color: var(--step);
+  }
+
+  /* The goal at the foot: the spine runs on into its marker. */
+  .career-goal {
+    --step: var(--career-7);
+    position: relative;
+    padding-top: 2.25rem;
+    padding-left: var(--pad);
+  }
+
+  .career-goal::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--rail);
+    height: calc(2.25rem + 0.5rem);
+    translate: -50% 0;
+    border-left: 2px dashed color-mix(in oklch, var(--career-7) 55%, transparent);
+  }
+
+  .career-goal .career-marker {
+    top: 2.25rem;
+    background-image: linear-gradient(135deg, var(--career-1), var(--career-7));
+    border-color: transparent;
+    color: #fff;
+  }
+
+  /* Tablets up: the zigzag. Two columns either side of a spine down the
+     middle; each card spans two grid rows and the next starts one row lower
+     in the other column, so they interleave. */
+  @media (min-width: 48rem) {
+    .career-road {
+      --gap: 4.5rem;
+      --marker: 2.75rem;
+      --marker-top: 2rem;
+      --rail: 50%;
+    }
+
+    .career-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: var(--gap);
+    }
+
+    .career-item {
+      padding-left: 0;
+      grid-row: var(--row) / span 2;
+    }
+
+    .career-item[data-side="left"] {
+      grid-column: 1;
+    }
+
+    .career-item[data-side="right"] {
+      grid-column: 2;
+    }
+
+    .career-item[data-side="left"] .career-marker {
+      left: calc(100% + var(--gap) / 2);
+    }
+
+    .career-item[data-side="right"] .career-marker {
+      left: calc(var(--gap) / -2);
+    }
+
+    .career-item[data-side="left"] .career-connector {
+      left: 100%;
+      width: calc(var(--gap) / 2 - var(--marker) / 2);
+    }
+
+    .career-item[data-side="right"] .career-connector {
+      left: auto;
+      right: 100%;
+      width: calc(var(--gap) / 2 - var(--marker) / 2);
+    }
+
+    .career-goal {
+      padding-left: 0;
+      padding-top: 4.5rem;
+      text-align: center;
+    }
+
+    .career-goal::before {
+      height: 4.5rem;
+    }
+
+    .career-goal .career-marker {
+      top: 4.5rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .career-road {
+      --gap: 7rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .career-spine,
+    .career-spine-fill {
+      animation: none;
+    }
+
+    .career-card {
+      transition: none;
+    }
+
+    .career-card:hover {
+      translate: none;
+    }
+  }
+}
+
+@keyframes career-flow {
+  to {
+    background-position: 0 10px;
+  }
+}
+
+@keyframes career-flow-mask {
+  to {
+    -webkit-mask-position: 0 10px;
+    mask-position: 0 10px;
+  }
 }

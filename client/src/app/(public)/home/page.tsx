@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import HomeAudience from "@/components/home/HomeAudience";
+import HomeCareer from "@/components/home/HomeCareer";
 import HomeCertificate from "@/components/home/HomeCertificate";
-import HomeCommunity from "@/components/home/HomeCommunity";
 import HomeCta from "@/components/home/HomeCta";
 import HomeDay from "@/components/home/HomeDay";
 import HomeFaq from "@/components/home/HomeFaq";
@@ -11,9 +11,7 @@ import HomeReviews from "@/components/home/HomeReviews";
 import HomeStats from "@/components/home/HomeStats";
 import HomeSupport from "@/components/home/HomeSupport";
 import HomeTicker from "@/components/home/HomeTicker";
-import HomeTracks from "@/components/home/HomeTracks";
 import HomeWhy from "@/components/home/HomeWhy";
-import HomeWorkflow from "@/components/home/HomeWorkflow";
 import { FAQ } from "@/components/home/content";
 import JsonLd from "@/components/shared/JsonLd";
 import { BRAND_NAME } from "@/lib/brand";
@@ -27,10 +25,16 @@ export const metadata: Metadata = pageMetadata({
 });
 
 /**
- * The homepage, dressed as a friendly code editor. Static by design — every
- * word and figure comes from components/home/content.ts, none from the API
- * (the reviews are the exception: real reviews only). It speaks of all of
- * Half Coders — coding, engineering and career — not any one course.
+ * The homepage, dressed as a friendly code editor. Its words and figures
+ * come from components/home/content.ts; only the reviews read the API (real
+ * reviews only, hidden when there are none). It speaks of all of Half Coders
+ * — coding, engineering and career — not any one course.
+ *
+ * The order tells one story: the promise, the road to a developer job, the
+ * proof, why learn here, what a course holds, how it fits a
+ * busy day, who it's for, the help when stuck, the certificate at the end,
+ * what others say, the questions, and the ask. Dark and light bands alternate, so no two
+ * neighbours blur into one — keep it that way when adding a section.
  *
  * The copy is Bangla, so the whole page says `lang="bn"`: it gets Bangla's
  * taller line and fonts, and the right voice in a screen reader. Button
@@ -42,41 +46,35 @@ export default function HomePage() {
             {/* The questions answered below, for search and AI answer engines. */}
             <JsonLd data={faqJsonLd(FAQ.items)} />
 
-            {/* The promise, a code window, four facts */}
+            {/* The promise: the stack, the headline, the two ways in, four facts (dark) */}
             <HomeHero />
 
             {/* What Half Coders teaches, scrolling past */}
             <HomeTicker />
 
-            {/* The four areas: coding, engineering, building, career */}
-            <HomeTracks />
+            {/* The road through them to a developer job, seven steps zigzagging down the page (lavender) */}
+            <HomeCareer />
 
-            {/* By the numbers, as one dashboard: students as dots, success as a ring, courses as a road */}
+            {/* By the numbers, as one dashboard: students as dots, success as a ring, courses as a road (dark) */}
             <HomeStats />
 
-            {/* Learning alone against learning here, as a before/after */}
+            {/* Learning alone against learning here, as problem → solution */}
             <HomeWhy />
 
-            {/* A day's timeline, a playhead gliding between the learning blocks */}
-            <HomeDay />
-
-            {/* What's inside every course, as an explorer */}
+            {/* What's inside every course, as an explorer (dark) */}
             <HomeInside />
 
-            {/* Enrol to certificate in five steps */}
-            <HomeWorkflow />
+            {/* An ordinary day with the learning fitted into its gaps, written as a file */}
+            <HomeDay />
 
-            {/* A support session acted out in the editor */}
-            <HomeSupport />
-
-            {/* Who it's for */}
+            {/* Who it's for, and the course each can start with (tinted) */}
             <HomeAudience />
+
+            {/* A support session acted out in the editor (dark) */}
+            <HomeSupport />
 
             {/* The certificate, and the check anyone can run */}
             <HomeCertificate />
-
-            {/* What "Half Coders" means */}
-            <HomeCommunity />
 
             {/* Reviews — only published ones, hidden when there are none */}
             <HomeReviews />
@@ -84,7 +82,7 @@ export default function HomePage() {
             {/* Questions */}
             <HomeFaq />
 
-            {/* The closing terminal */}
+            {/* The ask, and a terminal printing what every course gives */}
             <HomeCta />
         </div>
     );
