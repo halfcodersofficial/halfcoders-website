@@ -13,53 +13,58 @@
  * Half Coders really does: no job or income promises.
  */
 
-/** One line of the hero's code window. `parts` are coloured by kind; `indent` is in levels of four spaces. */
-export interface CodeLine {
-    indent?: number;
-    parts: { text: string; kind?: "kw" | "str" | "fn" | "num" | "cmt" | "tag" | "plain" }[];
-}
+/** A run of hero copy; `mark` ones are lit in the brand's lavender. */
+export type HeroText = { text: string; mark?: boolean }[];
+
+export type HeroFactIcon = "language" | "live" | "mentor" | "certificate";
 
 export const HERO = {
-    /** The badge over the headline. */
-    badge: "নতুনদের জন্য, শেখা শুরু হোক আজ থেকেই",
-    /** The headline, in two lines; `mark` gets the editor's squiggly underline. */
-    title: { first: "শিখতে চান?", lead: "চলুন, শুরু করি", mark: "একসাথে।" },
-    description:
-        "কোডিং হোক, ইঞ্জিনিয়ারিংয়ের গণিত হোক বা চাকরির প্রস্তুতি, এখানে সবকিছু শেখানো হয় বাংলায়, একদম সহজ করে। ক্লাসে যত খুশি প্রশ্ন করুন, নিজে হাতে কাজ করুন। অ্যাসাইনমেন্ট জমা দিলে আমাদের মেন্টররা নিজেরাই সেটা দেখে বলে দেবেন কোথায় আরেকটু ভালো করা যায়।",
-    /** The ticks under the buttons. */
-    checks: ["ক্লাস বাংলায়", "মেন্টর নিজে কাজ দেখেন", "সার্টিফিকেট অনলাইনে মিলিয়ে দেখা যায়"],
-    /** The code window beside the headline — decoration. English, like real code; the comments are Bangla. */
-    window: {
-        file: "hello.cpp",
-        other: "notes.md",
-        code: [
-            { parts: [{ text: "#include ", kind: "kw" }, { text: "<iostream>", kind: "str" }] },
-            { parts: [{ text: "using namespace ", kind: "kw" }, { text: "std;" }] },
-            { parts: [] },
-            { parts: [{ text: "int ", kind: "kw" }, { text: "main", kind: "fn" }, { text: "() {" }] },
-            { indent: 1, parts: [{ text: "// প্রথম দিন, প্রথম প্রোগ্রাম", kind: "cmt" }] },
-            { indent: 1, parts: [{ text: "cout << " }, { text: "\"Hello, Half Coders!\"", kind: "str" }, { text: " << endl;" }] },
-            { parts: [] },
-            { indent: 1, parts: [{ text: "for ", kind: "kw" }, { text: "(" }, { text: "int ", kind: "kw" }, { text: "day = " }, { text: "1", kind: "num" }, { text: "; ; day++) {" }] },
-            { indent: 2, parts: [{ text: "learn", kind: "fn" }, { text: "(); " }, { text: "build", kind: "fn" }, { text: "(); " }, { text: "// রোজ একটু একটু", kind: "cmt" }] },
-            { indent: 1, parts: [{ text: "}" }] },
-            { parts: [{ text: "}" }] },
-        ] satisfies CodeLine[],
-        /** The terminal under the code, typed out line by line. */
-        terminal: [
-            { kind: "cmd", text: "g++ hello.cpp -o hello && ./hello" },
-            { kind: "out", text: "Hello, Half Coders!" },
-            { kind: "ok", text: "মেন্টর: বাহ, প্রথমবারেই চলে গেছে! 🎉" },
-        ] as const,
-        status: { branch: "learning", lang: "Half Coders", position: "Ln 6, Col 42", state: "শেখা চলছে" },
-    },
-    /** The facts along the foot of the hero: what every course gives, not totals. */
-    facts: [
-        { value: "বাংলা", label: "পুরোটা বাংলায় বোঝানো হয়" },
-        { value: "লাইভ", label: "ক্লাস হয় লাইভে, মিস করলে রেকর্ডিং আছে" },
-        { value: "1:1", label: "আটকে গেলে মেন্টরের সাথে আলাদা বসা যায়" },
-        { value: "✓", label: "সার্টিফিকেট যে কেউ অনলাইনে মিলিয়ে দেখতে পারে" },
+    /**
+     * The logos over the headline: programming and engineering only — the
+     * languages, web stack and tools of the coding roadmap, roughly in the
+     * order a learner meets them (C and C++ first, as in CodeBee). No career
+     * or office tools here, even where a course uses them. Keys of
+     * TECH_STACK_ICONS (lib/techStackIcons.ts). Each is drawn as a badge in
+     * its official colours: `bg` the disc's gradient (light to dark), `fg`
+     * the logo on it.
+     */
+    stack: [
+        { key: "c", bg: ["#5C6BC0", "#283593"], fg: "#FFFFFF" },
+        { key: "cplusplus", bg: ["#1E78C8", "#00427A"], fg: "#FFFFFF" },
+        { key: "python", bg: ["#4B8BC8", "#2B5B84"], fg: "#FFD43B" },
+        { key: "html5", bg: ["#F06A3F", "#C13A16"], fg: "#FFFFFF" },
+        { key: "css3", bg: ["#8A4FCC", "#4E2577"], fg: "#FFFFFF" },
+        { key: "javascript", bg: ["#FBE84A", "#E5C800"], fg: "#1A1A1A" },
+        { key: "typescript", bg: ["#4A92E0", "#235A97"], fg: "#FFFFFF" },
+        { key: "react", bg: ["#2C313A", "#121419"], fg: "#61DAFB" },
+        { key: "nextjs", bg: ["#3A3A3A", "#000000"], fg: "#FFFFFF" },
+        { key: "nodejs", bg: ["#78B867", "#3F7A33"], fg: "#FFFFFF" },
+        { key: "git", bg: ["#F7704F", "#C93A20"], fg: "#FFFFFF" },
+        { key: "github", bg: ["#3A414A", "#0D1117"], fg: "#FFFFFF" },
     ],
+    /** What the logo row is, for screen readers. */
+    stackLabel: "প্রোগ্রামিং ভাষা ও টুল, যা নিয়ে কাজ করবেন",
+    /**
+     * The headline, in two lines. `selected` wears the editor's selection
+     * highlight; `mark` gets the lavender gradient and the squiggly underline.
+     */
+    title: { selected: "শিখতে", first: " চান?", lead: "চলুন, শুরু করি", mark: "একসাথে।" },
+    description: [
+        { text: "কোডিং হোক, ইঞ্জিনিয়ারিংয়ের কঠিন বিষয় কিংবা ক্যারিয়ার প্রস্তুতি—Half Coders-এর সঙ্গে শিখুন " },
+        { text: "বাংলায়", mark: true },
+        { text: ", " },
+        { text: "বাস্তব প্রজেক্টে", mark: true },
+        { text: " কাজ করুন এবং নিজের দক্ষতা তৈরি করুন " },
+        { text: "অভিজ্ঞ মেন্টরদের", mark: true },
+        { text: " গাইডলাইনে।" },
+    ] satisfies HeroText,
+    /** The card under the buttons: what every course gives — no dates or totals, which change. */
+    facts: [
+        { icon: "language", label: "ক্লাস হয়", value: "পুরোটা বাংলায়" },
+        { icon: "live", label: "লাইভ ক্লাস", value: "রেকর্ডিংসহ" },
+        { icon: "mentor", label: "আটকে গেলে", value: "মেন্টরের সাথে 1:1" },
+        { icon: "certificate", label: "সার্টিফিকেট", value: "অনলাইনে যাচাই" },
+    ] satisfies { icon: HeroFactIcon; label: string; value: string }[],
 };
 
 /** What Half Coders teaches, scrolling past under the hero. */

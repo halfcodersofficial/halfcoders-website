@@ -1261,3 +1261,122 @@ html.lenis body {
     mask-position: 190% 0;
   }
 }
+
+/* ============================================================================
+ * The homepage hero (components/home/HomeHero.tsx): the logo row, the
+ * headline's lavender word, and the code drifting faintly behind it all.
+ * ========================================================================== */
+@layer components {
+  /* One logo in the row, as a badge in the tool's official colours (set per
+     logo: `--from`/`--to` the disc, `--fg` the logo): a glossy disc — a
+     highlight up at the top left, shade at the foot, a bright rim — with
+     the logo on it, lifted a touch by its own shadow. On hover the badge
+     rises and glows in its colour. */
+  .hero-tech {
+    --from: #3a3a3a;
+    --to: #000000;
+    --fg: #ffffff;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    background:
+      radial-gradient(circle at 32% 20%, rgb(255 255 255 / 0.3), transparent 48%),
+      linear-gradient(150deg, var(--from), var(--to));
+    color: var(--fg);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.32),
+      inset 0 -5px 9px rgb(0 0 0 / 0.28),
+      0 10px 22px -12px color-mix(in srgb, var(--from) 75%, transparent);
+    transition-property: translate, box-shadow;
+    transition-duration: 250ms;
+    transition-timing-function: ease-out;
+  }
+
+  .hero-tech svg {
+    filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.3));
+  }
+
+  @media (min-width: 40rem) {
+    .hero-tech {
+      width: 3.1rem;
+      height: 3.1rem;
+    }
+  }
+
+  @media (hover: hover) {
+    .hero-tech:hover {
+      translate: 0 -4px;
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.32),
+        inset 0 -5px 9px rgb(0 0 0 / 0.28),
+        0 0 0 4px color-mix(in srgb, var(--from) 24%, transparent),
+        0 16px 30px -10px color-mix(in srgb, var(--from) 80%, transparent);
+    }
+  }
+
+  /* Each logo bobbing gently in place, out of step with its neighbours. */
+  .hero-float {
+    animation: hero-float 6s ease-in-out infinite;
+  }
+
+  /* The headline's last word: lit in the brand's violet-to-lavender. */
+  .hero-mark {
+    background-image: linear-gradient(90deg, var(--violet-400), var(--violet-200) 55%, var(--violet-400));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* The code behind the hero: clear in the middle, where the words are,
+     showing towards the edges — */
+  .hero-code-field {
+    -webkit-mask-image: radial-gradient(ellipse 60% 62% at 50% 44%, transparent 32%, #000 82%);
+    mask-image: radial-gradient(ellipse 60% 62% at 50% 44%, transparent 32%, #000 82%);
+  }
+
+  /* — and scrolling slowly up, like a file being read. The rows repeat every
+     12 lines (12 × 18px), so moving exactly that far loops without a seam. */
+  .hero-code-drift {
+    animation: hero-code-drift 24s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-float,
+    .hero-code-drift {
+      animation: none;
+    }
+
+    .hero-tech {
+      transition: none;
+    }
+
+    .hero-tech:hover {
+      translate: none;
+    }
+  }
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes hero-code-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-216px);
+  }
+}
