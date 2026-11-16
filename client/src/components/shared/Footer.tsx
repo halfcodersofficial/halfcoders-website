@@ -7,11 +7,12 @@ import type { IconType } from "react-icons/lib";
 import { SiFacebook, SiGithub, SiWhatsapp, SiYoutube } from "react-icons/si";
 import { BackToTop, BangladeshTime, CopyButton } from "@/components/shared/FooterBits";
 import Logo from "@/components/shared/Logo";
+import BrandStrip from "@/components/site/BrandStrip";
 import { FileIcon } from "@/components/site/EditorWindow";
+import FooterShowcase from "@/components/site/FooterShowcase";
 import SupportStatus from "@/components/site/SupportStatus";
 import {
     BRAND_NAME,
-    BRAND_TAGLINE,
     GOVERNMENT_HOLIDAYS,
     SOCIAL_LINKS,
     SUPPORT_EMAIL,
@@ -81,15 +82,17 @@ const SOCIAL_ICON: Record<(typeof SOCIAL_LINKS)[number]["network"], IconType> = 
 };
 
 /**
- * The site's footer: a dark editor pane on faint graph paper. Along the top
- * the logo, what Half Coders is and the social pages, with the sitemap beside
+ * The site's footer: a dark editor pane on faint graph paper. It opens with
+ * the logo drawn large in outline, a violet light passing over it
+ * (`FooterShowcase`). Under that the logo, what Half Coders is and the social pages, with the sitemap beside
  * them as two folders of a file tree, and the courses as a third folder
  * across the width under them. Under that, how to reach us as one
  * editor panel split into cells — email (with a copy button), the phone
  * numbers (tap to call), the calling hours with whether the line is open
  * right now, and that we take bKash, shown by its logo. Then the small print,
- * and along the foot a violet status bar — the time in Dhaka and the
- * tagline — as at the bottom of an editor.
+ * and along the foot a violet status bar, as at the bottom of an editor: the
+ * brand line and the tagline rolling past (`BrandStrip`), the time in Dhaka
+ * pinned at the right.
  */
 export default async function Footer() {
     const { courses, more } = await footerCourses();
@@ -99,6 +102,11 @@ export default async function Footer() {
             <div aria-hidden className="bg-grid bg-grid-fade pointer-events-none absolute inset-0 opacity-60" />
             <div aria-hidden className="pointer-events-none absolute -left-40 -top-56 size-120 rounded-full bg-violet-600/15 blur-3xl" />
             <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-violet-400/60 to-transparent" />
+
+            {/* The brand showcase: the logo in outline, a band of violet light passing over it. */}
+            <div className="container-page relative pt-16 sm:pt-20 lg:pt-24">
+                <FooterShowcase />
+            </div>
 
             <div className="container-page relative py-14 sm:py-16">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:gap-x-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-12">
@@ -144,7 +152,7 @@ export default async function Footer() {
                                     {group.files.map((item) => (
                                         <li key={item.href}>
                                             <Link href={item.href} className={TREE_LINK}>
-                                                <FileIcon name={item.file} className="mt-[3px]" />
+                                                <FileIcon name={item.file} className="mt-0.75" />
                                                 {item.label}
                                             </Link>
                                         </li>
@@ -166,7 +174,7 @@ export default async function Footer() {
                             {courses.map((course) => (
                                 <li key={course.slug} className="border-l border-editor-line">
                                     <Link href={`/courses/${course.slug}`} lang={langOf(course.title)} className={TREE_LINK}>
-                                        <FileIcon name="course.md" className="mt-[3px]" />
+                                        <FileIcon name="course.md" className="mt-0.75" />
                                         <span className="min-w-0">{course.title ?? course.slug}</span>
                                     </Link>
                                 </li>
@@ -174,7 +182,7 @@ export default async function Footer() {
                             {more && (
                                 <li className="border-l border-editor-line">
                                     <Link href="/courses" className={TREE_LINK}>
-                                        <FileIcon name="courses/" className="mt-[3px]" />
+                                        <FileIcon name="courses/" className="mt-0.75" />
                                         All courses
                                     </Link>
                                 </li>
@@ -194,7 +202,7 @@ export default async function Footer() {
                     {/* The hairlines between the cells are the grid's gap showing the line colour through, exact however they wrap. */}
                     <div className="grid grid-cols-1 gap-px bg-editor-line sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.05fr)_minmax(0,1.3fr)_minmax(0,1fr)]">
                         <Cell icon={Mail} tone="func" label="Email" action={<CopyButton value={SUPPORT_EMAIL} label="Copy the email address" />}>
-                            <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-editor-fg [overflow-wrap:anywhere] hover:underline">
+                            <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-editor-fg wrap-anywhere hover:underline">
                                 {SUPPORT_EMAIL}
                             </a>
                         </Cell>
@@ -253,21 +261,8 @@ export default async function Footer() {
                 </div>
             </div>
 
-            {/* The status bar. */}
-            <div className="relative bg-primary text-primary-foreground">
-                <div className="container-page flex h-8 items-center justify-between gap-4 overflow-hidden font-mono text-[0.68rem]">
-                    <span className="flex min-w-0 items-center gap-4">
-                        <span className="inline-flex items-center gap-1.5">
-                            <span aria-hidden className="size-1.5 rounded-full bg-green-300" /> Half Coders
-                        </span>
-                        <span className="hidden sm:inline">Learning in Bangla</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-4">
-                        <BangladeshTime />
-                        <span className="hidden md:inline">{BRAND_TAGLINE}</span>
-                    </span>
-                </div>
-            </div>
+            {/* The status bar: the brand line rolling left to right, the time in Dhaka pinned at its end. */}
+            <BrandStrip end={<BangladeshTime />} />
         </footer>
     );
 }

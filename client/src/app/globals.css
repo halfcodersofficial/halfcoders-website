@@ -345,6 +345,8 @@
   --animate-blink: blink 1.05s steps(1, end) infinite;
   --animate-scan: scan 1.6s ease-in-out infinite;
   --animate-ticker: ticker 40s linear infinite;
+  /* The same loop the other way, left to right (the footer's brand strip). */
+  --animate-ticker-right: ticker-right 70s linear infinite;
   --animate-type-in: type-in 0.5s steps(24, end) both;
 
   @keyframes blink {
@@ -360,6 +362,11 @@
   @keyframes ticker {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
+  }
+
+  @keyframes ticker-right {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
   }
 
   @keyframes type-in {
@@ -1178,4 +1185,79 @@ html.lenis body {
 @keyframes maintenance-progress {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
+}
+
+/* ============================================================================
+ * The footer's brand showcase (components/site/FooterShowcase.tsx): the logo
+ * in thin outline, and a band of violet light passing over it left to right.
+ * ========================================================================== */
+@layer components {
+  /* The outline at rest: a faint violet hairline, the same width at any size. */
+  .showcase-rest {
+    stroke: color-mix(in srgb, var(--violet-300) 24%, transparent);
+    stroke-width: 1px;
+  }
+
+  /* The outline where the light is: the gradient, a touch heavier. */
+  .showcase-lit {
+    stroke-width: 1.6px;
+  }
+
+  /* Its neon: a tight bright halo, then a wider violet one. */
+  .showcase-glow {
+    filter:
+      drop-shadow(0 0 1.5px color-mix(in srgb, var(--violet-300) 80%, transparent))
+      drop-shadow(0 0 9px color-mix(in srgb, var(--violet-500) 75%, transparent))
+      drop-shadow(0 0 22px color-mix(in srgb, var(--violet-600) 45%, transparent));
+  }
+
+  /* The light: a soft-edged window, 45% of the logo wide, sliding at an even
+     pace from fully off the left to fully off the right, then resting
+     off-stage for a moment before the next pass — so the restart is never
+     seen. With a 45% window, -90% and 190% are just clear of either edge. */
+  .showcase-light {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+    -webkit-mask-size: 45% 100%;
+    mask-size: 45% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: -90% 0;
+    mask-position: -90% 0;
+    animation: showcase-sweep 7s linear infinite;
+  }
+
+  @media (max-width: 40rem) {
+    .showcase-lit {
+      stroke-width: 1.2px;
+    }
+
+    .showcase-glow {
+      filter:
+        drop-shadow(0 0 1px color-mix(in srgb, var(--violet-300) 80%, transparent))
+        drop-shadow(0 0 6px color-mix(in srgb, var(--violet-500) 70%, transparent));
+    }
+  }
+
+  /* Reduced motion: no moving light — the whole logo lit softly, standing still. */
+  @media (prefers-reduced-motion: reduce) {
+    .showcase-light {
+      -webkit-mask-image: none;
+      mask-image: none;
+      animation: none;
+      opacity: 0.55;
+    }
+  }
+}
+
+@keyframes showcase-sweep {
+  0% {
+    -webkit-mask-position: -90% 0;
+    mask-position: -90% 0;
+  }
+  85%,
+  100% {
+    -webkit-mask-position: 190% 0;
+    mask-position: 190% 0;
+  }
 }
