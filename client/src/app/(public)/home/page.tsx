@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HomeAudience from "@/components/home/HomeAudience";
+import HomeCareer from "@/components/home/HomeCareer";
 import HomeCertificate from "@/components/home/HomeCertificate";
 import HomeCommunity from "@/components/home/HomeCommunity";
 import HomeCta from "@/components/home/HomeCta";
@@ -50,6 +51,10 @@ export default function HomePage() {
 
             {/* The four areas: coding, engineering, building, career */}
             <HomeTracks />
+
+            {/* The road through them to a developer job, in seven steps zigzagging down the page.
+                Kept well away from HomeWorkflow: both are steps on a line, and side by side they read as one. */}
+            <HomeCareer />
 
             {/* By the numbers, as one dashboard: students as dots, success as a ring, courses as a road */}
             <HomeStats />

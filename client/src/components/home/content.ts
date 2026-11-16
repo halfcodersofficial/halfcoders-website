@@ -294,6 +294,116 @@ export const INSIDE = {
     ] satisfies { id: string; file: string; label: string; icon: InsideIcon; title: string; text: string; preview: string[] }[],
 };
 
+export type CareerIcon = "foundation" | "dsa" | "fullstack" | "ai" | "portfolio" | "branding" | "interview";
+
+/** A run of the career section's headline: `tag` is drawn as a highlighted <tag>, `mark` in the brand's purple. */
+export type CareerTitlePart = { text: string; kind?: "tag" | "mark" };
+
+/**
+ * The road from a first line of code to a developer job, in seven steps,
+ * told as a zigzag down the page (HomeCareer). It is the direction, not a
+ * promise: no job, company or placement is claimed.
+ *
+ * `courses` are the published courses that help with a step — they may cover
+ * part of it, not all, and the section says so. A step with none says that
+ * too. Keep the slugs in step with the catalogue: a renamed or withdrawn
+ * course here is a dead link. (The IIUC batch of CodeBee is left out: it is
+ * the same course for one university.)
+ */
+export const CAREER = {
+    eyebrow: "ক্যারিয়ারের পথ",
+    title: [
+        { text: "এই ৭টি ধাপে আপনিও হয়ে উঠুন একজন " },
+        { text: "<Software Developer>", kind: "tag" },
+        { text: ", তৈরি হোন " },
+        { text: "টপ কোম্পানিতে", kind: "mark" },
+        { text: " কাজ করার জন্য।" },
+    ] satisfies CareerTitlePart[],
+    description: "একদম প্রথম লাইন কোড থেকে চাকরির আবেদন পর্যন্ত, পুরো পথটা ধাপে ধাপে। যে ধাপে আছেন, সেখান থেকেই শুরু করুন।",
+    /** Over each card's number. English, like the "STEP" in a build log. */
+    stepLabel: "STEP",
+    coursesLabel: "সংশ্লিষ্ট কোর্স",
+    noCourse: "এই ধাপের কোর্স এখনো যোগ হয়নি",
+    steps: [
+        {
+            icon: "foundation",
+            title: "প্রোগ্রামিং ও ইঞ্জিনিয়ারিংয়ের ভিত",
+            en: "Programming & Engineering Foundation",
+            text: "প্রথম লাইন কোড থেকে শুরু। C আর C++ দিয়ে প্রোগ্রামিংয়ের মূল ধারণা, সাথে প্রোগ্রামিংয়ের জন্য দরকারি গণিত আর কম্পিউটার সায়েন্সের বেসিক।",
+            tags: ["C", "C++", "Engineering Math", "CS Fundamentals"],
+            courses: [
+                { name: "CodeMath Foundation", slug: "codemath-foundation-essential-math-before-programming" },
+                { name: "CodeBee", slug: "codebee-c-c-data-structures-and-algorithms" },
+            ],
+        },
+        {
+            icon: "dsa",
+            title: "ডেটা স্ট্রাকচার, অ্যালগরিদম ও প্রবলেম সলভিং",
+            en: "Data Structures, Algorithms & Problem Solving",
+            text: "কোড লিখতে পারা আর সমস্যা সমাধান করতে পারা এক জিনিস না। ডেটা স্ট্রাকচার আর অ্যালগরিদম শিখে, নিয়মিত প্রবলেম সলভ করে চিন্তাটা ধারালো করা।",
+            tags: ["Data Structures", "Algorithms", "Problem Solving", "Logic"],
+            courses: [{ name: "CodeBee", slug: "codebee-c-c-data-structures-and-algorithms" }],
+        },
+        {
+            icon: "fullstack",
+            title: "ফুল-স্ট্যাক ও রিয়েল-ওয়ার্ল্ড প্রজেক্ট",
+            en: "Full-Stack & Real-World Projects",
+            text: "ফ্রন্টএন্ড, ব্যাকএন্ড আর ডেটাবেস মিলিয়ে পুরো একটা অ্যাপ নিজে বানানো। শুধু উদাহরণ না, মানুষ সত্যিই ব্যবহার করতে পারে এমন প্রজেক্ট।",
+            tags: ["Frontend", "Backend", "Database", "REST API"],
+            courses: [],
+        },
+        {
+            icon: "ai",
+            title: "AI ইন্টিগ্রেশন ও প্রোডাক্ট ডেভেলপমেন্ট",
+            en: "AI Integration & Product Development",
+            text: "প্রজেক্টে AI জুড়ে দেওয়া, প্রোডাক্টের মতো করে ভাবা, আর শেষে ডিপ্লয় করে সবার জন্য লাইভ করে দেওয়া।",
+            tags: ["AI Integration", "Product Thinking", "Deployment"],
+            courses: [],
+        },
+        {
+            icon: "portfolio",
+            title: "রিজিউমি, পোর্টফোলিও ও GitHub",
+            en: "Resume, Portfolio & GitHub",
+            text: "যা শিখলেন আর বানালেন, তা গুছিয়ে দেখানো: ATS-ফ্রেন্ডলি রিজিউমি, নিজের পোর্টফোলিও ওয়েবসাইট আর গোছানো GitHub প্রোফাইল।",
+            tags: ["ATS Resume", "Portfolio Website", "GitHub Profile"],
+            courses: [
+                { name: "ResumeCraft", slug: "resumecraft-ats-friendly-resume" },
+                { name: "PortfoliAI", slug: "portfoliai-ai-portfolio-website" },
+            ],
+        },
+        {
+            icon: "branding",
+            title: "LinkedIn ও পার্সোনাল ব্র্যান্ডিং",
+            en: "LinkedIn & Personal Branding",
+            text: "রিক্রুটাররা যেখানে খোঁজেন, সেখানে নিজেকে তুলে ধরা: গোছানো LinkedIn প্রোফাইল, নিজের কাজ নিয়ে লেখা, আর পেশাদার ইমেইলে যোগাযোগ।",
+            tags: ["LinkedIn", "Personal Branding", "Professional Email"],
+            courses: [
+                { name: "LinkedIn Elevate", slug: "linkedin-elevate-personal-branding" },
+                { name: "InboxPro", slug: "inboxpro-professional-email-writing" },
+            ],
+        },
+        {
+            icon: "interview",
+            title: "ইন্টারভিউ ও ক্যারিয়ার প্রস্তুতি",
+            en: "Interview & Career Readiness",
+            text: "টেকনিক্যাল ইন্টারভিউয়ের প্রস্তুতি, গুছিয়ে কথা বলা, প্রবলেম সলভিং প্র্যাকটিস, আর দেশে-বিদেশে চাকরির আবেদনের জন্য তৈরি হওয়া।",
+            tags: ["Technical Interview", "Communication", "Problem Solving", "Local & Global Jobs"],
+            courses: [{ name: "InterviewEdge", slug: "interviewedge-interview-preparation" }],
+        },
+    ] satisfies {
+        icon: CareerIcon;
+        title: string;
+        en: string;
+        text: string;
+        tags: string[];
+        courses: { name: string; slug: string }[];
+    }[],
+    /** Where the road ends: the goal, at the foot of the zigzag. */
+    goal: { label: "আপনার লক্ষ্য", title: "Job-ready Software Developer" },
+    /** Under it all: what the course names mean, plainly. */
+    note: "সংশ্লিষ্ট কোর্সগুলো ধাপের কিছু অংশ শেখায়, সবটা না-ও শেখাতে পারে। কোন কোর্সে ঠিক কী আছে, কোর্সের পাতায় দেখে নিন।",
+};
+
 export type WorkflowIcon = "enroll" | "live" | "quiz" | "review" | "certificate";
 
 export const WORKFLOW = {
