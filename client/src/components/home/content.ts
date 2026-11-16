@@ -1,8 +1,8 @@
 /*
- * Everything the homepage says, in one place. The page is static on purpose:
- * no course or figure here comes from the API — edit them here. (The one
- * exception is the reviews, HomeReviews: real reviews only, from Admin →
- * Testimonials.)
+ * Everything the homepage says, in one place. The words and figures are
+ * static on purpose — edit them here. Only the reviews read the API
+ * (HomeReviews — real reviews only, from Admin → Testimonials), and hide
+ * themselves when there are none.
  *
  * Half Coders teaches across coding, engineering and career skills, so the
  * page speaks of all of them — no single course is the subject.
@@ -12,6 +12,23 @@
  * a real editor — and technical names stay in Latin letters. Only say what
  * Half Coders really does: no job or income promises.
  */
+
+/**
+ * The published courses the page links to by name (the career road, the
+ * "who it's for" cards, the FAQ). One place for the slugs: when a course is
+ * renamed or withdrawn, change it here, or its links go dead.
+ */
+export const COURSES = {
+    codemath: { name: "CodeMath Foundation", slug: "codemath-foundation-essential-math-before-programming" },
+    codebee: { name: "CodeBee", slug: "codebee-c-c-data-structures-and-algorithms" },
+    portfoliai: { name: "PortfoliAI", slug: "portfoliai-ai-portfolio-website" },
+    resumecraft: { name: "ResumeCraft", slug: "resumecraft-ats-friendly-resume" },
+    linkedin: { name: "LinkedIn Elevate", slug: "linkedin-elevate-personal-branding" },
+    inboxpro: { name: "InboxPro", slug: "inboxpro-professional-email-writing" },
+    interviewedge: { name: "InterviewEdge", slug: "interviewedge-interview-preparation" },
+} as const;
+
+export type CourseLink = (typeof COURSES)[keyof typeof COURSES];
 
 /** A run of hero copy; `mark` ones are lit in the brand's lavender. */
 export type HeroText = { text: string; mark?: boolean }[];
@@ -86,43 +103,6 @@ export const TICKER = [
     "Career Planning",
 ];
 
-export type TrackIcon = "code" | "engineering" | "build" | "career";
-
-/** The areas Half Coders teaches in, each with the kind of thing you'd learn there. */
-export const TRACKS = {
-    eyebrow: "কী কী শিখবেন",
-    title: "আপনার আগ্রহ যেটাতেই থাকুক",
-    description: "কেউ কোড লিখতে চান, কেউ গণিতটা পাকা করতে চান, কেউ আবার চাকরির জন্য তৈরি হতে চান। সবার জন্যই কোর্স আসছে, একটার পর একটা।",
-    items: [
-        {
-            icon: "code",
-            title: "কোডিং",
-            text: "জীবনে কখনো কোড না লিখলেও সমস্যা নেই। প্রথম প্রোগ্রাম থেকে শুরু করে আস্তে আস্তে ডেটা স্ট্রাকচার আর প্রবলেম সলভিং পর্যন্ত যাবেন।",
-            topics: ["প্রোগ্রামিং", "DSA", "প্রবলেম সলভিং", "ওয়েব"],
-        },
-        {
-            icon: "engineering",
-            title: "ইঞ্জিনিয়ারিংয়ের গণিত",
-            text: "যে গণিত আর লজিক দেখলে অনেকেই ভয় পান, সেগুলোই বুঝিয়ে বলা হবে উদাহরণ দিয়ে, মুখস্থ না করিয়ে।",
-            topics: ["গণিত", "লজিক", "এনালিটিক্যাল থিংকিং"],
-        },
-        {
-            icon: "build",
-            title: "নিজে কিছু বানানো",
-            text: "AI টুল দিয়ে নিজের পোর্টফোলিও সাইট বা একটা অনলাইন দোকান দাঁড় করানো, যেটা বন্ধুদের দেখাতে পারবেন।",
-            topics: ["AI টুলস", "ই-কমার্স", "পোর্টফোলিও"],
-        },
-        {
-            icon: "career",
-            title: "চাকরির প্রস্তুতি",
-            text: "শেখা তো হলো, এবার নিজেকে তুলে ধরার পালা। ইন্টারভিউ, রিজিউমি, LinkedIn প্রোফাইল আর গুছিয়ে ইমেইল লেখা।",
-            topics: ["ইন্টারভিউ", "রিজিউমি", "LinkedIn", "ইমেইল"],
-        },
-    ] satisfies { icon: TrackIcon; title: string; text: string; topics: string[] }[],
-    /** Under the tracks. A button, so English. */
-    cta: "Browse all courses",
-};
-
 /**
  * Half Coders by the numbers, drawn as one dashboard. The one place on the
  * page with real totals, so keep them true and update them here when they
@@ -168,20 +148,53 @@ export const STATS = {
     },
 };
 
-/** Learning alone against learning here, set as a before/after diff. */
+export type WhyIcon = "roadmap" | "review" | "support" | "motivation" | "proof";
+
+/** A run of the problem/solution headline: `problem` in red, `solution` in green. */
+export type WhyTitlePart = { text: string; kind?: "problem" | "solution" };
+
+/**
+ * Learning alone against learning here (HomeWhy): each row a problem the
+ * learner has, joined by an arrow to what Half Coders does about it.
+ */
 export const WHY = {
     eyebrow: "কেন Half Coders",
-    title: "একা শিখতে গিয়ে যা যা হয়, আর এখানে যা হয়",
+    title: [
+        { text: "একা শেখার " },
+        { text: "সমস্যা", kind: "problem" },
+        { text: ", আর আমাদের " },
+        { text: "সমাধান", kind: "solution" },
+    ] satisfies WhyTitlePart[],
     description: "ইউটিউবে ভিডিওর তো অভাব নেই। কিন্তু আটকে গেলে পাশে কেউ না থাকলে শেখাটা মাঝপথেই থেমে যায়।",
-    alone: "একা একা শিখলে",
-    together: "Half Coders-এ",
+    problemLabel: "আপনার সমস্যা",
+    solutionLabel: "আমাদের সমাধান",
     rows: [
-        { alone: "এরপর কী শিখব, সেটা ভাবতে ভাবতেই সময় চলে যায়", together: "কোন লেসনের পর কোনটা, সব আগে থেকে সাজানো। শুধু পরেরটা ধরলেই হলো" },
-        { alone: "ভুল করলেন, কিন্তু কোথায় ভুল, কেউ বলে দেয় না", together: "অ্যাসাইনমেন্ট জমা দিলে মেন্টর নিজে পড়ে দেখেন, লিখে দেন কোথায় ঠিক করতে হবে" },
-        { alone: "একটা জায়গায় আটকে সারা রাত পার", together: "সাপোর্ট সেশনে মেন্টরকে স্ক্রিন দেখিয়ে সরাসরি জিজ্ঞেস করুন" },
-        { alone: "দুই সপ্তাহ পর আর শুরু করার ইচ্ছাই থাকে না", together: "ব্যাচের বাকিরাও শিখছে, স্ট্রিক আর লিডারবোর্ড মনে করিয়ে দেয় আজ বসতে হবে" },
-        { alone: "শেষ করার পর দেখানোর মতো কিছু হাতে থাকে না", together: "পাবেন আইডিসহ সার্টিফিকেট, যেটা যে কেউ অনলাইনে মিলিয়ে দেখতে পারে" },
-    ],
+        {
+            icon: "roadmap",
+            problem: "এরপর কী শিখব, সেটা ভাবতে ভাবতেই সময় চলে যায়",
+            solution: "কোন লেসনের পর কোনটা, সব আগে থেকে সাজানো। শুধু পরেরটা ধরলেই হলো",
+        },
+        {
+            icon: "review",
+            problem: "ভুল করলেন, কিন্তু কোথায় ভুল, কেউ বলে দেয় না",
+            solution: "অ্যাসাইনমেন্ট জমা দিলে মেন্টর নিজে পড়ে দেখেন, লিখে দেন কোথায় ঠিক করতে হবে",
+        },
+        {
+            icon: "support",
+            problem: "একটা জায়গায় আটকে সারা রাত পার",
+            solution: "সাপোর্ট সেশনে মেন্টরকে স্ক্রিন দেখিয়ে সরাসরি জিজ্ঞেস করুন",
+        },
+        {
+            icon: "motivation",
+            problem: "দুই সপ্তাহ পর আর শুরু করার ইচ্ছাই থাকে না",
+            solution: "ব্যাচের বাকিরাও শিখছে, স্ট্রিক আর লিডারবোর্ড মনে করিয়ে দেয় আজ বসতে হবে",
+        },
+        {
+            icon: "proof",
+            problem: "শেষ করার পর দেখানোর মতো কিছু হাতে থাকে না",
+            solution: "পাবেন আইডিসহ সার্টিফিকেট, যেটা যে কেউ অনলাইনে মিলিয়ে দেখতে পারে",
+        },
+    ] satisfies { icon: WhyIcon; problem: string; solution: string }[],
 };
 
 export type DayIcon = "tea" | "work" | "lunch" | "home" | "live" | "support" | "quiz" | "sleep";
@@ -197,15 +210,22 @@ export interface DayBlock {
     text: string;
 }
 
+/**
+ * An ordinary day with learning fitted into its gaps (HomeDay), written as a
+ * file in the editor: the times down the gutter, the learning as added lines,
+ * the rest of the day as comments. A learning block that falls inside a busy
+ * one (lunch, in the office day) is drawn nested inside it.
+ */
 export const DAY = {
     eyebrow: "রুটিনের মধ্যেই",
     title: "সময় নেই? একটু খুঁজলেই পাবেন",
     description: "ক্লাস, অফিস, বাসার কাজ সবই থাকবে। শেখার জন্য আলাদা করে দিন ফাঁকা করতে হবে না, দিনের ফাঁকে ফাঁকে যতটুকু পারেন। ধরুন আপনার একটা সাধারণ দিন:",
     tab: "একটা সাধারণ দিন",
-    tracks: { busy: "আপনার কাজ", learn: "Half Coders" },
-    /** The timeline runs from `start` to `end` o'clock. */
-    start: 6,
-    end: 24,
+    tracks: { busy: "আপনার কাজ", learn: "Half Coders-এর সময়" },
+    /** Beside the legend: what's fixed and what isn't. */
+    tip: "লেসন, কুইজ আর অ্যাসাইনমেন্ট যখন খুশি করা যায়। সময় ঠিক করা শুধু লাইভ ক্লাসের, আর সেটা মিস হলেও রেকর্ডিং থাকে।",
+    /** The status bar: how many times the day had learning in it (`{n}` is the count, in Bangla digits). */
+    status: "সারাদিনে {n} বার শেখা, বাকি সব ঠিক রেখেই",
     blocks: [
         { kind: "learn", icon: "tea", from: 7, to: 7.5, time: "সকাল ৭:০০", title: "চা হাতে একটা লেসন", text: "লেসনগুলো এত ছোট যে চায়ের কাপ শেষ হওয়ার আগেই একটা দেখা হয়ে যায়।" },
         { kind: "busy", icon: "work", from: 9, to: 17, time: "সকাল ৯টা – বিকেল ৫টা", title: "ক্লাস বা অফিস", text: "এই সময়ে শেখার কথা ভাবতেও হবে না।" },
@@ -332,8 +352,8 @@ export const CAREER = {
             text: "প্রথম লাইন কোড থেকে শুরু। C আর C++ দিয়ে প্রোগ্রামিংয়ের মূল ধারণা, সাথে প্রোগ্রামিংয়ের জন্য দরকারি গণিত আর কম্পিউটার সায়েন্সের বেসিক।",
             tags: ["C", "C++", "Engineering Math", "CS Fundamentals"],
             courses: [
-                { name: "CodeMath Foundation", slug: "codemath-foundation-essential-math-before-programming" },
-                { name: "CodeBee", slug: "codebee-c-c-data-structures-and-algorithms" },
+                COURSES.codemath,
+                COURSES.codebee,
             ],
         },
         {
@@ -342,7 +362,7 @@ export const CAREER = {
             en: "Data Structures, Algorithms & Problem Solving",
             text: "কোড লিখতে পারা আর সমস্যা সমাধান করতে পারা এক জিনিস না। ডেটা স্ট্রাকচার আর অ্যালগরিদম শিখে, নিয়মিত প্রবলেম সলভ করে চিন্তাটা ধারালো করা।",
             tags: ["Data Structures", "Algorithms", "Problem Solving", "Logic"],
-            courses: [{ name: "CodeBee", slug: "codebee-c-c-data-structures-and-algorithms" }],
+            courses: [COURSES.codebee],
         },
         {
             icon: "fullstack",
@@ -367,8 +387,8 @@ export const CAREER = {
             text: "যা শিখলেন আর বানালেন, তা গুছিয়ে দেখানো: ATS-ফ্রেন্ডলি রিজিউমি, নিজের পোর্টফোলিও ওয়েবসাইট আর গোছানো GitHub প্রোফাইল।",
             tags: ["ATS Resume", "Portfolio Website", "GitHub Profile"],
             courses: [
-                { name: "ResumeCraft", slug: "resumecraft-ats-friendly-resume" },
-                { name: "PortfoliAI", slug: "portfoliai-ai-portfolio-website" },
+                COURSES.resumecraft,
+                COURSES.portfoliai,
             ],
         },
         {
@@ -378,8 +398,8 @@ export const CAREER = {
             text: "রিক্রুটাররা যেখানে খোঁজেন, সেখানে নিজেকে তুলে ধরা: গোছানো LinkedIn প্রোফাইল, নিজের কাজ নিয়ে লেখা, আর পেশাদার ইমেইলে যোগাযোগ।",
             tags: ["LinkedIn", "Personal Branding", "Professional Email"],
             courses: [
-                { name: "LinkedIn Elevate", slug: "linkedin-elevate-personal-branding" },
-                { name: "InboxPro", slug: "inboxpro-professional-email-writing" },
+                COURSES.linkedin,
+                COURSES.inboxpro,
             ],
         },
         {
@@ -388,7 +408,7 @@ export const CAREER = {
             en: "Interview & Career Readiness",
             text: "টেকনিক্যাল ইন্টারভিউয়ের প্রস্তুতি, গুছিয়ে কথা বলা, প্রবলেম সলভিং প্র্যাকটিস, আর দেশে-বিদেশে চাকরির আবেদনের জন্য তৈরি হওয়া।",
             tags: ["Technical Interview", "Communication", "Problem Solving", "Local & Global Jobs"],
-            courses: [{ name: "InterviewEdge", slug: "interviewedge-interview-preparation" }],
+            courses: [COURSES.interviewedge],
         },
     ] satisfies {
         icon: CareerIcon;
@@ -396,63 +416,12 @@ export const CAREER = {
         en: string;
         text: string;
         tags: string[];
-        courses: { name: string; slug: string }[];
+        courses: CourseLink[];
     }[],
     /** Where the road ends: the goal, at the foot of the zigzag. */
     goal: { label: "আপনার লক্ষ্য", title: "Job-ready Software Developer" },
     /** Under it all: what the course names mean, plainly. */
     note: "সংশ্লিষ্ট কোর্সগুলো ধাপের কিছু অংশ শেখায়, সবটা না-ও শেখাতে পারে। কোন কোর্সে ঠিক কী আছে, কোর্সের পাতায় দেখে নিন।",
-};
-
-export type WorkflowIcon = "enroll" | "live" | "quiz" | "review" | "certificate";
-
-export const WORKFLOW = {
-    eyebrow: "কীভাবে শিখবেন",
-    title: "ভর্তি থেকে সার্টিফিকেট, মাত্র ৫টা ধাপ",
-    description: "ঝামেলার কিছু নেই। এক ধাপ শেষ করবেন, তারপর পরেরটা। এভাবেই একদিন দেখবেন পুরো কোর্স শেষ।",
-    /** What you need, as a checklist. */
-    needsTitle: "শুরু করতে যা লাগবে",
-    needs: [
-        { done: true, text: "একটা ফোন বা কম্পিউটার (কোডিং কোর্সে ল্যাপটপ লাগবে)" },
-        { done: true, text: "ইন্টারনেট" },
-        { done: true, text: "সপ্তাহে কয়েক ঘণ্টা সময়" },
-        { done: false, text: "আগে থেকে কিছু জানা? লাগবে না" },
-    ],
-    /** Under the checklist. */
-    needsNote: "এটুকু থাকলেই চলবে, বাকিটা আমরা দেখব।",
-    /** Each step, with the little note you'd see once you reach it (`chip`). */
-    commits: [
-        {
-            icon: "enroll",
-            message: "কোর্সে ভর্তি",
-            text: "পছন্দের কোর্সটা বেছে বিকাশে টাকা পাঠান। আমাদের টিম মিলিয়ে দেখলেই কোর্সটা আপনার ড্যাশবোর্ডে চলে আসবে।",
-            chip: "পেমেন্ট মিলেছে, কোর্স খুলে গেছে",
-        },
-        {
-            icon: "live",
-            message: "লাইভ ক্লাস আর রেকর্ডিং",
-            text: "সপ্তাহে লাইভ ক্লাসে বসুন, প্রশ্ন করুন। কোনোদিন না পারলে রেকর্ডিং দেখে নিলেই হবে।",
-            chip: "আজ রাত ৯টায় লাইভ ক্লাস",
-        },
-        {
-            icon: "quiz",
-            message: "কুইজ আর প্র্যাকটিস",
-            text: "প্রতিটা মডিউলের শেষে কুইজ আর প্র্যাকটিস। এতে নিজেই বুঝবেন পড়াটা কতটা মাথায় ঢুকল।",
-            chip: "কুইজে ১০টার মধ্যে ৯টা সঠিক",
-        },
-        {
-            icon: "review",
-            message: "মেন্টরের রিভিউ",
-            text: "অ্যাসাইনমেন্ট জমা দিন, মেন্টর দেখে বলে দেবেন কোথায় ঠিক করতে হবে। ঠিক করে আবার জমা দিলেই হলো।",
-            chip: "মেন্টর: দারুণ হয়েছে!",
-        },
-        {
-            icon: "certificate",
-            message: "সার্টিফিকেট",
-            text: "সব শেষে হাতে পাবেন আইডিসহ সার্টিফিকেট, যেটা যে কেউ অনলাইনে মিলিয়ে দেখতে পারবে।",
-            chip: "সার্টিফিকেট তৈরি, ডাউনলোড করুন",
-        },
-    ] satisfies { icon: WorkflowIcon; message: string; text: string; chip: string }[],
 };
 
 /**
@@ -492,17 +461,41 @@ export const LIVE_SHARE = {
 
 export type AudienceIcon = "student" | "engineer" | "switcher" | "jobseeker";
 
-/** Who the courses are for. */
+/**
+ * Who the courses are for — and, for each, where to start: the published
+ * courses that fit them best (from COURSES), as links on the card.
+ */
 export const AUDIENCE = {
     eyebrow: "কাদের জন্য",
     title: "আপনি কি এদের একজন?",
-    description: "বয়স কত বা আগে কী পড়েছেন, তাতে কিছু যায় আসে না। শেখার ইচ্ছাটা থাকলেই চলবে।",
+    description: "বয়স কত বা আগে কী পড়েছেন, তাতে কিছু যায় আসে না। শেখার ইচ্ছাটা থাকলেই চলবে। নিজের সাথে মেলে এমন কার্ডটা দেখুন, কোথা থেকে শুরু করবেন সেটাও বলা আছে।",
+    startLabel: "শুরু করতে পারেন",
     items: [
-        { icon: "student", title: "স্কুল, কলেজ বা ভার্সিটিতে পড়ছেন", text: "ক্লাসে থিওরি তো পড়ছেনই। পাশাপাশি হাতে-কলমে কিছু শিখে রাখুন, পরে খুব কাজে দেবে।" },
-        { icon: "engineer", title: "ইঞ্জিনিয়ারিং পড়ছেন", text: "প্রোগ্রামিং, গণিত আর প্রবলেম সলভিং পুরো চার বছর লাগবে। শুরুতেই এগুলো পোক্ত করে নিন।" },
-        { icon: "switcher", title: "অন্য পেশা থেকে আসতে চান", text: "আগে অন্য কিছু করতেন? সমস্যা নেই। একদম গোড়া থেকে শুরু হবে, এগোবেন নিজের সময়মতো।" },
-        { icon: "jobseeker", title: "চাকরি খুঁজছেন", text: "ইন্টারভিউতে কী বলবেন, রিজিউমি কেমন হবে, LinkedIn কীভাবে সাজাবেন, এসব শিখে নিজেকে গুছিয়ে নিন।" },
-    ] satisfies { icon: AudienceIcon; title: string; text: string }[],
+        {
+            icon: "student",
+            title: "স্কুল, কলেজ বা ভার্সিটিতে পড়ছেন",
+            text: "ক্লাসে থিওরি তো পড়ছেনই। পাশাপাশি হাতে-কলমে কিছু শিখে রাখুন, পরে খুব কাজে দেবে।",
+            start: [COURSES.codemath, COURSES.codebee],
+        },
+        {
+            icon: "engineer",
+            title: "ইঞ্জিনিয়ারিং পড়ছেন",
+            text: "প্রোগ্রামিং, গণিত আর প্রবলেম সলভিং পুরো চার বছর লাগবে। শুরুতেই এগুলো পোক্ত করে নিন।",
+            start: [COURSES.codebee],
+        },
+        {
+            icon: "switcher",
+            title: "অন্য পেশা থেকে আসতে চান",
+            text: "আগে অন্য কিছু করতেন? সমস্যা নেই। একদম গোড়া থেকে শুরু হবে, এগোবেন নিজের সময়মতো।",
+            start: [COURSES.codemath, COURSES.portfoliai],
+        },
+        {
+            icon: "jobseeker",
+            title: "চাকরি খুঁজছেন",
+            text: "ইন্টারভিউতে কী বলবেন, রিজিউমি কেমন হবে, LinkedIn কীভাবে সাজাবেন, এসব শিখে নিজেকে গুছিয়ে নিন।",
+            start: [COURSES.resumecraft, COURSES.interviewedge, COURSES.linkedin],
+        },
+    ] satisfies { icon: AudienceIcon; title: string; text: string; start: CourseLink[] }[],
 };
 
 /** The certificate, and how anyone checks one. */
@@ -526,23 +519,6 @@ export const CERTIFICATE = {
     check: { label: "সার্টিফিকেট যাচাই", checking: "মিলিয়ে দেখা হচ্ছে…", valid: "সঠিক সার্টিফিকেট" },
     /** A button, so English. */
     cta: "Verify a certificate",
-};
-
-export const COMMUNITY = {
-    eyebrow: "নামের মানে",
-    title: "কেউই সব জেনে জন্মায় না",
-    description:
-        "আমরা কেউই পুরোটা জানি না। অর্ধেক জানি, বাকি অর্ধেক শিখছি, নামটা সেখান থেকেই। আর ওই বাকি অর্ধেকটা একা একা পূরণ হয় না, হয় মেন্টর আর ব্যাচের সবার সাথে মিলে।",
-    /** The line of code the section is built around, and the comment over it. */
-    comment: "একা অর্ধেক, একসাথে পুরোটা",
-    equation: { left: "success", parts: ["you", "mentor", "batch"] },
-    /** Under the code, while nothing is pointed at. */
-    hint: "যেকোনো একটা বেছে নিয়ে দেখুন",
-    cards: [
-        { name: "you", title: "আপনি", text: "রোজ একটু করে শেখা, আর আটকে গেলে লজ্জা না পেয়ে প্রশ্ন করা। আপনার কাজ আসলে এটুকুই।" },
-        { name: "mentor", title: "মেন্টর", text: "ক্লাস নেন, আপনার কাজ দেখে দেন, আর আটকে গেলে সাপোর্ট সেশনে বসে সমস্যাটা ধরিয়ে দেন।" },
-        { name: "batch", title: "ব্যাচ", text: "একই কোর্সে আরও অনেকে আছেন। একসাথে প্র্যাকটিস হয়, লিডারবোর্ডে একটু-আধটু প্রতিযোগিতাও চলে।" },
-    ],
 };
 
 export const REVIEWS = {
@@ -571,7 +547,17 @@ export const FAQ = {
         {
             q: "কোন কোন বিষয়ের কোর্স আছে?",
             keys: "কোর্স course বিষয় কোডিং ক্যারিয়ার",
-            a: "কোডিং, ইঞ্জিনিয়ারিংয়ের ভিত আর ক্যারিয়ারের প্রস্তুতি, এই তিন দিকেই কোর্স আসছে একটার পর একটা। এখন কোনগুলো চলছে, কোর্স পেজে গেলেই দেখতে পাবেন।",
+            a: "এখন চলছে তিন দিকের কোর্স: প্রোগ্রামিং আর ইঞ্জিনিয়ারিংয়ের ভিত (C, C++, DSA, প্রোগ্রামিংয়ের গণিত), নিজে কিছু বানানো (AI দিয়ে পোর্টফোলিও সাইট), আর চাকরির প্রস্তুতি (রিজিউমি, LinkedIn, পেশাদার ইমেইল, ইন্টারভিউ)। নতুন কোর্স যোগ হলে কোর্স পেজে সবার আগে দেখতে পাবেন।",
+        },
+        {
+            q: "কোন কোর্স দিয়ে শুরু করব?",
+            keys: "শুরু start কোন কোর্স প্রথম beginner",
+            a: `একদম নতুন হলে ${COURSES.codemath.name} বা ${COURSES.codebee.name} দিয়ে শুরু করুন। চাকরির জন্য তৈরি হচ্ছেন? ${COURSES.resumecraft.name} আর ${COURSES.interviewedge.name} কাজে দেবে। পেজের "ক্যারিয়ারের পথ" অংশে কোন ধাপে কোন কোর্স, সেটা দেওয়া আছে।`,
+        },
+        {
+            q: "ভর্তি হব কীভাবে, কী কী লাগবে?",
+            keys: "ভর্তি enroll রেজিস্ট্রেশন লাগবে কম্পিউটার ইন্টারনেট",
+            a: "পছন্দের কোর্সের পাতায় গিয়ে ভর্তি হোন, বিকাশে টাকা পাঠিয়ে Transaction ID দিন। আমাদের টিম মিলিয়ে দেখলেই কোর্সটা আপনার ড্যাশবোর্ডে চলে আসবে। লাগবে শুধু ইন্টারনেট, সপ্তাহে কয়েক ঘণ্টা সময়, আর কোডিং কোর্স হলে একটা ল্যাপটপ বা ডেস্কটপ।",
         },
         {
             q: "ক্লাসগুলো কীভাবে হয়?",
@@ -608,14 +594,28 @@ export const FAQ = {
             keys: "সার্টিফিকেট certificate যাচাই",
             a: "পাবেন। সব লেসন শেষ করে অ্যাসাইনমেন্টগুলো মেন্টর অ্যাপ্রুভ করলেই সার্টিফিকেট নিতে পারবেন। প্রতিটার আলাদা আইডি থাকে, অনলাইনে যাচাই করা যায়, PDF-ও নামিয়ে রাখা যায়।",
         },
+        {
+            q: "কোর্স শেষে চাকরির নিশ্চয়তা আছে?",
+            keys: "চাকরি job প্লেসমেন্ট placement গ্যারান্টি নিশ্চয়তা",
+            a: "না, সৎভাবে কেউই সেটা দিতে পারে না। আমরা যা করি: হাতে-কলমে শেখাই, আপনার কাজ নিজে দেখে দিই, আর রিজিউমি, LinkedIn আর ইন্টারভিউয়ের প্রস্তুতিতে সাহায্য করি। বাকিটা আপনার পরিশ্রম।",
+        },
     ],
     /** Under the list. A button, so English. */
     contact: { href: "/contact", label: "Ask us directly" },
 };
 
+/**
+ * The closing call to action (HomeCta): the ask and the two ways in on the
+ * left; on the right a terminal that "starts" Half Coders and prints what
+ * every course gives, line by line.
+ */
 export const CTA = {
-    command: "halfcoders start",
-    output: "চলুন, শুরু করা যাক!",
+    eyebrow: "শুরু করুন",
     title: "তাহলে আজই শুরু করে ফেলুন",
     description: "একটা কোর্স বেছে নিয়ে প্রথম ভিডিওটা দেখে ফেলুন, ব্যস। সব একদিনে শিখতে হবে না, রোজ অল্প অল্প করলেই হবে।",
+    /** The terminal's command — decoration; the lines under it are the real information. */
+    command: "halfcoders start",
+    /** Printed under the command: what every course gives. Plain Bangla, ticked. */
+    gives: ["ক্লাস পুরোটা বাংলায়", "লাইভ ক্লাস, মিস করলে রেকর্ডিং", "অ্যাসাইনমেন্টে মেন্টরের রিভিউ", "আটকে গেলে সাপোর্ট সেশন", "অনলাইনে যাচাইযোগ্য সার্টিফিকেট"],
+    output: "চলুন, শুরু করা যাক!",
 };

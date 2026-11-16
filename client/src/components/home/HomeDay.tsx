@@ -1,7 +1,9 @@
 "use client";
 
-import { Bed, Briefcase, Coffee, Headphones, Home, ListChecks, Sandwich, Video, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Bed, Briefcase, Coffee, Headphones, Home, Lightbulb, ListChecks, Sandwich, Video, type LucideIcon } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import EditorWindow from "@/components/site/EditorWindow";
 import Section from "@/components/site/Section";
 import SectionHeader from "@/components/site/SectionHeader";
@@ -19,273 +21,239 @@ const ICONS: Record<DayIcon, LucideIcon> = {
     sleep: Bed,
 };
 
-/** How long the playhead rests on each learning block before moving on. */
-const STEP_MS = 2200;
+/** A time of day as the gutter shows it: 7.5 → "07:30". */
+const clock = (hour: number) => `${String(Math.floor(hour) % 24).padStart(2, "0")}:${hour % 1 ? "30" : "00"}`;
 
-const LEARN = DAY.blocks.filter((block) => block.kind === "learn");
-const HOURS = Array.from({ length: (DAY.end - DAY.start) / 3 + 1 }, (_, index) => DAY.start + index * 3);
+const bn = (value: number) => value.toLocaleString("bn-BD");
 
-/** Where on the day an hour sits, as a share of the track's width. */
-const at = (hour: number) => ((hour - DAY.start) / (DAY.end - DAY.start)) * 100;
-const clock = (hour: number) => `${String(Math.floor(hour)).padStart(2, "0")}:${hour % 1 ? "30" : "00"}`;
+/** Where on the screen the day "is", as a share of the viewport's height: the block under this line is the current one. */
+const LINE = 0.6;
 
 /**
- * An ordinary day as a timeline in the editor: two tracks under an hour ruler
- * — the learner's own hours (class or office, family, sleep) and the Half
- * Coders blocks in the gaps (a morning lesson, the rest at lunch, the live
- * class, a support session, a quiz before bed). A violet playhead glides from
- * one learning block to the next and the card under the timeline says what
- * that block is, a thin bar along its foot counting down to the next move
- * (the bar's end is what moves it, so the two never drift apart). It rests
- * while pointed at or focused, any block can be picked, and with reduced
- * motion asked for it stays where it's put.
+ * The day as the file draws it: each busy block a line, with any learning
+ * that falls inside it (lunch, in the office day) nested in its scope.
+ */
+const ROWS: { block: DayBlock; inner: DayBlock[] }[] = (() => {
+    const rows: { block: DayBlock; inner: DayBlock[] }[] = [];
+    for (const block of DAY.blocks) {
+        const host = block.kind === "learn" && rows.find((row) => row.block.kind === "busy" && row.block.from <= block.from && block.to <= row.block.to);
+        if (host) host.inner.push(block);
+        else rows.push({ block, inner: [] });
+    }
+    return rows;
+})();
+
+/** Every block in the order the file shows it — the order the playhead walks. */
+const ORDER = ROWS.flatMap((row) => [row.block, ...row.inner]);
+const LEARN_COUNT = DAY.blocks.filter((block) => block.kind === "learn").length;
+
+/**
+ * An ordinary day with learning fitted into its gaps, written as a file in
+ * the dark editor (`routine.ts`): the clock down the gutter where the line
+ * numbers would be; the learning as added lines — a `+`, a green wash, the
+ * icon, what happens and why it fits; the rest of the day (office, family,
+ * sleep) as greyed-out comments, the office day a `{ … }` scope with the
+ * lunch-break lesson nested inside it. Beside it, sticky on wide screens,
+ * the heading, a legend and what's fixed in the day and what isn't.
  *
- * The timeline needs a laptop's width: on anything narrower a half-hour block
- * would be a sliver. There the day is a list instead, hour by hour, your own
- * hours grey and the Half Coders ones violet, the one being described lit
- * green — beside the card on a tablet, over it on a phone.
+ * As the page scrolls, a violet line fills down the gutter and the block
+ * under it lights up, its time in the status bar — the day moving on.
+ * Without JavaScript or with reduced motion asked for, the whole day simply
+ * stands there, nothing lit.
  */
 export default function HomeDay() {
-    const [active, setActive] = useState(0);
-    const [paused, setPaused] = useState(false);
-    const [still, setStill] = useState(false);
+    const listRef = useRef<HTMLOListElement>(null);
+    const [active, setActive] = useState(-1);
 
     useEffect(() => {
-        const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-        const update = () => setStill(media.matches);
-        update();
-        media.addEventListener("change", update);
-        return () => media.removeEventListener("change", update);
+        const list = listRef.current;
+        if (!list) return;
+        gsap.registerPlugin(ScrollTrigger);
+        const media = gsap.matchMedia();
+
+        media.add("(prefers-reduced-motion: no-preference)", () => {
+            const blocks = Array.from(list.querySelectorAll<HTMLElement>("[data-day-block]"));
+            const at = `${LINE * 100}%`;
+            const update = () => {
+                const line = window.innerHeight * LINE;
+                setActive(blocks.filter((block) => block.getBoundingClientRect().top <= line).length - 1);
+            };
+            ScrollTrigger.create({
+                trigger: list,
+                start: `top ${at}`,
+                end: `bottom ${at}`,
+                onUpdate: update,
+                onRefresh: update,
+                onLeave: update,
+                onLeaveBack: () => setActive(-1),
+            });
+            const fill = list.querySelector("[data-day-fill]");
+            if (fill)
+                gsap.fromTo(
+                    fill,
+                    { scaleY: 0 },
+                    { scaleY: 1, ease: "none", scrollTrigger: { trigger: list, start: `top ${at}`, end: `bottom ${at}`, scrub: 0.4 } },
+                );
+            update();
+            return () => setActive(-1);
+        });
+
+        return () => media.revert();
     }, []);
 
-    const next = () => setActive((index) => (index + 1) % LEARN.length);
-    const current = LEARN[active];
-    const Icon = ICONS[current.icon];
+    const current = active >= 0 ? ORDER[active] : null;
 
-    const track = (kind: DayBlock["kind"]) => (
-        <div className="relative h-11 rounded-sm bg-editor-panel">
-            {DAY.blocks
-                .filter((block) => block.kind === kind)
-                .map((block) => {
-                    const BlockIcon = ICONS[block.icon];
-                    const learnIndex = LEARN.indexOf(block);
-                    const isActive = learnIndex === active;
-                    const common = cn(
-                        "absolute inset-y-1 flex items-center justify-center overflow-hidden rounded-sm border transition-[color,background-color,border-color,box-shadow,scale] duration-300",
-                        kind === "busy" ? "border-editor-line bg-editor-raised text-editor-muted" : "border-violet-400/40 bg-violet-500/20 text-syn-keyword",
-                        isActive && "z-10 scale-110 border-syn-string bg-syn-string/25 text-syn-string shadow-[0_0_14px_-2px_var(--syn-string)]",
-                    );
-                    const style = { left: `${at(block.from)}%`, width: `${Math.max(at(block.to) - at(block.from), 2.4)}%` };
-                    return kind === "learn" ? (
-                        <button
-                            key={block.title}
-                            type="button"
-                            onClick={() => setActive(learnIndex)}
-                            aria-label={`${block.time} — ${block.title}`}
-                            aria-pressed={isActive}
-                            className={cn(common, "cursor-pointer hover:border-syn-string")}
-                            style={style}
-                        >
-                            <BlockIcon className="size-3.5 shrink-0" aria-hidden />
-                        </button>
-                    ) : (
-                        <span key={block.title} className={common} style={style} title={`${block.time} — ${block.title}`}>
-                            <BlockIcon className="size-3.5 shrink-0" aria-hidden />
-                            {block.to - block.from >= 2 && <span className="ml-1.5 hidden truncate text-[0.7rem] sm:inline">{block.title}</span>}
+    /** One block of the day, as the file writes it. */
+    const line = (block: DayBlock, nested = false) => {
+        const Icon = ICONS[block.icon];
+        const index = ORDER.indexOf(block);
+        const lit = index === active;
+
+        if (block.kind === "busy") {
+            return (
+                <div className="py-2.5">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[0.8rem]">
+                        <Icon className={cn("size-3.5 shrink-0 transition-colors", lit ? "text-editor-fg" : "text-syn-comment")} aria-hidden />
+                        <span className="text-syn-comment" aria-hidden>
+                            {"//"}
                         </span>
-                    );
-                })}
-        </div>
+                        <span className={cn("font-sans text-[0.95rem] font-medium transition-colors", lit ? "text-editor-fg" : "text-editor-muted")}>
+                            {block.title}
+                        </span>
+                        <span className="font-sans text-xs text-syn-comment">· {block.time}</span>
+                    </p>
+                    <p className="mt-0.5 pl-6 text-sm italic text-syn-comment">{block.text}</p>
+                </div>
+            );
+        }
+
+        return (
+            <div
+                className={cn(
+                    "relative my-1.5 rounded-sm border-l-2 border-syn-string bg-syn-string/[0.07] py-3 pl-4 pr-3 transition-[background-color,box-shadow] duration-300",
+                    lit && "bg-syn-string/[0.14] shadow-[0_0_0_1px_color-mix(in_oklch,var(--syn-string)_35%,transparent)]",
+                    nested && "my-1",
+                )}
+            >
+                <span aria-hidden className="absolute -left-5 top-3 font-mono text-sm font-bold text-syn-string">
+                    +
+                </span>
+                <div className="flex items-start gap-3">
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "grid size-9 shrink-0 place-items-center rounded-md border border-syn-string/30 bg-syn-string/10 text-syn-string transition-transform duration-300",
+                            lit && "scale-110",
+                        )}
+                    >
+                        <Icon className="size-4.5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <span className="font-semibold text-editor-fg">{block.title}</span>
+                            <span className="rounded-sm border border-syn-string/25 px-1.5 py-px text-[0.7rem] text-syn-string">{block.time}</span>
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-editor-muted">{block.text}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    /** The gutter cell beside a line: its time, lit when it's the current one. */
+    const gutter = (hour: number, lit = false) => (
+        <span
+            aria-hidden
+            className={cn("pt-3 pr-3 text-right font-mono text-[0.72rem] tabular-nums transition-colors", lit ? "text-editor-fg" : "text-editor-gutter")}
+        >
+            {clock(hour)}
+        </span>
     );
 
     return (
         <Section labelledBy="home-day-title">
-            <SectionHeader id="home-day-title" eyebrow={DAY.eyebrow} title={DAY.title} description={DAY.description} />
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">
+                <div className="lg:sticky lg:top-28 lg:self-start">
+                    <SectionHeader id="home-day-title" eyebrow={DAY.eyebrow} title={DAY.title} description={DAY.description} className="mb-6 sm:mb-8" />
 
-            <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-                <EditorWindow
-                    tabs={[{ name: "day.ts", label: DAY.tab, active: true }]}
-                    bodyClassName="grid grid-cols-1 gap-4 px-4 pb-5 pt-4 sm:px-6 md:grid-cols-2 md:gap-5 lg:grid-cols-1"
-                >
-                    {/* The timeline, from `lg`. */}
-                    <div className="hidden grid-cols-[7rem_minmax(0,1fr)] gap-x-3 lg:grid">
-                        {/* The hour ruler. */}
-                        <span />
-                        <div aria-hidden className="relative mb-2 h-5 font-mono text-[0.65rem] text-editor-gutter">
-                            {HOURS.map((hour) => (
-                                <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${at(hour)}%` }}>
-                                    {String(hour % 24).padStart(2, "0")}
+                    {/* The legend: what the two kinds of line mean. */}
+                    <div className="rounded-card border border-border bg-card p-5 shadow-card">
+                        <ul className="space-y-2.5 text-sm">
+                            <li className="flex items-center gap-3">
+                                <span aria-hidden className="grid size-6 place-items-center rounded-sm bg-syn-string/12 font-mono font-bold text-syn-string">
+                                    +
                                 </span>
-                            ))}
-                        </div>
-
-                        <p className="self-center text-xs text-editor-muted">{DAY.tracks.busy}</p>
-                        <div className="relative">
-                            {track("busy")}
-                            <Playhead left={at(current.from)} still={still} label={clock(current.from)} />
-                        </div>
-
-                        <p className="mt-2 self-center text-xs font-semibold text-syn-keyword">{DAY.tracks.learn}</p>
-                        <div className="relative mt-2">
-                            {track("learn")}
-                            <Playhead left={at(current.from)} still={still} />
-                        </div>
+                                <span className="font-medium">{DAY.tracks.learn}</span>
+                            </li>
+                            <li className="flex items-center gap-3">
+                                <span aria-hidden className="grid size-6 place-items-center rounded-sm bg-secondary font-mono text-xs text-syn-comment">
+                                    {"//"}
+                                </span>
+                                <span className="text-muted-foreground">{DAY.tracks.busy}</span>
+                            </li>
+                        </ul>
+                        <p className="mt-4 flex gap-2.5 border-t border-dashed border-border pt-4 text-sm leading-relaxed text-muted-foreground">
+                            <Lightbulb className="mt-0.5 size-4 shrink-0 text-syn-number" aria-hidden />
+                            {DAY.tip}
+                        </p>
                     </div>
+                </div>
 
-                    {/* The same day as a list, under `lg`. */}
-                    <Agenda active={active} onPick={setActive} className="lg:hidden" />
-
-                    {/* What the playhead is on. */}
-                    <div
-                        aria-live="polite"
-                        className="relative flex gap-4 overflow-hidden rounded-card border border-editor-line bg-editor-panel p-4 sm:p-5 md:self-start lg:self-auto"
-                    >
-                        <span
-                            key={`icon-${current.title}`}
-                            className="grid size-11 shrink-0 place-items-center rounded-md border border-syn-string/40 bg-syn-string/10 text-syn-string animate-in zoom-in-50 spin-in-12 duration-300 motion-reduce:animate-none"
-                        >
-                            <Icon className="size-5" aria-hidden />
+                <EditorWindow
+                    tabs={[{ name: "routine.ts", label: DAY.tab, active: true }]}
+                    status={
+                        <>
+                            <span className="truncate">{DAY.status.replace("{n}", bn(LEARN_COUNT))}</span>
+                            <span className="shrink-0">{current ? `${clock(current.from)} · ${current.title}` : `${clock(6)} → ${clock(24)}`}</span>
+                        </>
+                    }
+                >
+                    <ol ref={listRef} className="relative py-3 pr-4 sm:pr-5">
+                        {/* The gutter's edge, filling violet as the day moves on. */}
+                        <span aria-hidden className="absolute bottom-3 left-17 top-3 w-px bg-editor-line">
+                            <span data-day-fill className="absolute inset-0 origin-top bg-violet-400" />
                         </span>
-                        <div className="grid min-w-0 flex-1">
-                            <div key={current.title} className="col-start-1 row-start-1 min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300 motion-reduce:animate-none">
-                                <Detail block={current} />
-                            </div>
-                            {/* Every block's words again, unseen in the same spot: the card is always as tall as the longest, so nothing under it jumps as it moves on. */}
-                            {LEARN.map((block) => (
-                                <div key={block.title} aria-hidden className="invisible col-start-1 row-start-1 min-w-0">
-                                    <Detail block={block} />
-                                </div>
-                            ))}
-                        </div>
-                        {/* Counting down to the next block; when it fills, the playhead moves on. */}
-                        {!still && (
-                            <span
-                                key={`bar-${active}`}
-                                aria-hidden
-                                onAnimationEnd={next}
-                                className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-syn-string/70"
-                                style={{ animation: `fill-x ${STEP_MS}ms linear both`, animationPlayState: paused ? "paused" : "running" }}
-                            />
-                        )}
-                    </div>
+
+                        {ROWS.map(({ block, inner }) => {
+                            const lit = ORDER.indexOf(block) === active;
+                            return (
+                                <Fragment key={block.icon}>
+                                    <li
+                                        data-day-block
+                                        className={cn(
+                                            "grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-6 transition-colors",
+                                            lit && block.kind === "busy" && "bg-editor-raised/60",
+                                        )}
+                                    >
+                                        {gutter(block.from, lit)}
+                                        <div>
+                                            {line(block)}
+                                            {inner.length > 0 && (
+                                                <span aria-hidden className="-mt-1 block pb-1 font-mono text-[0.8rem] text-editor-fg">
+                                                    {"{"}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </li>
+                                    {inner.map((child) => (
+                                        <li key={child.icon} data-day-block className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-6">
+                                            {gutter(child.from, ORDER.indexOf(child) === active)}
+                                            {/* Nested in its busy block's scope, with an indent guide. */}
+                                            <div className="border-l border-dashed border-editor-line pl-6">{line(child, true)}</div>
+                                        </li>
+                                    ))}
+                                    {inner.length > 0 && (
+                                        <li aria-hidden className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-6">
+                                            <span className="pr-3 text-right font-mono text-[0.72rem] tabular-nums text-editor-gutter">{clock(block.to)}</span>
+                                            <span className="pb-2 font-mono text-[0.8rem] text-editor-fg">{"}"}</span>
+                                        </li>
+                                    )}
+                                </Fragment>
+                            );
+                        })}
+                    </ol>
                 </EditorWindow>
             </div>
         </Section>
-    );
-}
-
-/** What a learning block is: its time, its name, a line about it. */
-function Detail({ block }: { block: DayBlock }) {
-    return (
-        <>
-            <p className="font-mono text-xs text-syn-string">{block.time}</p>
-            <h3 className="mt-0.5 text-lg font-semibold text-editor-fg">{block.title}</h3>
-            <p className="mt-1 leading-relaxed text-editor-muted">{block.text}</p>
-        </>
-    );
-}
-
-/**
- * The day as a list, for screens too narrow for the timeline: every block in
- * order with its time, under a key saying which colour is whose. Your own
- * hours sit quiet in grey; the Half Coders ones are buttons in violet, and
- * the one the card describes is lit green with the clock beside it, as the
- * playhead's label shows on the timeline.
- */
-function Agenda({ active, onPick, className }: { active: number; onPick: (index: number) => void; className?: string }) {
-    return (
-        <div className={className}>
-            <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-editor-muted">
-                <span className="inline-flex items-center gap-1.5">
-                    <span aria-hidden className="size-2.5 rounded-[2px] border border-editor-line bg-editor-raised" />
-                    {DAY.tracks.busy}
-                </span>
-                <span className="inline-flex items-center gap-1.5 font-semibold text-syn-keyword">
-                    <span aria-hidden className="size-2.5 rounded-[2px] border border-violet-400/40 bg-violet-500/20" />
-                    {DAY.tracks.learn}
-                </span>
-            </p>
-            <ol className="space-y-1.5">
-                {DAY.blocks.map((block) => {
-                    const BlockIcon = ICONS[block.icon];
-                    const learnIndex = LEARN.indexOf(block);
-                    const isActive = learnIndex === active;
-
-                    const row = (
-                        <>
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    "grid size-8 shrink-0 place-items-center rounded-sm border transition-colors duration-300",
-                                    block.kind === "busy"
-                                        ? "border-editor-line bg-editor-raised"
-                                        : isActive
-                                          ? "border-syn-string/50 bg-syn-string/20 text-syn-string"
-                                          : "border-violet-400/40 bg-violet-500/20 text-syn-keyword",
-                                )}
-                            >
-                                <BlockIcon className="size-4" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span
-                                    className={cn(
-                                        "block font-mono text-[0.7rem] leading-5 transition-colors duration-300",
-                                        isActive ? "text-syn-string" : "text-editor-gutter",
-                                    )}
-                                >
-                                    {block.time}
-                                </span>
-                                <span className={cn("block truncate text-sm", block.kind === "learn" && "font-medium text-editor-fg")}>{block.title}</span>
-                            </span>
-                            {isActive && (
-                                <span aria-hidden className="shrink-0 rounded-sm bg-violet-500 px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-white">
-                                    {clock(block.from)}
-                                </span>
-                            )}
-                        </>
-                    );
-
-                    return (
-                        <li key={block.title}>
-                            {block.kind === "learn" ? (
-                                <button
-                                    type="button"
-                                    onClick={() => onPick(learnIndex)}
-                                    aria-label={`${block.time} — ${block.title}`}
-                                    aria-pressed={isActive}
-                                    className={cn(
-                                        "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-sm border px-2.5 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-300",
-                                        isActive
-                                            ? "border-syn-string bg-syn-string/10 shadow-[0_0_14px_-4px_var(--syn-string)]"
-                                            : "border-violet-400/30 bg-violet-500/10 hover:border-syn-string",
-                                    )}
-                                >
-                                    {row}
-                                </button>
-                            ) : (
-                                <div className="flex min-h-12 items-center gap-3 rounded-sm border border-transparent px-2.5 py-1.5 text-editor-muted">{row}</div>
-                            )}
-                        </li>
-                    );
-                })}
-            </ol>
-        </div>
-    );
-}
-
-/** The violet line marking the moment of the day, gliding as it moves. */
-function Playhead({ left, still, label }: { left: number; still: boolean; label?: string }) {
-    return (
-        <span
-            aria-hidden
-            className={cn("pointer-events-none absolute -inset-y-1 z-20 w-0.5 -translate-x-1/2 bg-violet-400", !still && "transition-[left] duration-500 ease-in-out")}
-            style={{ left: `${left}%` }}
-        >
-            {label && (
-                <span className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-sm bg-violet-500 px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold text-white">
-                    {label}
-                </span>
-            )}
-        </span>
     );
 }
