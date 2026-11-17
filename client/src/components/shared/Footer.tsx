@@ -20,6 +20,7 @@ import {
     SUPPORT_PHONES,
     SUPPORT_SCHEDULE,
 } from "@/lib/brand";
+import { visiblePosts } from "@/lib/blog";
 import { langOf } from "@/lib/lang";
 import { getPublicJson, type Listed } from "@/lib/listedCourses";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const TREE: { folder: string; files: { href: string; file: string; label: string
             { href: "/home", file: "home.tsx", label: "Home" },
             { href: "/courses", file: "courses/", label: "Courses" },
             { href: "/bundles", file: "bundles/", label: "Course bundles" },
+            { href: "/blog", file: "blog/", label: "Blog" },
             { href: "/about", file: "about.md", label: "About us" },
             { href: "/contact", file: "contact.sh", label: "Contact" },
         ],
@@ -39,6 +41,7 @@ const TREE: { folder: string; files: { href: string; file: string; label: string
     {
         folder: "Account & tools",
         files: [
+            { href: "/faq", file: "faq.md", label: "Questions & answers" },
             { href: "/certificate", file: "verify-certificate.ts", label: "Verify a certificate" },
             { href: "/register", file: "sign-up.ts", label: "Create an account" },
             { href: "/login", file: "sign-in.ts", label: "Sign in" },
@@ -96,6 +99,8 @@ const SOCIAL_ICON: Record<(typeof SOCIAL_LINKS)[number]["network"], IconType> = 
  */
 export default async function Footer() {
     const { courses, more } = await footerCourses();
+    // The blog's link waits for its first post (in production, its first approved one).
+    const tree = visiblePosts().length > 0 ? TREE : TREE.map((group) => ({ ...group, files: group.files.filter((item) => item.href !== "/blog") }));
 
     return (
         <footer className="editor relative mt-20 overflow-hidden border-t border-editor-line">
@@ -116,7 +121,7 @@ export default async function Footer() {
                         </Link>
                         <p className="text-sm leading-relaxed text-editor-muted">
                             A learning community from Bangladesh. Coding, engineering and career skills, taught in Bangla —
-                            with live classes, mentors who review your work, and certificates you earn by doing.
+                            with recorded lessons, live classes in some courses, mentors who review your work, and certificates you earn by doing.
                         </p>
                         <ul className="flex flex-wrap gap-2" aria-label="Half Coders on social media">
                             {SOCIAL_LINKS.map((social) => {
@@ -140,7 +145,7 @@ export default async function Footer() {
                         </ul>
                     </div>
 
-                    {TREE.map((group) => {
+                    {tree.map((group) => {
                         const headingId = `footer-${group.folder.toLowerCase().replace(/[^a-z]+/g, "-")}`;
                         return (
                             <nav key={group.folder} aria-labelledby={headingId}>

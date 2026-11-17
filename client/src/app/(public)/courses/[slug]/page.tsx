@@ -103,7 +103,7 @@ export async function generateMetadata(
 
     return {
         ...pageMetadata({
-            title: courseSearchTitle(course.title, course.language),
+            title: courseSearchTitle(course.title, course.language, course.slug),
             description: course.subtitle ?? snippet(course.description),
             path: `/courses/${course.slug}`,
             image: course.thumbnail ?? DEFAULT_SOCIAL_IMAGE,

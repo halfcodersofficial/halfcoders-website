@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { postPath, publishedPosts } from "@/lib/blog";
 import envConfig from "@/lib/envConfig";
 import { getPublicJson, listedCourses, type Listed } from "@/lib/listedCourses";
 
@@ -8,11 +9,21 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const url = (path: string) => `${envConfig.siteUrl}${path}`;
     const [courses, bundles] = await Promise.all([listedCourses(), getPublicJson<Listed[]>("/bundles")]);
+    // Approved posts only: a draft never reaches the sitemap, whatever the build.
+    const posts = publishedPosts();
 
     return [
         { url: url("/courses"), changeFrequency: "daily", priority: 1 },
         { url: url("/home"), changeFrequency: "weekly", priority: 0.8 },
         { url: url("/bundles"), changeFrequency: "weekly", priority: 0.7 },
+        { url: url("/faq"), changeFrequency: "monthly", priority: 0.6 },
+        ...(posts.length > 0 ? [{ url: url("/blog"), changeFrequency: "weekly" as const, priority: 0.6 }] : []),
+        ...posts.map((post) => ({
+            url: url(postPath(post)),
+            lastModified: post.updated,
+            changeFrequency: "monthly" as const,
+            priority: 0.6,
+        })),
         { url: url("/about"), changeFrequency: "monthly", priority: 0.5 },
         { url: url("/contact"), changeFrequency: "monthly", priority: 0.4 },
         { url: url("/certificate"), changeFrequency: "yearly", priority: 0.3 },

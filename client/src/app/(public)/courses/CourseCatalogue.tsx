@@ -289,13 +289,13 @@ function CoursesBrowser({ searchParams }: { searchParams: Pick<URLSearchParams, 
 
                 <div className="container-page relative grid grid-cols-1 gap-10 py-12 sm:py-14 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center lg:gap-16">
                     <div>
-                        <Eyebrow className="mb-4">সব কোর্স</Eyebrow>
+                        <Eyebrow className="mb-4">বাংলায় প্রোগ্রামিং ও ক্যারিয়ার কোর্স</Eyebrow>
                         <h1 className="text-h1 text-balance">
                             কোন কোর্স দিয়ে <span className="squiggle">শুরু করবেন?</span>
                         </h1>
                         <p className="mt-4 max-w-xl text-lg leading-relaxed text-editor-muted">
-                            সব কোর্সে ক্লাস বাংলায়, প্রতিটা অ্যাসাইনমেন্ট মেন্টর নিজে রিভিউ করেন, আর শেষে পাবেন আইডিসহ সার্টিফিকেট। নাম লিখে খুঁজুন,
-                            অথবা নিচের ফিল্টার দিয়ে বেছে নিন।
+                            C, C++ আর DSA থেকে প্রোগ্রামিংয়ের গণিত, সিভি আর ইন্টারভিউ প্রস্তুতি পর্যন্ত। সব কোর্সে ক্লাস বাংলায়, প্রতিটা অ্যাসাইনমেন্ট
+                            মেন্টর নিজে রিভিউ করেন, আর শেষে পাবেন আইডিসহ সার্টিফিকেট। নাম লিখে খুঁজুন, অথবা নিচের ফিল্টার দিয়ে বেছে নিন।
                         </p>
 
                         <form

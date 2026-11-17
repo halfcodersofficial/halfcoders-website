@@ -5,7 +5,7 @@ import JsonLd from "@/components/shared/JsonLd";
 import { BRAND_NAME, DEFAULT_SOCIAL_IMAGE } from "@/lib/brand";
 import envConfig from "@/lib/envConfig";
 import { isMissing } from "@/lib/listedCourses";
-import { pageMetadata, snippet } from "@/lib/seo";
+import { bundleSearchTitle, pageMetadata, snippet } from "@/lib/seo";
 import type { ApiResponse } from "@/types/api.types";
 import type { PublicBundle } from "@/types/domain.types";
 import BundleDetail from "./BundleDetail";
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (bundle === null) return { title: "Bundle not found", robots: { index: false } };
     if (!bundle) return { title: "Course bundle" };
     return pageMetadata({
-        title: bundle.title,
+        title: bundleSearchTitle(bundle.title, bundle.slug),
         description: describe(bundle),
         path: `/bundles/${bundle.slug}`,
         image: bundle.thumbnail ?? DEFAULT_SOCIAL_IMAGE,
