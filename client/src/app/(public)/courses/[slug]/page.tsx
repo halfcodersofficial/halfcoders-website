@@ -338,13 +338,16 @@ export default async function CourseDetailPage(
 
             {/* ---- The workspace: the outline (wide screens), the sections, and the
                 enrol panel, sticky beside them so it stays in view while the page
-                is read. On a phone: the enrol panel first, then the sections. */}
-            <div className="container-page grid grid-cols-1 gap-8 pb-14 pt-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10 lg:pt-10 xl:grid-cols-[11rem_minmax(0,1fr)_22rem]">
-                <aside className="hidden xl:block">
+                is read. On a phone: the enrol panel first, then the sections. The
+                outline column waits for 2xl: on a laptop (xl, or 150% zoom on a
+                1080p screen) it left the sections only ~540px between it and the
+                enrol panel, so there the sections' tab strip stands in for it. */}
+            <div className="container-page grid grid-cols-1 gap-8 pb-14 pt-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10 lg:pt-10 2xl:grid-cols-[11rem_minmax(0,1fr)_22rem]">
+                <aside className="hidden 2xl:block">
                     <CourseOutline sections={sections} />
                 </aside>
 
-                <aside className="order-1 lg:sticky lg:top-24 lg:order-0 lg:col-start-2 lg:row-start-1 lg:self-start xl:col-start-3">
+                <aside className="order-1 lg:sticky lg:top-24 lg:order-0 lg:col-start-2 lg:row-start-1 lg:self-start 2xl:col-start-3">
                     <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                         <p className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 text-xs font-semibold text-muted-foreground">
                             <span className="flex items-center gap-1.5">
@@ -387,10 +390,10 @@ export default async function CourseDetailPage(
                     <CoursePromotionsPanel courseId={course.id} className="mt-4" />
                 </aside>
 
-                <div className="order-2 min-w-0 lg:order-0 lg:col-start-1 lg:row-start-1 xl:col-start-2">
-                    <CourseSectionNav sections={sections} className="xl:hidden" />
+                <div className="order-2 min-w-0 lg:order-0 lg:col-start-1 lg:row-start-1 2xl:col-start-2">
+                    <CourseSectionNav sections={sections} className="2xl:hidden" />
 
-                    <div className="space-y-14 pt-8 xl:pt-0">
+                    <div className="space-y-14 pt-8 2xl:pt-0">
                         {course.mentors.length > 0 && (
                             <section id="instructors" className="scroll-anchor">
                                 <SectionTitle>{course.mentors.length === 1 ? "মেন্টর" : "মেন্টররা"}</SectionTitle>
