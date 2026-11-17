@@ -18,9 +18,9 @@ import { BRAND_NAME } from "@/lib/brand";
 import { faqJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-    title: { absolute: `${BRAND_NAME} — Learn Coding & Career Skills in Bangla` },
+    title: { absolute: `${BRAND_NAME} — Learn Programming & Career Skills in Bangla` },
     description:
-        "কোডিং, ইঞ্জিনিয়ারিংয়ের গণিত আর চাকরির প্রস্তুতি — সব শেখানো হয় বাংলায়। লাইভ ক্লাস, মেন্টরের রিভিউ, হাতে-কলমে অ্যাসাইনমেন্ট আর অনলাইনে যাচাইযোগ্য সার্টিফিকেট।",
+        "Half Coders (হাফ কোডার্স): কোডিং, প্রোগ্রামিংয়ের গণিত আর চাকরির প্রস্তুতি, সব বাংলায়। রেকর্ডেড লেসন, কিছু কোর্সে লাইভ ক্লাস, মেন্টরের রিভিউ আর অনলাইনে যাচাইযোগ্য সার্টিফিকেট।",
     path: "/home",
 });
 

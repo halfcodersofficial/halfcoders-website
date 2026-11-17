@@ -1,3 +1,4 @@
+import { postPath, publishedPosts } from "@/lib/blog";
 import { BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 import envConfig from "@/lib/envConfig";
 import { getPublicJson, listedCourses, type Listed } from "@/lib/listedCourses";
@@ -18,11 +19,12 @@ const link = (title: string, path: string, about?: string | null) =>
 export async function GET() {
     const [courses, bundles] = await Promise.all([listedCourses(), getPublicJson<Listed[]>("/bundles")]);
     const listedBundles = bundles?.data ?? [];
+    const posts = publishedPosts();
 
     const text = [
         `# ${BRAND_NAME}`,
         "",
-        "> A learning community from Bangladesh: coding, engineering and career skills taught in Bangla (Bengali), with live classes, mentor-reviewed assignments and certificates anyone can verify online.",
+        "> A learning community from Bangladesh: coding, engineering and career skills taught in Bangla (Bengali), with recorded lessons (live classes in some courses), mentor-reviewed assignments and certificates anyone can verify online.",
         "",
         "Courses are taught in Bangla. Every assignment is reviewed by a mentor, and every certificate carries an ID that can be checked on the site. Payment is by bKash.",
         "",
@@ -43,8 +45,10 @@ export async function GET() {
         "",
         link("Home", "/home", "what Half Coders is and how learning here works"),
         link("About", "/about", "the team behind Half Coders"),
+        link("Questions and answers", "/faq", "how courses run, fees and bKash payment, refunds, mentor support, certificates and careers"),
         link("Contact and support", "/contact", `email ${SUPPORT_EMAIL}, phone lines and calling hours`),
         link("Verify a certificate", "/certificate", "check a Half Coders certificate by its ID"),
+        ...(posts.length > 0 ? ["", "## Blog", "", ...posts.map((post) => link(post.title, postPath(post), post.description))] : []),
         "",
         "## Optional",
         "",

@@ -111,7 +111,8 @@ export const SITE_JSON_LD = {
             "@type": "EducationalOrganization",
             "@id": ORGANIZATION_ID,
             name: BRAND_NAME,
-            alternateName: "HalfCoders",
+            // The name as people type it in Bangla, too.
+            alternateName: ["HalfCoders", "হাফ কোডার্স"],
             url: envConfig.siteUrl,
             logo: {
                 "@type": "ImageObject",
@@ -122,12 +123,14 @@ export const SITE_JSON_LD = {
                 caption: BRAND_NAME,
             },
             image: `${envConfig.siteUrl}${DEFAULT_SOCIAL_IMAGE.url}`,
-            description: "A learning community from Bangladesh: coding, engineering and career skills taught in Bangla, with live classes, mentor-reviewed assignments and verifiable certificates.",
+            description:
+                "A learning community from Bangladesh: coding, engineering and career skills taught in Bangla, with recorded lessons (live classes in some courses), mentor-reviewed assignments and verifiable certificates.",
             slogan: BRAND_TAGLINE,
             // The subjects the courses and the About page cover.
             knowsAbout: [
                 "Computer programming",
                 "C and C++",
+                "Object-oriented programming",
                 "Data structures and algorithms",
                 "Mathematics for programming",
                 "AI tools",
@@ -154,7 +157,7 @@ export const SITE_JSON_LD = {
             "@id": `${envConfig.siteUrl}/#website`,
             url: envConfig.siteUrl,
             name: BRAND_NAME,
-            alternateName: ["HalfCoders", "half-coders.tech"],
+            alternateName: ["HalfCoders", "হাফ কোডার্স", "half-coders.tech"],
             description: "Coding, engineering and career courses in Bangla, with mentors who review your work and certificates anyone can verify.",
             inLanguage: "bn-BD",
             publisher: { "@id": ORGANIZATION_ID },
@@ -178,10 +181,38 @@ export const faqJsonLd = (items: { q: string; a: string }[]) => ({
 });
 
 /**
- * A course page's title as people search for it. Students here type
- * "… bangla" after what they want to learn ("c programming bangla"), so a
+ * The search title of each course people already look for by topic rather
+ * than by name, keyed by slug: the words they type first ("c programming
+ * course bangla"), the same words in Bangla script ("সি প্রোগ্রামিং কোর্স"),
+ * then the course's own name. From the keyword research of Nov 2026 (Google
+ * autocomplete, Bangladesh). A course not listed here, or one whose slug
+ * changes, falls back to its own title (below), so a stale line costs nothing
+ * but the keywords. Keep each one true to what the course teaches.
+ */
+const COURSE_SEARCH_TITLES: Record<string, string> = {
+    "codebee-c-c-data-structures-and-algorithms": "C Programming Course in Bangla (C, C++ & DSA) | সি প্রোগ্রামিং কোর্স — CodeBee",
+    "codemath-foundation-essential-math-before-programming": "Math for Programming in Bangla | প্রোগ্রামিংয়ের গণিত — CodeMath Foundation",
+    "resumecraft-ats-friendly-resume": "ATS-Friendly CV & Resume Writing in Bangla | সিভি লেখা — ResumeCraft",
+    "interviewedge-interview-preparation": "Job Interview Preparation in Bangla | ইন্টারভিউ প্রস্তুতি — InterviewEdge",
+    "linkedin-elevate-personal-branding": "LinkedIn Profile & Personal Branding in Bangla — LinkedIn Elevate",
+    "inboxpro-professional-email-writing": "Professional Email Writing in Bangla | ইমেইল লেখা — InboxPro",
+    "portfoliai-ai-portfolio-website": "Portfolio Website with AI, No Coding (Bangla) — PortfoliAI",
+};
+
+/**
+ * A course page's title as people search for it: its line in
+ * `COURSE_SEARCH_TITLES` when it has one. Otherwise, since students here type
+ * "… bangla" after what they want to learn ("c programming bangla"), a
  * course taught in Bangla whose title doesn't say so gets "in Bangla" added.
  * A title already in Bangla, or one that names the language, is left as is.
  */
-export const courseSearchTitle = (title: string, language: string) =>
-    languageCode(language) === "bn" && !/[ঀ-৿]/.test(title) && !/\b(bangla|bengali)\b/i.test(title) ? `${title} in Bangla` : title;
+export const courseSearchTitle = (title: string, language: string, slug?: string) =>
+    (slug && COURSE_SEARCH_TITLES[slug]) ||
+    (languageCode(language) === "bn" && !/[ঀ-৿]/.test(title) && !/\b(bangla|bengali)\b/i.test(title) ? `${title} in Bangla` : title);
+
+/** The same for bundles, keyed by slug: what the bundle holds, as people search for it. */
+const BUNDLE_SEARCH_TITLES: Record<string, string> = {
+    "complete-career-launch-bundle": "CV, LinkedIn, Interview & Email Courses in Bangla — Complete Career Launch Bundle",
+};
+
+export const bundleSearchTitle = (title: string, slug: string) => BUNDLE_SEARCH_TITLES[slug] ?? title;

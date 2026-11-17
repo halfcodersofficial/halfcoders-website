@@ -17,7 +17,7 @@ import envConfig from "@/lib/envConfig";
 import { faqJsonLd, ORGANIZATION_ID, pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-    title: "About",
+    title: { absolute: `About ${BRAND_NAME} — Our Team, Mentors & How We Teach` },
     description:
         "Half Coders বাংলাদেশের একটা লার্নিং কমিউনিটি: কোডিং, ইঞ্জিনিয়ারিং আর ক্যারিয়ার স্কিল বাংলায়, মেন্টরের রিভিউ, লাইভ সাপোর্ট আর যাচাইযোগ্য সার্টিফিকেট।",
     path: "/about",
