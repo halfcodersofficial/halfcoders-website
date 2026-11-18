@@ -967,6 +967,8 @@ export interface AdminQuizOption {
 export interface AdminQuizQuestion {
     id: string;
     question: string;
+    /** A picture shown with the question, when it has one. */
+    imageUrl: string | null;
     explanation: string | null;
     order: number;
     options: AdminQuizOption[];
@@ -977,6 +979,8 @@ export interface AdminQuiz {
     moduleId: string;
     title: string;
     description: string | null;
+    /** How many of the module's lessons come before it; null after all of them. */
+    position: number | null;
     isPublished: boolean;
     publishedAt: string | null;
     questions: AdminQuizQuestion[];

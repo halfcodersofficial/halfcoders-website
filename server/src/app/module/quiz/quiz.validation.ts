@@ -31,10 +31,16 @@ export const updateQuizZodSchema = z.object({
     title: z.string().trim().min(3).max(200).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     isPublished: z.boolean().optional(),
+    /** How many of the module's lessons come before it; null puts it after all of them. */
+    position: z.number().int().min(0).max(1000).nullable().optional(),
 });
+
+/** A picture from the quiz image upload — the service checks it's one of ours. */
+const questionImageUrl = z.string().trim().url("That image link isn't valid").max(1000);
 
 export const createQuestionZodSchema = z.object({
     question: z.string().trim().min(3, "Question must be at least 3 characters").max(1000),
+    imageUrl: questionImageUrl.optional(),
     explanation: z.string().trim().max(2000).optional(),
     order: z.number().int().min(1).max(200).optional(),
     options: optionsArray,
@@ -42,6 +48,8 @@ export const createQuestionZodSchema = z.object({
 
 export const updateQuestionZodSchema = z.object({
     question: z.string().trim().min(3).max(1000).optional(),
+    /** Null takes the picture off. */
+    imageUrl: questionImageUrl.nullable().optional(),
     explanation: z.string().trim().max(2000).nullable().optional(),
     /** Full replace — see `optionInputSchema` on why partial option edits aren't a separate endpoint. */
     options: optionsArray.optional(),

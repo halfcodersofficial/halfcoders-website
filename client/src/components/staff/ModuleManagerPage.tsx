@@ -1117,7 +1117,7 @@ export default function ModuleManagerPage({
                                                                 );
                                                             }
 
-                                                            // Opens to its own instructions and lessons, like an assignment.
+                                                            // Opens to its own lessons, like an assignment.
                                                             const practice = item.entry;
                                                             const isLeftover = !allowsPractice;
                                                             const target: Scheduling = { kind: "PRACTICE", id: practice.id, title: practice.title, releaseAt: practice.releaseAt };
@@ -1139,22 +1139,19 @@ export default function ModuleManagerPage({
                                                                             <StatusText isPublished={practice.isPublished} releaseAt={practice.releaseAt} canSchedule={canSchedule} />
                                                                         )
                                                                     }
-                                                                    meta={[
-                                                                        !isLeftover && plural(lessonCount, "lesson"),
-                                                                        !isLeftover && (practice.instructions ? "instructions added" : "no instructions yet"),
-                                                                    ]}
+                                                                    meta={[!isLeftover && plural(lessonCount, "lesson")]}
                                                                     onPublish={isLeftover || practice.isPublished ? undefined : () => togglePractice.mutate({ id: practice.id, next: true })}
                                                                     primary={
                                                                         isLeftover ? undefined : (
                                                                             <Button asChild size="sm" variant="outline">
                                                                                 <Link href={routes.practice(practice.id)}>
-                                                                                    <FileText /> {lessonCount > 0 || practice.instructions ? "Open" : "Add lessons"}
+                                                                                    <FileText /> {lessonCount > 0 ? "Open" : "Add lessons"}
                                                                                 </Link>
                                                                             </Button>
                                                                         )
                                                                     }
                                                                     actions={[
-                                                                        { label: "Edit the title and instructions", icon: Pencil, hidden: isLeftover, onSelect: () => openPracticePanel(milestone.id, practice.id) },
+                                                                        { label: "Edit the title and summary", icon: Pencil, hidden: isLeftover, onSelect: () => openPracticePanel(milestone.id, practice.id) },
                                                                         { ...scheduleAction(target, practice.isPublished), hidden: isLeftover || !canSchedule || practice.isPublished },
                                                                         { label: "Unpublish — hide from students", icon: EyeOff, hidden: isLeftover || !practice.isPublished, onSelect: () => togglePractice.mutate({ id: practice.id, next: false }) },
                                                                         {

@@ -10,6 +10,19 @@ import { PRACTICE_COURSE_FILTER } from "../../utils/weekItems";
 import { formatDuration } from "../../utils/youtube";
 import { outlineWeekSelect } from "../outline/outline.service";
 
+/** An assignment's or practice day's lesson, as the player shows it. */
+const MATERIAL_SELECT = {
+    id: true,
+    type: true,
+    title: true,
+    description: true,
+    order: true,
+    youtubeUrl: true,
+    youtubeVideoId: true,
+    content: true,
+    resourceUrl: true,
+} as const;
+
 /**
  * The full learning interface for one enrolled course (plan §15): the whole
  * published curriculum, annotated with what this student has completed and
@@ -46,12 +59,22 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                         },
                         quizzes: {
                             where: { isPublished: true },
-                            select: { id: true, title: true },
+                            select: { id: true, title: true, position: true },
                         },
                     },
                 },
-                assignments: { where: { isPublished: true }, orderBy: { order: "asc" } },
-                practiceDays: { where: { isPublished: true, ...PRACTICE_COURSE_FILTER }, orderBy: { order: "asc" } },
+                // Each with its own lessons, which the course-content list
+                // shows inside it and the player opens one at a time.
+                assignments: {
+                    where: { isPublished: true },
+                    orderBy: { order: "asc" },
+                    include: { materials: { orderBy: { order: "asc" }, select: MATERIAL_SELECT } },
+                },
+                practiceDays: {
+                    where: { isPublished: true, ...PRACTICE_COURSE_FILTER },
+                    orderBy: { order: "asc" },
+                    include: { materials: { orderBy: { order: "asc" }, select: MATERIAL_SELECT } },
+                },
             },
         }),
         isSequentialLearningEnabled(),
@@ -133,6 +156,8 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                         ? {
                             id: quiz.id,
                             title: quiz.title,
+                            // How many lessons come before it — null after all of them.
+                            position: quiz.position,
                             isCompleted: bestScoreByQuiz.has(quiz.id),
                             bestScore: bestScoreByQuiz.get(quiz.id) ?? null,
                         }
@@ -187,6 +212,7 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                     score: submission?.finalScore ?? null,
                     isSubmitted: Boolean(submission),
                     isAccepted: submission?.status === SubmissionStatus.ACCEPTED,
+                    materials: assignment.materials,
                 };
             }),
             practiceDays: milestone.practiceDays.map((practice) => ({
@@ -197,6 +223,7 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                 position: practice.position,
                 isCompleted: practiceById.has(practice.id),
                 completedAt: practiceById.get(practice.id)?.completedAt ?? null,
+                materials: practice.materials,
             })),
         };
     });

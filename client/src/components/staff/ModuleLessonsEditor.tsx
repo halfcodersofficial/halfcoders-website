@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Gift, ListPlus, Pencil, PlayCircle, Trash2 } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Gift, HelpCircle, ListPlus, Pencil, PlayCircle, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -11,13 +12,14 @@ import {
     type LessonFields,
     LessonForm,
     LessonTypePicker,
+    pickerTileClass,
     TYPE_META,
 } from "@/components/staff/lessonForms";
 import RowActions from "@/components/admin/RowActions";
 import ModuleContentHeader from "@/components/staff/ModuleContentHeader";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
-import { Checkbox, Textarea } from "@/components/ui/input";
+import { Checkbox, Input, Textarea } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DragHandle, SortableItem, SortableList } from "@/components/ui/sortable";
@@ -26,11 +28,20 @@ import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn } from "@/lib/utils";
-import { extractYoutubeId } from "@/lib/validation";
+import { extractYoutubeId, optionalTextField, textField } from "@/lib/validation";
 import { curriculumAuthoring, type CurriculumVideo } from "@/services/curriculum";
+import type { AdminQuiz } from "@/types/admin.types";
 import type { LessonType } from "@/types/domain.types";
 
 const MAX_BULK_ROWS = 30;
+
+/** The quiz's row in the sortable list — never a lesson id. */
+const QUIZ_ROW = "quiz-row";
+
+const quizSchema = z.object({
+    title: textField({ label: "Quiz title", min: 3, max: 200 }),
+    description: optionalTextField({ label: "Description", max: 2000 }),
+});
 
 /**
  * Parses the bulk paste box. One lesson per line:
@@ -107,9 +118,10 @@ const bulkSchema = z.object({
 });
 
 /**
- * One module's lessons — video, text or resource — plus a shortcut to its
- * quiz. Mounted by both consoles under their own prefix; `area` keeps every
- * link inside the console the reader came from.
+ * One module's lessons — video, text or resource — with its quiz as a row
+ * among them, dragged to wherever students should take it. Mounted by both
+ * consoles under their own prefix; `area` keeps every link inside the console
+ * the reader came from.
  */
 export default function ModuleLessonsEditor({
     courseId,
@@ -122,8 +134,10 @@ export default function ModuleLessonsEditor({
 }) {
     const routes = staffCourseRoutes(area, courseId);
     const queryClient = useQueryClient();
+    const router = useRouter();
 
-    const [adding, setAdding] = useState<LessonType | "BULK" | null>(null);
+    // "QUIZ" is the module's quiz, picked from the same tiles as a lesson.
+    const [adding, setAdding] = useState<LessonType | "BULK" | "QUIZ" | null>(null);
     // Remounts the open add form after a save, so it's empty for the next lesson.
     const [addFormKey, setAddFormKey] = useState(0);
     // Applies to whichever add form is open, so it lives above all of them.
@@ -141,10 +155,18 @@ export default function ModuleLessonsEditor({
         queryFn: () => curriculumAuthoring.listVideos(moduleId),
     });
 
+    // The module's quiz, shown as a tile and a row among the lessons — the quiz page's own query.
+    const { data: quiz } = useQuery({
+        queryKey: ["quiz", moduleId],
+        queryFn: () => curriculumAuthoring.getModuleQuiz(moduleId),
+    });
+
     const refresh = () =>
         Promise.all([
             queryClient.invalidateQueries({ queryKey: ["videos", moduleId] }),
             queryClient.invalidateQueries({ queryKey: ["curriculum", courseId] }),
+            // Adding or deleting a lesson above the quiz moves it along on the server.
+            queryClient.invalidateQueries({ queryKey: ["quiz", moduleId] }),
         ]);
 
     const create = useMutation({
@@ -211,6 +233,24 @@ export default function ModuleLessonsEditor({
         onSubmit: (values) => addBulk.mutate(values),
     });
 
+    /** A module has one quiz: made here, then straight on to its questions. */
+    const createQuiz = useMutation({
+        mutationFn: (values: z.output<typeof quizSchema>) =>
+            curriculumAuthoring.createQuiz({ moduleId, title: values.title, description: values.description || undefined }),
+        onSuccess: async () => {
+            await refresh();
+            toast.success("Quiz added. Now add its questions.");
+            router.push(routes.quiz(moduleId));
+        },
+        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't add that quiz.")),
+    });
+
+    const quizForm = useZodForm({
+        schema: quizSchema,
+        initialValues: { title: "", description: "" },
+        onSubmit: (values) => createQuiz.mutate(values),
+    });
+
     // Every per-lesson action below awaits the refetch before settling, so a
     // row's spinner clears only once the list already shows the new state.
     const toggleOne = useMutation({
@@ -258,16 +298,21 @@ export default function ModuleLessonsEditor({
 
     /**
      * Drag-to-reorder. The API takes the *complete* ordered list and rewrites
-     * positions in one transaction. Optimistic: the rows (and their numbers)
-     * move on drop, the handle spins until the server has it, and a failure
-     * puts them back. Settling waits on the refetch.
+     * positions in one transaction — with the quiz's new place, when it was
+     * part of the drag. Optimistic: the rows (and their numbers) move on drop,
+     * the handle spins until the server has it, and a failure puts them back.
+     * Settling waits on the refetch.
      */
     const reorder = useMutation({
-        mutationFn: ({ orderedIds }: { orderedIds: string[]; movedId: string }) =>
-            curriculumAuthoring.reorderVideos(moduleId, orderedIds),
-        onMutate: async ({ orderedIds }) => {
-            await queryClient.cancelQueries({ queryKey: ["videos", moduleId] });
+        mutationFn: ({ orderedIds, quizPosition }: { orderedIds: string[]; movedId: string; quizPosition?: number | null }) =>
+            curriculumAuthoring.reorderVideos(moduleId, orderedIds, quizPosition),
+        onMutate: async ({ orderedIds, quizPosition }) => {
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: ["videos", moduleId] }),
+                queryClient.cancelQueries({ queryKey: ["quiz", moduleId] }),
+            ]);
             const previous = queryClient.getQueryData<CurriculumVideo[]>(["videos", moduleId]);
+            const previousQuiz = queryClient.getQueryData<AdminQuiz | null>(["quiz", moduleId]);
             if (previous) {
                 const byId = new Map(previous.map((video) => [video.id, video]));
                 queryClient.setQueryData<CurriculumVideo[]>(
@@ -275,10 +320,14 @@ export default function ModuleLessonsEditor({
                     orderedIds.map((id, index) => ({ ...byId.get(id)!, order: index + 1 })),
                 );
             }
-            return { previous };
+            if (previousQuiz && quizPosition !== undefined) {
+                queryClient.setQueryData<AdminQuiz>(["quiz", moduleId], { ...previousQuiz, position: quizPosition });
+            }
+            return { previous, previousQuiz };
         },
         onError: (err, _variables, context) => {
             if (context?.previous) queryClient.setQueryData(["videos", moduleId], context.previous);
+            if (context?.previousQuiz) queryClient.setQueryData(["quiz", moduleId], context.previousQuiz);
             toast.error(getApiErrorMessage(err, "Couldn't reorder the lessons."));
         },
         onSuccess: () => toast.success("Reordered."),
@@ -324,6 +373,22 @@ export default function ModuleLessonsEditor({
     const problems = bulkForm.values.bulkText.trim() ? parseBulkInput(bulkForm.values.bulkText).problems : [];
     const publishedCount = videos.filter((video) => video.isPublished).length;
 
+    // The lessons with the quiz slotted in after the first `position` of them
+    // (after all of them while it has none) — the order students meet them in.
+    const rowIds = videos.map((video) => video.id);
+    if (quiz) rowIds.splice(quiz.position === null ? videos.length : Math.min(quiz.position, videos.length), 0, QUIZ_ROW);
+
+    /** A drop: the lessons' new order, and how many lessons now come before the quiz. */
+    const onReorder = (orderedRowIds: string[], movedId: string) => {
+        const orderedIds = orderedRowIds.filter((id) => id !== QUIZ_ROW);
+        const quizIndex = orderedRowIds.indexOf(QUIZ_ROW);
+        reorder.mutate({
+            orderedIds,
+            movedId,
+            quizPosition: quizIndex === -1 ? undefined : quizIndex >= orderedIds.length ? null : quizIndex,
+        });
+    };
+
     const openEdit = (video: CurriculumVideo) => {
         setEditing(video);
         setEditOpen(true);
@@ -352,10 +417,67 @@ export default function ModuleLessonsEditor({
                 </div>
 
                 <div className="mt-4">
-                    <LessonTypePicker active={adding === "BULK" ? null : adding} onPick={(type) => setAdding(type)} />
+                    <LessonTypePicker
+                        active={adding === "BULK" || adding === "QUIZ" ? null : adding}
+                        onPick={(type) => setAdding(type)}
+                        extra={
+                            // The module's one quiz: added here, or — once it has one — opened from here.
+                            quiz ? (
+                                <Link href={routes.quiz(moduleId)} className={pickerTileClass(false)}>
+                                    <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-medium">Quiz</span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            Added · {quiz.questions.length} question{quiz.questions.length === 1 ? "" : "s"} — edit it
+                                        </span>
+                                    </span>
+                                </Link>
+                            ) : (
+                                <button
+                                    type="button"
+                                    aria-pressed={adding === "QUIZ"}
+                                    disabled={quiz === undefined}
+                                    onClick={() => setAdding(adding === "QUIZ" ? null : "QUIZ")}
+                                    className={pickerTileClass(adding === "QUIZ")}
+                                >
+                                    <HelpCircle
+                                        className={cn("mt-0.5 size-5 shrink-0", adding === "QUIZ" ? "text-primary" : "text-muted-foreground")}
+                                        aria-hidden
+                                    />
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-medium">Quiz</span>
+                                        <span className="block text-xs text-muted-foreground">Questions to check what they learned</span>
+                                    </span>
+                                </button>
+                            )
+                        }
+                    />
                 </div>
 
-                {adding !== null && (
+                {adding === "QUIZ" && !quiz && (
+                    <form className="mt-4 space-y-4 border-t border-border pt-4" noValidate onSubmit={quizForm.handleSubmit}>
+                        <p className="text-sm text-muted-foreground">
+                            One quiz per {moduleLabel}. Name it here, then add its questions on the next page and publish it from there. It shows up
+                            in the list below — drag it to where students should take it.
+                        </p>
+                        <FormField form={quizForm} name="title" label="Quiz title" required counterMax={200}>
+                            <Input placeholder={`${course?.moduleLabel ?? "Module"} quiz`} autoFocus />
+                        </FormField>
+                        <FormField form={quizForm} name="description" label="Description" optional counterMax={2000}>
+                            <Textarea rows={2} placeholder={`Check your understanding of this ${moduleLabel}.`} />
+                        </FormField>
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="submit" isLoading={createQuiz.isPending}>
+                                {!createQuiz.isPending && <Plus />} Add quiz &amp; its questions
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={() => setAdding(null)}>
+                                Cancel
+                            </Button>
+                        </div>
+                    </form>
+                )}
+
+                {adding !== null && adding !== "QUIZ" && (
                     <div className="mt-4 space-y-4 border-t border-border pt-4">
                         <Checkbox
                             checked={publishOnAdd}
@@ -429,7 +551,10 @@ export default function ModuleLessonsEditor({
             <section aria-labelledby="lessons-title" className="overflow-hidden rounded-card border border-border bg-card shadow-card">
                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5 bg-surface">
                     <h2 id="lessons-title" className="font-semibold">
-                        {videos.length} lesson{videos.length === 1 ? "" : "s"} <span className="font-normal text-muted-foreground">· {publishedCount} live</span>
+                        {videos.length} lesson{videos.length === 1 ? "" : "s"}{" "}
+                        <span className="font-normal text-muted-foreground">
+                            · {publishedCount} live{quiz ? " · and the quiz" : ""}
+                        </span>
                     </h2>
                     {videos.length > 1 && (
                         <div className="flex flex-wrap gap-1">
@@ -463,13 +588,28 @@ export default function ModuleLessonsEditor({
                     </div>
                 ) : (
                     <SortableList
-                        ids={videos.map((video) => video.id)}
+                        ids={rowIds}
                         disabled={reorder.isPending}
-                        getLabel={(id) => videos.find((video) => video.id === id)?.title ?? "Lesson"}
-                        onReorder={(orderedIds, movedId) => reorder.mutate({ orderedIds, movedId })}
+                        getLabel={(id) =>
+                            id === QUIZ_ROW ? `Quiz: ${quiz?.title ?? ""}` : (videos.find((video) => video.id === id)?.title ?? "Lesson")
+                        }
+                        onReorder={onReorder}
                     >
                         <ul className="divide-y divide-border">
-                            {videos.map((video) => {
+                            {rowIds.map((rowId) => {
+                                if (rowId === QUIZ_ROW && quiz) {
+                                    return (
+                                        <QuizRow
+                                            key={QUIZ_ROW}
+                                            quiz={quiz}
+                                            href={routes.quiz(moduleId)}
+                                            sortable={rowIds.length > 1}
+                                            isSaving={reorder.isPending && reorder.variables?.movedId === QUIZ_ROW}
+                                        />
+                                    );
+                                }
+                                const video = videos.find((entry) => entry.id === rowId);
+                                if (!video) return null;
                                 const meta = TYPE_META[video.type];
                                 const Icon = meta.icon;
                                 const isSavingPosition = reorder.isPending && reorder.variables?.movedId === video.id;
@@ -490,7 +630,7 @@ export default function ModuleLessonsEditor({
                                         className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 transition-[opacity,background-color] hover:bg-secondary/25 sm:flex-nowrap sm:px-4", isDeleting && "opacity-60")}
                                     >
                                         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                                            {videos.length > 1 ? <DragHandle label={video.title} isSaving={isSavingPosition} /> : <span className="w-2" aria-hidden />}
+                                            {rowIds.length > 1 ? <DragHandle label={video.title} isSaving={isSavingPosition} /> : <span className="w-2" aria-hidden />}
                                             <span className="w-6 shrink-0 font-mono text-sm tabular-nums text-muted-foreground">{String(video.order).padStart(2, "0")}</span>
                                             <Icon className="size-4 shrink-0 text-muted-foreground" aria-label={meta.label} />
                                             <div className="min-w-0">
@@ -592,5 +732,55 @@ export default function ModuleLessonsEditor({
                 )}
             </Modal>
         </div>
+    );
+}
+
+/**
+ * The module's quiz as a row among its lessons — dragged like one to set
+ * where students take it. Its questions are edited on its own page.
+ */
+function QuizRow({ quiz, href, sortable, isSaving }: { quiz: AdminQuiz; href: string; sortable: boolean; isSaving: boolean }) {
+    const questions = quiz.questions.length;
+    return (
+        <SortableItem
+            id={QUIZ_ROW}
+            as="li"
+            aria-busy={isSaving || undefined}
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-primary/4 px-3 py-3 transition-colors hover:bg-primary/8 sm:flex-nowrap sm:px-4"
+        >
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                {sortable ? <DragHandle label={`Quiz: ${quiz.title}`} isSaving={isSaving} /> : <span className="w-2" aria-hidden />}
+                <span className="w-6 shrink-0" aria-hidden />
+                <HelpCircle className="size-4 shrink-0 text-primary" aria-label="Quiz" />
+                <div className="min-w-0">
+                    <Link href={href} className="block max-w-full truncate text-sm font-medium hover:underline">
+                        Quiz: {quiz.title}
+                    </Link>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                            <span className={cn("size-1.5 rounded-full", quiz.isPublished ? "bg-success" : "bg-muted-foreground/50")} aria-hidden />
+                            {quiz.isPublished ? "Live" : "Draft"}
+                        </span>
+                        <span aria-hidden>·</span>
+                        <span>
+                            {questions} question{questions === 1 ? "" : "s"}
+                        </span>
+                        {sortable && (
+                            <>
+                                <span aria-hidden>·</span>
+                                <span>Drag it to where students should take it</span>
+                            </>
+                        )}
+                    </p>
+                </div>
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+                <Button asChild size="sm" variant="outline">
+                    <Link href={href}>
+                        <Pencil /> <span className="max-sm:sr-only">Edit quiz</span>
+                    </Link>
+                </Button>
+            </div>
+        </SortableItem>
     );
 }

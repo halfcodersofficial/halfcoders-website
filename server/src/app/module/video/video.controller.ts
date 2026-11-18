@@ -53,6 +53,7 @@ const reorderVideos = catchAsync(async (req: Request, res: Response) => {
         req.user,
         req.params.moduleId as string,
         req.body.orderedIds,
+        req.body.quizPosition,
     );
 
     sendResponse(res, {

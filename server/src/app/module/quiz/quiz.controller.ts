@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import status from "http-status";
+import AppError from "../../errorHelpers/AppError";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { QuizService } from "./quiz.service";
@@ -7,6 +8,27 @@ import { QuizService } from "./quiz.service";
 // ---------------------------------------------------------------------------
 // Authoring
 // ---------------------------------------------------------------------------
+
+const uploadQuestionImage = catchAsync(async (req: Request, res: Response) => {
+    if (!req.file) {
+        throw new AppError(status.BAD_REQUEST, "No image was uploaded.");
+    }
+
+    const result = await QuizService.uploadQuestionImage(
+        req.user,
+        req.params.quizId as string,
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+    );
+
+    sendResponse(res, {
+        httpStatusCode: status.CREATED,
+        success: true,
+        message: "Image uploaded",
+        data: result,
+    });
+});
 
 const createQuiz = catchAsync(async (req: Request, res: Response) => {
     const result = await QuizService.createQuiz(req.user, req.body);
@@ -147,6 +169,7 @@ const getMyAttempts = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const QuizController = {
+    uploadQuestionImage,
     getQuizResults,
     createQuiz,
     updateQuiz,

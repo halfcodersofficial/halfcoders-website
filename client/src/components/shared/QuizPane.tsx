@@ -248,7 +248,8 @@ export default function QuizPane({ quizId }: { quizId: string }) {
 
                 <fieldset className="rounded-xl border border-border bg-card p-6 shadow-sm">
                     <legend className="sr-only">Question {index + 1}</legend>
-                    <p className="mb-5 text-lg font-semibold">{question.question}</p>
+                    <p className="mb-5 whitespace-pre-line text-lg font-semibold">{question.question}</p>
+                    {question.imageUrl && <QuestionImage src={question.imageUrl} number={index + 1} className="mb-5" />}
 
                     <div className="space-y-2.5">
                         {question.options.map((option) => {
@@ -367,6 +368,31 @@ export default function QuizPane({ quizId }: { quizId: string }) {
     );
 }
 
+/**
+ * The picture that goes with a question — code, a diagram, some output.
+ * Shown whole, never cropped; a click opens it full size in a new tab for a
+ * closer look.
+ */
+function QuestionImage({ src, number, className }: { src: string; number: number; className?: string }) {
+    return (
+        <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open the image full size"
+            className={cn("block w-fit max-w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
+        >
+            {/* Any size, straight from Cloudinary — a plain <img> keeps its own proportions. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={src}
+                alt={`Image for question ${number}`}
+                className="max-h-96 w-auto max-w-full rounded-lg border border-border bg-white object-contain"
+            />
+        </a>
+    );
+}
+
 /** Steps through one finished attempt's questions, showing the student's
  *  answer against the correct one plus the explanation — "See Correct Answers". */
 function QuizReview({ attemptId, onClose }: { attemptId: string; onClose: () => void }) {
@@ -413,7 +439,8 @@ function QuizReview({ attemptId, onClose }: { attemptId: string; onClose: () => 
             </div>
 
             <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h3 className="mb-4 font-medium">{question.question}</h3>
+                <h3 className="mb-4 whitespace-pre-line font-medium">{question.question}</h3>
+                {question.imageUrl && <QuestionImage src={question.imageUrl} number={index + 1} className="mb-4" />}
 
                 <div className="space-y-2.5">
                     {question.options.map((option) => (

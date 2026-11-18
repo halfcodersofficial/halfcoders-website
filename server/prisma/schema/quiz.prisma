@@ -12,6 +12,13 @@ model Quiz {
   courseId    String
   title       String
   description String?
+  /// Where it sits among the module's lessons: after the first `position` of
+  /// them (lessons are numbered 1..n without gaps, so after every lesson whose
+  /// `order` is at most this). Null puts it after all of them — where a quiz
+  /// sat before it could be moved. Kept in step when a lesson is inserted or
+  /// deleted above it (video.service.ts), and set by dragging it on the
+  /// module's lesson list.
+  position    Int?
   isPublished Boolean   @default(false)
   /// Stamped once, the moment `isPublished` first flips true — see
   /// `CourseModule.publishedAt`.
@@ -49,6 +56,9 @@ model QuizQuestion {
   id          String           @id @default(uuid(7))
   quizId      String
   question    String
+  /// A picture shown with the question (code, a diagram, output) — one the
+  /// quiz image upload stored (`QUIZ_IMAGE_FOLDER`), never an outside link.
+  imageUrl    String?
   type        QuizQuestionType @default(SINGLE_CHOICE)
   /// Shown to the student immediately after they answer — see the reference
   /// UX's "You selected X but the correct answer is Y."

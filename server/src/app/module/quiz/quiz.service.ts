@@ -1,5 +1,11 @@
 import status from "http-status";
 import { NotificationType, QuizAttemptStatus } from "../../../generated/prisma/enums";
+import {
+    deleteFileFromCloudinary,
+    isQuizImageAsset,
+    QUIZ_IMAGE_FOLDER,
+    uploadFileToCloudinary,
+} from "../../config/cloudinary.config";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
@@ -14,6 +20,46 @@ import { createNotification } from "../notification/notification.service";
 // ---------------------------------------------------------------------------
 
 type OptionInput = { id?: string; text: string; isCorrect?: boolean };
+
+/** A question's picture must be one the quiz image upload stored — never an outside link. */
+const assertQuizImage = (imageUrl: string | null | undefined) => {
+    if (imageUrl && !isQuizImageAsset(imageUrl)) {
+        throw new AppError(status.BAD_REQUEST, "Upload the question's image here rather than linking to one.");
+    }
+};
+
+/** Best effort, after the change is saved — a leftover image costs storage, not correctness. */
+const removeQuizImages = (urls: (string | null | undefined)[]) => {
+    for (const url of urls) {
+        if (isQuizImageAsset(url)) void deleteFileFromCloudinary(url);
+    }
+};
+
+/**
+ * Stores a picture for a question and answers with its URL. The question
+ * itself only changes when it's saved with that URL.
+ */
+const uploadQuestionImage = async (
+    user: IRequestUser,
+    quizId: string,
+    buffer: Buffer,
+    fileName: string,
+    mimetype: string,
+) => {
+    const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { courseId: true } });
+    if (!quiz) throw new AppError(status.NOT_FOUND, "Quiz not found.");
+
+    await assertCanManageCourse(user, quiz.courseId);
+
+    // The shared upload middleware also lets PDFs through.
+    if (!mimetype.startsWith("image/")) {
+        throw new AppError(status.BAD_REQUEST, "Upload a JPEG, PNG or WebP image.");
+    }
+
+    logger.create("Uploading quiz question image", { quizId });
+    const uploaded = await uploadFileToCloudinary(buffer, fileName, QUIZ_IMAGE_FOLDER);
+    return { url: uploaded.secure_url };
+};
 
 const loadModuleForWrite = async (user: IRequestUser, moduleId: string) => {
     const courseModule = await prisma.courseModule.findUnique({
@@ -81,7 +127,7 @@ const notifyCohort = async (courseId: string, title: string, quizId: string) => 
 const updateQuiz = async (
     user: IRequestUser,
     quizId: string,
-    payload: { title?: string; description?: string | null; isPublished?: boolean },
+    payload: { title?: string; description?: string | null; isPublished?: boolean; position?: number | null },
 ) => {
     const quiz = await prisma.quiz.findUnique({
         where: { id: quizId },
@@ -118,7 +164,11 @@ const updateQuiz = async (
 const deleteQuiz = async (user: IRequestUser, quizId: string) => {
     const quiz = await prisma.quiz.findUnique({
         where: { id: quizId },
-        select: { courseId: true, _count: { select: { attempts: true } } },
+        select: {
+            courseId: true,
+            _count: { select: { attempts: true } },
+            questions: { select: { imageUrl: true } },
+        },
     });
     if (!quiz) throw new AppError(status.NOT_FOUND, "Quiz not found.");
 
@@ -133,6 +183,7 @@ const deleteQuiz = async (user: IRequestUser, quizId: string) => {
 
     logger.delete("Deleting quiz", { quizId });
     await prisma.quiz.delete({ where: { id: quizId } });
+    removeQuizImages(quiz.questions.map((question) => question.imageUrl));
 };
 
 /** The quiz for one module, full detail (correct answers included) — staff editing only. */
@@ -153,12 +204,13 @@ const getQuizForModule = async (user: IRequestUser, moduleId: string) => {
 const createQuestion = async (
     user: IRequestUser,
     quizId: string,
-    payload: { question: string; explanation?: string; order?: number; options: OptionInput[] },
+    payload: { question: string; imageUrl?: string; explanation?: string; order?: number; options: OptionInput[] },
 ) => {
     const quiz = await prisma.quiz.findUnique({ where: { id: quizId }, select: { id: true, courseId: true } });
     if (!quiz) throw new AppError(status.NOT_FOUND, "Quiz not found.");
 
     await assertCanManageCourse(user, quiz.courseId);
+    assertQuizImage(payload.imageUrl);
     logger.create("Adding quiz question", { quizId });
 
     const { order, options, ...rest } = payload;
@@ -227,19 +279,20 @@ const replaceQuestionOptions = async (
 const updateQuestion = async (
     user: IRequestUser,
     questionId: string,
-    payload: { question?: string; explanation?: string | null; options?: OptionInput[] },
+    payload: { question?: string; imageUrl?: string | null; explanation?: string | null; options?: OptionInput[] },
 ) => {
     const question = await prisma.quizQuestion.findUnique({
         where: { id: questionId },
-        select: { id: true, quiz: { select: { courseId: true } } },
+        select: { id: true, imageUrl: true, quiz: { select: { courseId: true } } },
     });
     if (!question) throw new AppError(status.NOT_FOUND, "Question not found.");
 
     await assertCanManageCourse(user, question.quiz.courseId);
+    assertQuizImage(payload.imageUrl);
 
     const { options, ...rest } = payload;
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
         if (options) await replaceQuestionOptions(tx, questionId, options);
 
         return tx.quizQuestion.update({
@@ -248,12 +301,17 @@ const updateQuestion = async (
             include: { options: { orderBy: { order: "asc" } } },
         });
     });
+
+    // The picture it no longer shows — replaced or taken off.
+    if (payload.imageUrl !== undefined && question.imageUrl !== payload.imageUrl) removeQuizImages([question.imageUrl]);
+
+    return updated;
 };
 
 const deleteQuestion = async (user: IRequestUser, questionId: string) => {
     const question = await prisma.quizQuestion.findUnique({
         where: { id: questionId },
-        select: { quizId: true, quiz: { select: { courseId: true } } },
+        select: { quizId: true, imageUrl: true, quiz: { select: { courseId: true } } },
     });
     if (!question) throw new AppError(status.NOT_FOUND, "Question not found.");
 
@@ -273,6 +331,8 @@ const deleteQuestion = async (user: IRequestUser, questionId: string) => {
             tx.quizQuestion.update({ where: { id }, data: { order } }),
         );
     });
+
+    removeQuizImages([question.imageUrl]);
 };
 
 const reorderQuestions = async (user: IRequestUser, quizId: string, orderedIds: string[]) => {
@@ -306,11 +366,13 @@ const reorderQuestions = async (user: IRequestUser, quizId: string, orderedIds: 
 const sanitiseQuestion = (question: {
     id: string;
     question: string;
+    imageUrl: string | null;
     order: number;
     options: { id: string; text: string; order: number }[];
 }) => ({
     id: question.id,
     question: question.question,
+    imageUrl: question.imageUrl,
     order: question.order,
     options: question.options.map((o) => ({ id: o.id, text: o.text, order: o.order })),
 });
@@ -357,6 +419,7 @@ const getQuizForStudent = async (user: IRequestUser, quizId: string) => {
                 select: {
                     id: true,
                     question: true,
+                    imageUrl: true,
                     order: true,
                     options: { orderBy: { order: "asc" }, select: { id: true, text: true, order: true } },
                 },
@@ -534,6 +597,7 @@ const getAttempt = async (user: IRequestUser, attemptId: string) => {
             return {
                 id: q.id,
                 question: q.question,
+                imageUrl: q.imageUrl,
                 explanation: reveal ? q.explanation : null,
                 options: q.options.map((o) => ({
                     id: o.id,
@@ -562,7 +626,7 @@ const getQuizResults = async (user: IRequestUser, quizId: string) => {
             questions: {
                 orderBy: { order: "asc" },
                 select: {
-                    id: true, question: true, order: true,
+                    id: true, question: true, imageUrl: true, order: true,
                     options: { orderBy: { order: "asc" }, select: { id: true, text: true, isCorrect: true } },
                 },
             },
@@ -623,6 +687,7 @@ const getMyAttempts = async (user: IRequestUser, quizId: string) => {
 };
 
 export const QuizService = {
+    uploadQuestionImage,
     getQuizResults,
     createQuiz,
     updateQuiz,

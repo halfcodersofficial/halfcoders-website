@@ -259,6 +259,11 @@ const CATALOGUE = {
         about: { subject: "quiz", param: "quizId" },
         summary: (c) => `Reordered the questions of ${quote(c.about?.title, "a quiz")}`,
     },
+    "question.image.upload": {
+        entity: "quiz",
+        about: { subject: "quiz", param: "quizId" },
+        summary: (c) => `Uploaded a question image to ${quote(c.about?.title, "a quiz")}`,
+    },
     "question.update": {
         entity: "question",
         about: { subject: "question", param: "questionId" },

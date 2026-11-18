@@ -73,6 +73,11 @@ export const updateVideoZodSchema = z.object({
 
 export const reorderVideosZodSchema = z.object({
     orderedIds: z.array(z.string().trim().min(1)).min(1, "Provide at least one id"),
+    /**
+     * Where the module's quiz lands in the same drag: how many lessons come
+     * before it, or null for after all of them. Left out, the quiz stays put.
+     */
+    quizPosition: z.number().int().min(0).max(1000).nullable().optional(),
 });
 
 /** Bulk add — mentors typically paste a whole module's worth at once. */

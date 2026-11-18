@@ -89,15 +89,25 @@ export const hostnameOf = (url: string) => {
  * The Video / Text / Resource tiles that start a new lesson. `active` marks
  * the one whose form is open; picking it again closes the form.
  */
+/** A picker tile's look — shared with any extra tile placed beside the three (a module's quiz). */
+export const pickerTileClass = (isActive: boolean) =>
+    cn(
+        "flex items-start gap-3 rounded-card border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-secondary/40",
+    );
+
 export function LessonTypePicker({
     active,
     onPick,
+    extra,
 }: {
     active: LessonType | null;
     onPick: (type: LessonType | null) => void;
+    /** A fourth tile after Video, Text and Resource — a module's quiz. */
+    extra?: ReactNode;
 }) {
     return (
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className={cn("grid gap-2", extra ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3")}>
             {LESSON_TYPES.map((type) => {
                 const meta = TYPE_META[type];
                 const Icon = meta.icon;
@@ -108,10 +118,7 @@ export function LessonTypePicker({
                         type="button"
                         aria-pressed={isActive}
                         onClick={() => onPick(isActive ? null : type)}
-                        className={cn(
-                            "flex items-start gap-3 rounded-card border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-secondary/40",
-                        )}
+                        className={pickerTileClass(isActive)}
                     >
                         <Icon className={cn("mt-0.5 size-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} aria-hidden />
                         <span className="min-w-0">
@@ -121,6 +128,7 @@ export function LessonTypePicker({
                     </button>
                 );
             })}
+            {extra}
         </div>
     );
 }

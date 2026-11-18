@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { multerMemoryUpload, verifyFileSignatures } from "../../config/multer.config";
 import { Role } from "../../lib/roles";
 import { trackActivity } from "../../lib/staffActivity";
 import { checkAuth } from "../../middleware/checkAuth";
@@ -42,6 +43,17 @@ router.patch(
 );
 
 router.delete("/manage/:quizId", checkAuth(...STAFF), trackActivity("quiz.delete"), QuizController.deleteQuiz);
+
+// A picture for a question. Only stores the file and answers with its URL; the
+// question changes when it's saved with that URL.
+router.post(
+    "/manage/:quizId/images",
+    checkAuth(...STAFF),
+    trackActivity("question.image.upload"),
+    multerMemoryUpload.single("image"),
+    verifyFileSignatures,
+    QuizController.uploadQuestionImage,
+);
 
 router.post(
     "/manage/:quizId/questions",
