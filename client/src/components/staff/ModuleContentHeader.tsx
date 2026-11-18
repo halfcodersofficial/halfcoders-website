@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ChevronLeft, ChevronRight, HelpCircle, PlayCircle } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BackButton } from "@/components/ui/back-button";
@@ -13,10 +13,12 @@ import { curriculumAuthoring } from "@/services/curriculum";
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * The head of a module's content pages — which module this is, where it sits
- * in the course, and tabs between its lessons and its quiz. Previous / next
- * walk the course's modules in order, so a mentor filling a whole course
- * never has to go back to the Module Manager between modules.
+ * The head of a module's content pages — which module this is and where it
+ * sits in the course. Its quiz is added and opened from the lesson page's
+ * "Add a lesson" tiles and lesson list, so the quiz page leads back there.
+ * Previous / next walk the course's modules' lessons in order, so a mentor
+ * filling a whole course never has to go back to the Module Manager between
+ * modules.
  *
  * Reads the same curriculum query the Module Manager does, so arriving from
  * there costs no extra request.
@@ -57,27 +59,23 @@ export default function ModuleContentHeader({
 
     const milestoneLabel = course?.milestoneLabel ?? "Milestone";
     const moduleLabel = course?.moduleLabel ?? "Module";
-    const targetFor = (id: string) => (active === "quiz" ? routes.quiz(id) : routes.module(id));
-
-    const tabs = [
-        {
-            key: "lessons" as const,
-            href: routes.module(moduleId),
-            icon: PlayCircle,
-            label: current ? `Lessons (${current.courseModule._count.videos})` : "Lessons",
-        },
-        { key: "quiz" as const, href: routes.quiz(moduleId), icon: HelpCircle, label: "Quiz" },
-    ];
+    const targetFor = (id: string) => routes.module(id);
+    const onQuiz = active === "quiz";
 
     return (
         <header className="space-y-4">
-            <BackButton href={routes.modules} label="Module Manager" />
+            {onQuiz ? (
+                <BackButton href={routes.module(moduleId)} label={`${moduleLabel} lessons`} />
+            ) : (
+                <BackButton href={routes.modules} label="Module Manager" />
+            )}
 
             <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                     {current && (
                         <p className="text-xs font-semibold font-mono uppercase tracking-wider text-primary">
                             {milestoneLabel} {pad(current.milestone.order)} · {moduleLabel} {pad(current.courseModule.order)}
+                            {onQuiz && " · Quiz"}
                         </p>
                     )}
                     <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">{current?.courseModule.title ?? moduleLabel}</h1>
@@ -124,26 +122,6 @@ export default function ModuleContentHeader({
                 )}
 
                 {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-            </div>
-
-            <div className="border-b border-border">
-                <nav aria-label={`${moduleLabel} content`} className="-mb-px flex gap-1">
-                    {tabs.map(({ key, href, icon: Icon, label }) => (
-                        <Link
-                            key={key}
-                            href={href}
-                            aria-current={active === key ? "page" : undefined}
-                            className={cn(
-                                "inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                                active === key
-                                    ? "border-primary text-primary"
-                                    : "border-transparent text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            <Icon className="size-4" /> {label}
-                        </Link>
-                    ))}
-                </nav>
             </div>
         </header>
     );

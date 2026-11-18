@@ -99,6 +99,12 @@ const createVideo = async (user: IRequestUser, payload: CreatePayload) => {
             await applyOrdering(ids, (id, newOrder) =>
                 tx.video.update({ where: { id }, data: { order: newOrder } }),
             );
+            // Inserted among the lessons before the quiz: the quiz moves down
+            // one, so it still comes after the same lessons.
+            await tx.quiz.updateMany({
+                where: { moduleId, position: { gte: position } },
+                data: { position: { increment: 1 } },
+            });
         }
 
         return tx.video.findUniqueOrThrow({ where: { id: created.id } });
@@ -215,7 +221,7 @@ const updateVideo = async (
 const deleteVideo = async (user: IRequestUser, videoId: string) => {
     const video = await prisma.video.findUnique({
         where: { id: videoId },
-        select: { courseId: true, moduleId: true },
+        select: { courseId: true, moduleId: true, order: true },
     });
     if (!video) throw new AppError(status.NOT_FOUND, "Lesson not found.");
 
@@ -234,12 +240,29 @@ const deleteVideo = async (user: IRequestUser, videoId: string) => {
         await applyOrdering(remaining.map((v) => v.id), (id, order) =>
             tx.video.update({ where: { id }, data: { order } }),
         );
+
+        // One of the lessons before the quiz is gone: the quiz moves up one,
+        // so it still comes after the same lessons.
+        await tx.quiz.updateMany({
+            where: { moduleId: video.moduleId, position: { gte: video.order } },
+            data: { position: { decrement: 1 } },
+        });
     });
 
     scheduleCourseRecalculation(video.courseId);
 };
 
-const reorderVideos = async (user: IRequestUser, moduleId: string, orderedIds: string[]) => {
+/**
+ * The module's lessons in their new order — and, when the quiz was dragged
+ * among them too, where it now sits (`quizPosition`: how many lessons come
+ * before it; null for after all of them). Both land in one transaction.
+ */
+const reorderVideos = async (
+    user: IRequestUser,
+    moduleId: string,
+    orderedIds: string[],
+    quizPosition?: number | null,
+) => {
     await loadModuleForWrite(user, moduleId);
 
     return prisma.$transaction(async (tx) => {
@@ -250,6 +273,13 @@ const reorderVideos = async (user: IRequestUser, moduleId: string, orderedIds: s
         await applyOrdering(orderedIds, (id, order) =>
             tx.video.update({ where: { id }, data: { order } }),
         );
+
+        if (quizPosition !== undefined) {
+            // After every lesson is the same place as "after all of them" —
+            // stored as null, so the quiz stays last when more lessons are added.
+            const position = quizPosition === null || quizPosition >= orderedIds.length ? null : quizPosition;
+            await tx.quiz.updateMany({ where: { moduleId }, data: { position } });
+        }
 
         return tx.video.findMany({ where: { moduleId }, orderBy: { order: "asc" } });
     });

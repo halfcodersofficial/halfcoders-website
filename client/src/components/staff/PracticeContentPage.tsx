@@ -11,7 +11,6 @@ import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
-import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn, formatDateTime } from "@/lib/utils";
 import { curriculumAuthoring } from "@/services/curriculum";
@@ -19,11 +18,11 @@ import { curriculumAuthoring } from "@/services/curriculum";
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * One practice day, opened from its row in the Module Manager — what to do
- * (its summary and step-by-step instructions) and the lessons that come with
- * it: videos, texts and links, built exactly the way a module's and an
- * assignment's are. Students see it all on the practice day, above the button
- * that marks it done.
+ * One practice day, opened from its row in the Module Manager — its short
+ * summary and the lessons that come with it: videos, texts and links, built
+ * exactly the way a module's and an assignment's are. Students open them one
+ * by one from the practice day in the course player, like a module's lessons,
+ * then mark the day done.
  */
 export default function PracticeContentPage({
     courseId,
@@ -142,43 +141,27 @@ export default function PracticeContentPage({
                 </div>
             </header>
 
-            <section className="space-y-4 rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
-                <div>
-                    <h2 className="mb-1 flex items-center gap-2 font-semibold">
-                        <Dumbbell className="size-4" /> What to practise
-                    </h2>
-                    {practice.description ? (
-                        <p className="whitespace-pre-line text-sm text-muted-foreground">{practice.description}</p>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">No summary — the instructions below speak for it.</p>
-                    )}
-                </div>
-
-                <div className="border-t border-border pt-4">
-                    <h2 className="mb-1 font-semibold">Instructions</h2>
-                    {practice.instructions ? (
-                        <div
-                            className="text-sm leading-relaxed text-muted-foreground"
-                            // Escaped and link-restricted by renderLightMarkdown.
-                            dangerouslySetInnerHTML={{ __html: renderLightMarkdown(practice.instructions) }}
-                        />
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            None yet —{" "}
-                            <button type="button" onClick={() => setDetailsOpen(true)} className="font-medium text-primary hover:underline">
-                                add step-by-step instructions
-                            </button>
-                            .
-                        </p>
-                    )}
-                </div>
+            <section className="rounded-card border border-border bg-card p-5 shadow-card sm:p-6">
+                <h2 className="mb-1 flex items-center gap-2 font-semibold">
+                    <Dumbbell className="size-4" /> What to practise
+                </h2>
+                {practice.description ? (
+                    <p className="whitespace-pre-line text-sm text-muted-foreground">{practice.description}</p>
+                ) : (
+                    <p className="text-sm text-muted-foreground">
+                        No summary yet — the lessons below say what to do.{" "}
+                        <button type="button" onClick={() => setDetailsOpen(true)} className="font-medium text-primary hover:underline">
+                            Add a short summary
+                        </button>
+                    </p>
+                )}
             </section>
 
             <LessonMaterialsEditor
                 queryKey={["practice-materials", practiceDayId]}
                 api={materialsApi}
-                intro="Videos to watch, notes to read and links to open while practising — the same three a module's lessons are."
-                listNote="students see them on the practice day, above “Mark as complete”"
+                intro="Videos to watch, notes to read and links to open while practising — the same three a module's lessons are. Put the steps to follow in a text lesson."
+                listNote="students open them one by one from the practice day, like a module's lessons, then mark the day done"
                 emptyTitle="No lessons for this practice day yet"
                 // The week's row shows a lesson count.
                 onChanged={refreshCurriculum}

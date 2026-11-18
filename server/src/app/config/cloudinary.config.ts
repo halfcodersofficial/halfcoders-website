@@ -263,6 +263,17 @@ export const isCourseImageAsset = (url: string | null | undefined): url is strin
     isOwnCloudinaryAsset(url) &&
     new RegExp(`/v\\d+/${ROOT_FOLDER}/${COURSE_IMAGE_FOLDER}/`).test(new URL(url).pathname);
 
+/**
+ * Pictures on quiz questions get a folder of their own, so a question can only
+ * point at an image the quiz upload stored — and deleting one never touches
+ * anything else.
+ */
+export const QUIZ_IMAGE_FOLDER = "quiz-images";
+
+/** True only for an image the quiz image upload stored (see QUIZ_IMAGE_FOLDER). */
+export const isQuizImageAsset = (url: string | null | undefined): url is string =>
+    isOwnCloudinaryAsset(url) && new RegExp(`/v\\d+/${ROOT_FOLDER}/${QUIZ_IMAGE_FOLDER}/`).test(new URL(url).pathname);
+
 /** Students' assignment files: private, each reachable only by its signed link. */
 export const SUBMISSION_FILE_FOLDER = "submissions";
 

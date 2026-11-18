@@ -83,10 +83,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const toLateTierPayload = (tiers: LateTierValues[]) =>
     tiers.map((tier) => ({ until: localDateTimeToISO(tier.until), maxMarks: Number(tier.maxMarks) }));
 
+// No separate instructions: what to do goes in the day's own lessons (a text
+// lesson for the steps), which students open one by one like a module's.
 const practiceSchema = z.object({
     title: textField({ label: "Title", min: 3, max: 200 }),
     description: optionalTextField({ label: "Description", max: 2000 }),
-    instructions: optionalTextField({ label: "Instructions", max: 5000 }),
 });
 
 interface AssignmentFormValues {
@@ -112,7 +113,6 @@ interface PracticeFormValues {
     [key: string]: unknown;
     title: string;
     description: string;
-    instructions: string;
 }
 
 type Milestone = Pick<MentorMilestone, "id" | "title" | "order">;
@@ -302,9 +302,9 @@ const markdownHint = (
 );
 
 /**
- * Add or edit one practice day of a week — its title and written
- * instructions. Its lessons (videos, texts, links) live on its own page, the
- * way an assignment's do.
+ * Add or edit one practice day of a week — its title and a short summary. Its
+ * lessons (videos, texts, links) live on its own page, the way an
+ * assignment's do.
  */
 export function PracticeDayModal({
     open,
@@ -333,7 +333,7 @@ export function PracticeDayModal({
             onOpenChange={onOpenChange}
             closeOnOutsideClick={false}
             title={practice ? "Edit practice day" : `New practice day — ${weekName}`}
-            description="A hands-on day: written instructions, plus any videos, texts and links you add on its page. Nothing to submit or grade — students work through it and mark the day done."
+            description="A hands-on day: the videos, texts and links you add on its page, opened one by one like a module's lessons. Nothing to submit or grade — students work through it and mark the day done."
         >
             {milestone && (
                 <PracticeEditor
@@ -368,13 +368,11 @@ function PracticeEditor({
                 ? curriculumAuthoring.updatePracticeDay(practice.id, {
                     title: values.title,
                     description: values.description || null,
-                    instructions: values.instructions || null,
                 })
                 : curriculumAuthoring.createPracticeDay({
                     milestoneId,
                     title: values.title,
                     description: values.description || undefined,
-                    instructions: values.instructions || undefined,
                 }),
         onSuccess: (result) => {
             // A new one is announced by the caller with a way to its lessons, when it offers one.
@@ -391,7 +389,6 @@ function PracticeEditor({
         initialValues: {
             title: practice?.title ?? "",
             description: practice?.description ?? "",
-            instructions: practice?.instructions ?? "",
         } satisfies PracticeFormValues,
         onSubmit: (values) => save.mutate(values),
     });
@@ -405,21 +402,11 @@ function PracticeEditor({
                 </FormField>
                 <FormField
                     form={form}
-                    name="instructions"
-                    label="Instructions"
-                    optional
-                    counterMax={5000}
-                    hint={markdownHint}
-                >
-                    <Textarea rows={8} placeholder="What to practise today, step by step, and how they know they're done…" />
-                </FormField>
-                <FormField
-                    form={form}
                     name="description"
                     label="Short summary"
                     optional
                     counterMax={2000}
-                    hint="One or two lines above the instructions."
+                    hint="One or two lines on what this day is for. The steps go in its lessons."
                 >
                     <Textarea rows={2} />
                 </FormField>

@@ -189,6 +189,8 @@ export interface QuizOptionChoice {
 export interface QuizQuestionForStudent {
     id: string;
     question: string;
+    /** A picture that goes with the question, when it has one. */
+    imageUrl: string | null;
     order: number;
     options: QuizOptionChoice[];
 }
@@ -212,6 +214,7 @@ export interface QuizForStudent {
 export interface QuizReviewQuestion {
     id: string;
     question: string;
+    imageUrl: string | null;
     explanation: string | null;
     /** Present only once this question is safe to reveal — see `QuizService.getAttempt`. */
     options: { id: string; text: string; isCorrect?: boolean }[];

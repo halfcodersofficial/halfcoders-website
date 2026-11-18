@@ -207,8 +207,13 @@ export const curriculumAuthoring = {
     bulkPublishVideos: (videoIds: string[], isPublished: boolean) =>
         httpClient.patch("/videos/bulk/publish", { videoIds, isPublished }).then(() => undefined),
 
-    reorderVideos: (moduleId: string, orderedIds: string[]) =>
-        httpClient.patch(`/videos/module/${moduleId}/reorder`, { orderedIds }).then(() => undefined),
+    /**
+     * The module's lessons in their new order. `quizPosition`, when the quiz
+     * was dragged among them too: how many lessons now come before it (null
+     * for after all of them). Left out, the quiz stays where it is.
+     */
+    reorderVideos: (moduleId: string, orderedIds: string[], quizPosition?: number | null) =>
+        httpClient.patch(`/videos/module/${moduleId}/reorder`, { orderedIds, quizPosition }).then(() => undefined),
 
     // ---- Assignments & practice
     createAssignment: (payload: {
@@ -319,19 +324,37 @@ export const curriculumAuthoring = {
 
     updateQuiz: (
         quizId: string,
-        payload: { title?: string; description?: string | null; isPublished?: boolean },
+        payload: { title?: string; description?: string | null; isPublished?: boolean; position?: number | null },
     ) => httpClient.patch(`/quizzes/manage/${quizId}`, payload).then(() => undefined),
 
     deleteQuiz: (quizId: string) => httpClient.delete(`/quizzes/manage/${quizId}`).then(() => undefined),
 
+    /**
+     * Stores a picture for a question and answers with its URL. The question
+     * only changes when it's saved with that URL.
+     */
+    uploadQuizImage: (quizId: string, image: File, onProgress?: (percent: number) => void) => {
+        const formData = new FormData();
+        formData.append("image", image, image.name);
+        return httpClient
+            .post<ApiResponse<{ url: string }>>(`/quizzes/manage/${quizId}/images`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+                onUploadProgress: (event) => {
+                    if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100));
+                },
+            })
+            .then(unwrap)
+            .then(({ url }) => url);
+    },
+
     createQuestion: (
         quizId: string,
-        payload: { question: string; explanation?: string; options: QuizOptionInput[] },
+        payload: { question: string; imageUrl?: string; explanation?: string; options: QuizOptionInput[] },
     ) => httpClient.post(`/quizzes/manage/${quizId}/questions`, payload).then(() => undefined),
 
     updateQuestion: (
         questionId: string,
-        payload: { question?: string; explanation?: string | null; options?: QuizOptionInput[] },
+        payload: { question?: string; imageUrl?: string | null; explanation?: string | null; options?: QuizOptionInput[] },
     ) => httpClient.patch(`/quizzes/manage/questions/${questionId}`, payload).then(() => undefined),
 
     deleteQuestion: (questionId: string) =>

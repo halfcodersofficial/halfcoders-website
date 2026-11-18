@@ -16,6 +16,7 @@ import type {
     SupportSessionStatus,
     UserStatus,
 } from "./api.types";
+import type { LessonMaterial } from "./learning.types";
 
 export interface MentorProfile {
     designation: string | null;
@@ -336,6 +337,11 @@ export interface LearningVideo {
 export interface LearningQuiz {
     id: string;
     title: string;
+    /**
+     * Where it sits among the module's lessons: after every lesson whose
+     * `order` is at most this. Null puts it after all of them.
+     */
+    position: number | null;
     isCompleted: boolean;
     /** The student's best completed-attempt percentage, or null if never completed. */
     bestScore: number | null;
@@ -379,6 +385,8 @@ export interface LearningMilestone {
         score: number | null;
         isSubmitted: boolean;
         isAccepted: boolean;
+        /** Its own lessons, in order — opened one at a time in the player. */
+        materials: LessonMaterial[];
     }[];
     practiceDays: {
         id: string;
@@ -388,6 +396,8 @@ export interface LearningMilestone {
         position: number;
         isCompleted: boolean;
         completedAt: string | null;
+        /** Its own lessons, in order — opened one at a time in the player. */
+        materials: LessonMaterial[];
     }[];
 }
 

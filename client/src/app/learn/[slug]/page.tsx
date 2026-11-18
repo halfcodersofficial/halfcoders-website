@@ -32,6 +32,7 @@ import {
     PlayCircle,
     RotateCcw,
     Search,
+    Send,
     ThumbsDown,
     ThumbsUp,
     Trophy,
@@ -44,10 +45,11 @@ import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
 import AssignmentResult from "@/components/learn/AssignmentResult";
-import LessonMaterials from "@/components/learn/LessonMaterials";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
+import MaterialList from "@/components/learn/MaterialList";
 import ModuleComplete from "@/components/learn/ModuleComplete";
+import PracticePane from "@/components/learn/PracticePane";
 import RateCourse from "@/components/learn/RateCourse";
 import ReadingLesson from "@/components/learn/ReadingLesson";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
@@ -76,10 +78,12 @@ import type {
     CourseLearning,
     LearningMilestone,
     LearningModule,
+    LearningQuiz,
     LearningVideo,
     LessonState,
 } from "@/types/domain.types";
 import type { SubmissionStatus } from "@/types/api.types";
+import type { LessonMaterial } from "@/types/learning.types";
 
 const SUBMISSION_STATUS_META: Record<
     SubmissionStatus,
@@ -136,6 +140,111 @@ const weekRows = (milestone: LearningMilestone, withAssignmentsAndPractice: bool
 const isModuleDone = (courseModule: LearningModule) =>
     courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted);
 
+type AssignmentRow = LearningMilestone["assignments"][number];
+type PracticeRow = LearningMilestone["practiceDays"][number];
+
+/**
+ * An assignment or a practice day: a week item with lessons of its own, shown
+ * and opened like a module — its lessons one at a time, then its own page
+ * (the brief and submission box, or the button that marks the day done).
+ */
+type WeekGroup = { kind: "ASSIGNMENT"; entry: AssignmentRow } | { kind: "PRACTICE"; entry: PracticeRow };
+
+/** The student's part is done: the day marked done, or the work handed in. */
+const groupDone = (group: WeekGroup) => (group.kind === "PRACTICE" ? group.entry.isCompleted : group.entry.isSubmitted);
+
+const GROUP_LABEL: Record<WeekGroup["kind"], string> = { ASSIGNMENT: "Assignment", PRACTICE: "Practice day" };
+
+/** The group's own page, as a stop on the way — named for what's done there. */
+const groupPageTitle = (group: WeekGroup) =>
+    group.kind === "PRACTICE" ? "Mark the day done" : "Brief & submission";
+
+type ModuleStep = { kind: "VIDEO"; video: LearningVideo } | { kind: "QUIZ"; quiz: LearningQuiz };
+
+/**
+ * A module's lessons with its quiz where staff placed it: after every lesson
+ * numbered up to its `position` (a hidden lesson keeps its number, so this
+ * holds for what a student sees too) — or after all of them.
+ */
+const moduleSteps = (courseModule: LearningModule): ModuleStep[] => {
+    const steps: ModuleStep[] = courseModule.videos.map((video) => ({ kind: "VIDEO", video }));
+    const quiz = courseModule.quiz;
+    if (quiz) {
+        const at = quiz.position === null ? steps.length : courseModule.videos.filter((video) => video.order <= quiz.position!).length;
+        steps.splice(at, 0, { kind: "QUIZ", quiz });
+    }
+    return steps;
+};
+
+/** One place the player can open, in the order a student meets them. */
+type CourseStop =
+    | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule; milestone: LearningMilestone }
+    | { kind: "QUIZ"; key: string; quiz: LearningQuiz; courseModule: LearningModule; milestone: LearningMilestone }
+    | { kind: "FINISH"; key: string; courseModule: LearningModule; milestone: LearningMilestone }
+    | { kind: "MATERIAL"; key: string; group: WeekGroup; material: LessonMaterial; index: number; milestone: LearningMilestone }
+    | { kind: "GROUP"; key: string; group: WeekGroup; milestone: LearningMilestone };
+
+const stopKey = {
+    video: (videoId: string) => `VIDEO:${videoId}`,
+    quiz: (quizId: string) => `QUIZ:${quizId}`,
+    finish: (moduleId: string) => `FINISH:${moduleId}`,
+    material: (groupId: string, materialId: string) => `MATERIAL:${groupId}:${materialId}`,
+    group: (groupId: string) => `GROUP:${groupId}`,
+};
+
+/**
+ * Every stop of the course in order — what Previous and Next walk. Each
+ * module's lessons, its quiz among them; then the practice days and
+ * assignments that follow it in the week, each its lessons and then its own
+ * page; and only then the module's "complete" screen, so finishing a module
+ * means finishing the practice that goes with it first.
+ */
+const courseStops = (data: CourseLearning): CourseStop[] => {
+    const stops: CourseStop[] = [];
+    for (const milestone of data.curriculum) {
+        let finishing: LearningModule | null = null;
+        const closeModule = () => {
+            if (finishing && finishing.videos.length > 0) {
+                stops.push({ kind: "FINISH", key: stopKey.finish(finishing.id), courseModule: finishing, milestone });
+            }
+            finishing = null;
+        };
+        for (const row of weekRows(milestone, true)) {
+            if (row.kind === "MODULE") {
+                closeModule();
+                const courseModule = row.entry;
+                for (const step of moduleSteps(courseModule)) {
+                    stops.push(
+                        step.kind === "VIDEO"
+                            ? { kind: "VIDEO", key: stopKey.video(step.video.id), video: step.video, courseModule, milestone }
+                            : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, milestone },
+                    );
+                }
+                finishing = courseModule;
+                continue;
+            }
+            const group: WeekGroup = row.kind === "PRACTICE" ? { kind: "PRACTICE", entry: row.entry } : { kind: "ASSIGNMENT", entry: row.entry };
+            group.entry.materials.forEach((material, index) =>
+                stops.push({ kind: "MATERIAL", key: stopKey.material(group.entry.id, material.id), group, material, index, milestone }),
+            );
+            stops.push({ kind: "GROUP", key: stopKey.group(group.entry.id), group, milestone });
+        }
+        closeModule();
+    }
+    return stops;
+};
+
+/** The assignment or practice day with this id, wherever it is in the course. */
+const findGroup = (data: CourseLearning, groupId: string): { group: WeekGroup; milestone: LearningMilestone } | null => {
+    for (const milestone of data.curriculum) {
+        const practice = milestone.practiceDays.find((entry) => entry.id === groupId);
+        if (practice) return { group: { kind: "PRACTICE", entry: practice }, milestone };
+        const assignment = milestone.assignments.find((entry) => entry.id === groupId);
+        if (assignment) return { group: { kind: "ASSIGNMENT", entry: assignment }, milestone };
+    }
+    return null;
+};
+
 /** A module and the milestone it sits in. */
 const findModule = (data: CourseLearning, moduleId: string) => {
     for (const milestone of data.curriculum) {
@@ -161,6 +270,11 @@ export default function LearnPage() {
     const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
     // …and for a module's "complete" screen, the last stop of every module.
     const [activeCompleteModuleId, setActiveCompleteModuleId] = useState<string | null>(null);
+    // …and for a practice day's own page.
+    const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
+    // One lesson of the open assignment or practice day, in the player. Null
+    // shows that assignment's or practice day's own page instead.
+    const [activeMaterialId, setActiveMaterialId] = useState<string | null>(null);
     const [openMilestones, setOpenMilestones] = useState<Set<string>>(new Set());
     // Modules open in the sidebar. The one being studied opens by itself (see
     // below); the rest are the student's to open or close.
@@ -227,11 +341,15 @@ export default function LearnPage() {
     /** The first unfinished lesson — the furthest a student can open. */
     const currentLesson = allVideos.find((video) => !video.isCompleted && !video.isLocked) ?? null;
 
-    // A lesson, assignment or quiz reached via the Course Outline page or a
-    // notification link ("?video=<id>" / "?assignment=<id>" / "?quiz=<id>")
-    // wins over the usual "resume where you left off" pick, but only once —
-    // after that the student is free to click around without the URL
-    // fighting them back.
+    // Every stop in order — lessons, quizzes, practice days, assignments and
+    // "complete" screens — for Previous / Next.
+    const stops = useMemo(() => (data ? courseStops(data) : []), [data]);
+
+    // A lesson, assignment, practice day or quiz reached via the Course
+    // Outline page or a notification link ("?video=<id>" / "?assignment=<id>"
+    // / "?practice=<id>" / "?quiz=<id>") wins over the usual "resume where
+    // you left off" pick, but only once — after that the student is free to
+    // click around without the URL fighting them back.
     useEffect(() => {
         if (!data || initialisedFromQuery) return;
         setInitialisedFromQuery(true);
@@ -243,6 +361,16 @@ export default function LearnPage() {
         if (requestedAssignment && owningAssignmentMilestone) {
             setActiveAssignmentId(requestedAssignment);
             setOpenMilestones(new Set([owningAssignmentMilestone.id]));
+            return;
+        }
+
+        const requestedPractice = searchParams.get("practice");
+        const owningPracticeMilestone = requestedPractice
+            ? data.curriculum.find((m) => m.practiceDays.some((p) => p.id === requestedPractice))
+            : null;
+        if (requestedPractice && owningPracticeMilestone) {
+            setActivePracticeId(requestedPractice);
+            setOpenMilestones(new Set([owningPracticeMilestone.id]));
             return;
         }
 
@@ -276,9 +404,18 @@ export default function LearnPage() {
     // Open the student's current milestone and start on the first unwatched
     // lesson, so returning to the page resumes rather than restarts. With
     // every open lesson done, it lands on the last finished module's
-    // "complete" screen — the end of the road so far — not back on lesson 1.
+    // "complete" screen — the end of the road so far — not back on lesson 1;
+    // or, when a practice day after that module is still to do, on that.
     useEffect(() => {
-        if (!data || activeVideoId || activeAssignmentId || activeQuizId || activeCompleteModuleId || !initialisedFromQuery) {
+        if (
+            !data ||
+            activeVideoId ||
+            activeAssignmentId ||
+            activeQuizId ||
+            activeCompleteModuleId ||
+            activePracticeId ||
+            !initialisedFromQuery
+        ) {
             return;
         }
 
@@ -289,7 +426,13 @@ export default function LearnPage() {
             : null;
         if (lastDone && finished && isModuleDone(finished)) {
             setActiveVideoId(lastDone.id);
-            setActiveCompleteModuleId(finished.id);
+            const from = stops.findIndex((stop) => stop.key === stopKey.video(lastDone.id));
+            const to = stops.findIndex((stop) => stop.key === stopKey.finish(finished.id));
+            const practiceLeft = stops
+                .slice(from + 1, to)
+                .find((stop) => stop.kind === "GROUP" && stop.group.kind === "PRACTICE" && !stop.group.entry.isCompleted);
+            if (practiceLeft?.kind === "GROUP") setActivePracticeId(practiceLeft.group.entry.id);
+            else setActiveCompleteModuleId(finished.id);
         } else {
             const target = firstUnwatched ?? allVideos[0];
             if (target) setActiveVideoId(target.id);
@@ -299,7 +442,17 @@ export default function LearnPage() {
             data.curriculum.find((m) => m.id === data.enrollment?.currentMilestoneId) ??
             data.curriculum[0];
         if (currentMilestone) setOpenMilestones(new Set([currentMilestone.id]));
-    }, [data, activeVideoId, activeAssignmentId, activeQuizId, activeCompleteModuleId, allVideos, initialisedFromQuery]);
+    }, [
+        data,
+        activeVideoId,
+        activeAssignmentId,
+        activeQuizId,
+        activeCompleteModuleId,
+        activePracticeId,
+        allVideos,
+        stops,
+        initialisedFromQuery,
+    ]);
 
     const activeVideo = allVideos.find((video) => video.id === activeVideoId) ?? null;
 
@@ -316,9 +469,15 @@ export default function LearnPage() {
     const activeLessonNumber = allVideos.findIndex((video) => video.id === activeVideoId) + 1;
 
     // The module (and its milestone) holding whatever is open — a lesson, a
-    // module's quiz, or its "complete" screen.
+    // module's quiz, or its "complete" screen — or the assignment or practice
+    // day, which opens in the sidebar the same way.
     const activePlace = useMemo(() => {
-        if (!data || activeAssignmentId) return null;
+        if (!data) return null;
+        const groupId = activeAssignmentId ?? activePracticeId;
+        if (groupId) {
+            const found = findGroup(data, groupId);
+            return found ? { moduleId: groupId, milestoneId: found.milestone.id } : null;
+        }
         for (const milestone of data.curriculum) {
             for (const courseModule of milestone.modules) {
                 const holdsIt = activeCompleteModuleId
@@ -330,7 +489,7 @@ export default function LearnPage() {
             }
         }
         return null;
-    }, [data, activeVideoId, activeQuizId, activeAssignmentId, activeCompleteModuleId]);
+    }, [data, activeVideoId, activeQuizId, activeAssignmentId, activePracticeId, activeCompleteModuleId]);
     const activeModuleId = activePlace?.moduleId ?? null;
     const activeMilestoneId = activePlace?.milestoneId ?? null;
 
@@ -347,14 +506,6 @@ export default function LearnPage() {
         );
     }, [activeMilestoneId]);
 
-    /* Prev/next walk the *unlocked* lessons only. Stepping onto a locked one
-       would land the student on the padlock screen with no way forward, which
-       reads as the button being broken rather than the content being gated. */
-    const playable = allVideos.filter((video) => !video.isLocked);
-    const activeIndex = playable.findIndex((video) => video.id === activeVideoId);
-    const prevVideo = activeIndex > 0 ? playable[activeIndex - 1] : null;
-    const nextVideo =
-        activeIndex >= 0 && activeIndex < playable.length - 1 ? playable[activeIndex + 1] : null;
     const completedCount = allVideos.filter((video) => video.isCompleted).length;
 
     // Lessons are completed in course order — every earlier one first. This
@@ -368,6 +519,8 @@ export default function LearnPage() {
     const openLesson = (videoId: string) => {
         setActiveVideoId(videoId);
         setActiveAssignmentId(null);
+        setActivePracticeId(null);
+        setActiveMaterialId(null);
         setActiveQuizId(null);
         setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
@@ -400,8 +553,22 @@ export default function LearnPage() {
         if (current && current.id !== activeVideoId) setActiveVideoId(current.id);
     }, [activeVideoId, reachableIds, allVideos]);
 
-    const goToAssignment = (assignmentId: string) => {
+    /** An assignment's page (brief and submission), or one of its lessons. */
+    const goToAssignment = (assignmentId: string, materialId: string | null = null) => {
         setActiveAssignmentId(assignmentId);
+        setActiveMaterialId(materialId);
+        setActivePracticeId(null);
+        setActiveQuizId(null);
+        setActiveCompleteModuleId(null);
+        setMobileCurriculumOpen(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    /** A practice day's page (where it's marked done), or one of its lessons. */
+    const goToPractice = (practiceDayId: string, materialId: string | null = null) => {
+        setActivePracticeId(practiceDayId);
+        setActiveMaterialId(materialId);
+        setActiveAssignmentId(null);
         setActiveQuizId(null);
         setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
@@ -411,6 +578,8 @@ export default function LearnPage() {
     const goToQuiz = (quizId: string) => {
         setActiveQuizId(quizId);
         setActiveAssignmentId(null);
+        setActivePracticeId(null);
+        setActiveMaterialId(null);
         setActiveCompleteModuleId(null);
         setMobileCurriculumOpen(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -422,9 +591,30 @@ export default function LearnPage() {
         if (lastLesson) setActiveVideoId(lastLesson.id);
         setActiveCompleteModuleId(moduleId);
         setActiveAssignmentId(null);
+        setActivePracticeId(null);
+        setActiveMaterialId(null);
         setActiveQuizId(null);
         setMobileCurriculumOpen(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    /** Opens any stop — callers have checked it may open. */
+    const openStop = (stop: CourseStop) => {
+        switch (stop.kind) {
+            case "VIDEO":
+                return openLesson(stop.video.id);
+            case "QUIZ":
+                return goToQuiz(stop.quiz.id);
+            case "FINISH":
+                return goToModuleComplete(stop.courseModule.id);
+            case "MATERIAL":
+            case "GROUP": {
+                const materialId = stop.kind === "MATERIAL" ? stop.material.id : null;
+                return stop.group.kind === "PRACTICE"
+                    ? goToPractice(stop.group.entry.id, materialId)
+                    : goToAssignment(stop.group.entry.id, materialId);
+            }
+        }
     };
 
     // Should a "complete" screen ever be open for a module that isn't done —
@@ -747,8 +937,13 @@ export default function LearnPage() {
             return next;
         });
 
-    // "Expand all" / "Collapse all" covers both levels: milestones and the modules inside them.
-    const allModuleIds = data.curriculum.flatMap((milestone) => milestone.modules.map((m) => m.id));
+    // "Expand all" / "Collapse all" covers both levels: milestones and what's
+    // inside them — modules, assignments and practice days.
+    const allModuleIds = data.curriculum.flatMap((milestone) => [
+        ...milestone.modules.map((m) => m.id),
+        ...milestone.assignments.map((a) => a.id),
+        ...milestone.practiceDays.map((p) => p.id),
+    ]);
     const everythingOpen =
         data.curriculum.every((m) => openMilestones.has(m.id)) && allModuleIds.every((id) => openModules.has(id));
     const toggleEverything = () => {
@@ -762,44 +957,123 @@ export default function LearnPage() {
     };
 
     const reaction = lessonState?.reaction ?? null;
+    const moduleLabel = data.course.moduleLabel || "Module";
+
+    // The open "complete" screen's module, and the assignment or practice day
+    // that's open — with the lesson of it in the player, if one is.
+    const completePlace = activeCompleteModuleId ? findModule(data, activeCompleteModuleId) : null;
+    const activeGroupPlace = findGroup(data, activeAssignmentId ?? activePracticeId ?? "");
+    const activeGroup = activeGroupPlace?.group ?? null;
+    const activeMaterial = (activeMaterialId && activeGroup?.entry.materials.find((m) => m.id === activeMaterialId)) || null;
+
+    // Where the player is among every stop of the course.
+    const activeStopKey = activeGroup
+        ? activeMaterial
+            ? stopKey.material(activeGroup.entry.id, activeMaterial.id)
+            : stopKey.group(activeGroup.entry.id)
+        : completePlace
+            ? stopKey.finish(completePlace.courseModule.id)
+            : activeQuizId
+                ? stopKey.quiz(activeQuizId)
+                : activeVideoId
+                    ? stopKey.video(activeVideoId)
+                    : null;
+    const activeStopIndex = activeStopKey ? stops.findIndex((stop) => stop.key === activeStopKey) : -1;
+    const activeStop = activeStopIndex >= 0 ? stops[activeStopIndex] : null;
+    // The lesson area (title, notes, questions) is for a module's lesson only.
+    const showsLesson = activeStop?.kind === "VIDEO" && Boolean(activeVideo);
 
     // A lesson counts as done when the student moves on from it with "Next"
     // (or "Finish" on the last one) — there's no separate complete button.
     const canComplete = Boolean(
-        activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingLesson,
+        showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingLesson,
     );
 
-    /** "Next": counts the open lesson as done, then moves on. */
+    // A module's "complete" screen opens once every lesson of it is done —
+    // counting the one "Next" is about to complete.
+    const finishOpens = (courseModule: LearningModule) =>
+        !data.isPreview &&
+        courseModule.videos.length > 0 &&
+        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete));
+
+    /* Prev/next walk the stops a student can step onto: a locked module's
+       lessons are skipped — landing on the padlock screen with no way forward
+       reads as the button being broken — and so is a "complete" screen whose
+       module isn't done (and every one, going back). */
+    const nextStop = (() => {
+        if (activeStopIndex < 0) return null;
+        for (const stop of stops.slice(activeStopIndex + 1)) {
+            if (stop.kind === "VIDEO" && stop.courseModule.isLocked) continue;
+            if (stop.kind === "FINISH" && !finishOpens(stop.courseModule)) continue;
+            return stop;
+        }
+        return null;
+    })();
+    const prevStop = (() => {
+        if (activeStopIndex <= 0) return null;
+        for (const stop of stops.slice(0, activeStopIndex).reverse()) {
+            if (stop.kind === "VIDEO" && stop.courseModule.isLocked) continue;
+            if (stop.kind === "FINISH") continue;
+            return stop;
+        }
+        return null;
+    })();
+
+    /** A lesson opens once reached; anything else (a quiz, a practice day, an assignment) whenever. */
+    const stopOpens = (stop: CourseStop) => stop.kind !== "VIDEO" || canOpen(stop.video.id);
     // Finishing this lesson is what opens the next one, so "Next" works from
     // the current lesson as well as from any finished one.
-    const nextOpens = Boolean(nextVideo && (canOpen(nextVideo.id) || canComplete));
+    const nextOpens = Boolean(nextStop && (stopOpens(nextStop) || canComplete));
+    const prevOpens = Boolean(prevStop && stopOpens(prevStop));
 
-    // A module's last lesson leads to its "complete" screen, once moving on
-    // from it leaves every lesson of the module done.
-    const activeModule = activeContext?.courseModule ?? null;
-    const moduleLabel = data.course.moduleLabel || "Module";
-    const leadsToModuleComplete = Boolean(
-        activeVideo &&
-            activeModule &&
-            !data.isPreview &&
-            activeModule.videos.at(-1)?.id === activeVideo.id &&
-            activeModule.videos.every((video) => video.isCompleted || (video.id === activeVideo.id && canComplete)),
-    );
-
-    const advance = () => {
-        if (activeVideo && canComplete) queueComplete(activeVideo.id);
-        if (leadsToModuleComplete && activeModule) {
-            goToModuleComplete(activeModule.id);
-            return;
+    /** What a stop is called on a button or the player's "Up next". */
+    const stopTitle = (stop: CourseStop) => {
+        switch (stop.kind) {
+            case "VIDEO":
+                return stop.video.title;
+            case "QUIZ":
+                return `Quiz: ${stop.quiz.title}`;
+            case "FINISH":
+                return `${moduleLabel} complete`;
+            case "MATERIAL":
+                return stop.material.title;
+            case "GROUP":
+                return `${stop.group.entry.title} — ${groupPageTitle(stop.group).toLowerCase()}`;
         }
-        // The page's lesson list doesn't yet show this lesson as done, so open
-        // the next one directly rather than through goTo's check.
-        if (nextVideo && nextOpens) openLesson(nextVideo.id);
     };
 
-    // The open "complete" screen's module, and the lesson right after it
-    // when the student may open it — where its "Start the next module" goes.
-    const completePlace = activeCompleteModuleId ? findModule(data, activeCompleteModuleId) : null;
+    /** "Next": counts the open lesson as done, then moves on. */
+    const advance = () => {
+        if (activeVideo && canComplete) queueComplete(activeVideo.id);
+        // The page's lesson list doesn't yet show this lesson as done, so open
+        // the next stop directly rather than through goTo's check.
+        if (nextStop && nextOpens) openStop(nextStop);
+    };
+
+    const goBack = () => {
+        if (prevStop && prevOpens) openStop(prevStop);
+    };
+
+    // The very last thing in the course: its "Next" reads "Finish".
+    const nextFinishesCourse = nextStop?.kind === "FINISH" && nextStop === stops.at(-1);
+
+    // The player's own previous / "Up next" buttons, for any stop it plays.
+    const playerPrev = prevStop && prevOpens ? { title: stopTitle(prevStop), onSelect: goBack } : null;
+    const playerNext =
+        nextStop && nextOpens
+            ? {
+                title: stopTitle(nextStop),
+                onSelect: advance,
+                label:
+                    nextStop.kind === "FINISH"
+                        ? `Finish ${moduleLabel.toLowerCase()}`
+                        : nextStop.kind === "QUIZ"
+                            ? "Take the quiz"
+                            : nextStop.kind === "GROUP"
+                                ? groupPageTitle(nextStop.group)
+                                : undefined,
+            }
+            : null;
     const lessonAfterComplete = (() => {
         const last = completePlace?.courseModule.videos.at(-1);
         if (!last) return null;
@@ -833,8 +1107,11 @@ export default function LearnPage() {
         slug,
         activeVideoId,
         goTo,
-        activeAssignmentId,
+        activeAssignmentId: activeGroup?.kind === "ASSIGNMENT" ? activeGroup.entry.id : null,
         goToAssignment,
+        activePracticeId: activeGroup?.kind === "PRACTICE" ? activeGroup.entry.id : null,
+        goToPractice,
+        activeMaterialId: activeMaterial?.id ?? null,
         activeQuizId,
         goToQuiz,
         activeCompleteModuleId: completePlace ? activeCompleteModuleId : null,
@@ -909,7 +1186,7 @@ export default function LearnPage() {
                             labelled row under the video, just always in reach. On a
                             phone that row is a short scroll away, so the room goes
                             to the course name instead. */}
-                        {!data.isPreview && !activeAssignmentId && !completePlace && activeVideo && !activeVideo.isLocked && (
+                        {!data.isPreview && showsLesson && activeVideo && !activeVideo.isLocked && (
                             <span className="hidden items-center gap-1 sm:flex sm:gap-2">
                                 <Button variant="ghost" size="icon" aria-label="Jump to notes" onClick={openNotes}>
                                     <NotebookPen className="size-4" />
@@ -953,8 +1230,33 @@ export default function LearnPage() {
             <div className="grid grid-cols-1 gap-6 p-4 sm:gap-8 sm:p-6 lg:grid-cols-[minmax(0,1fr)_400px]">
                 {/* Player */}
                 <div className="min-w-0 space-y-4">
-                    {activeAssignmentId ? (
-                        <AssignmentPane slug={slug} assignmentId={activeAssignmentId} />
+                    {activeGroup && activeMaterial ? (
+                        // An assignment's or practice day's lesson, played like a module's.
+                        <MaterialPlayer
+                            key={activeMaterial.id}
+                            material={activeMaterial}
+                            subtitle={`${GROUP_LABEL[activeGroup.kind]} · Lesson ${activeGroup.entry.materials.indexOf(activeMaterial) + 1} of ${activeGroup.entry.materials.length}`}
+                            coverImage={data.course.thumbnail}
+                            prev={playerPrev}
+                            next={playerNext}
+                            watermark={user?.email}
+                        />
+                    ) : activeGroup?.kind === "ASSIGNMENT" ? (
+                        <AssignmentPane
+                            slug={slug}
+                            assignmentId={activeGroup.entry.id}
+                            onOpenMaterial={(materialId) => goToAssignment(activeGroup.entry.id, materialId)}
+                        />
+                    ) : activeGroup?.kind === "PRACTICE" ? (
+                        <PracticePane
+                            key={activeGroup.entry.id}
+                            slug={slug}
+                            practice={activeGroup.entry}
+                            isPreview={data.isPreview}
+                            onOpenMaterial={(materialId) => goToPractice(activeGroup.entry.id, materialId)}
+                            // Marked done: on to what comes next — usually the module's "complete" screen.
+                            onCompleted={advance}
+                        />
                     ) : completePlace ? (
                         <ModuleComplete
                             key={completePlace.courseModule.id}
@@ -967,28 +1269,11 @@ export default function LearnPage() {
                             onOpenQuiz={goToQuiz}
                         />
                     ) : activeQuizId ? (
-                        <QuizPane quizId={activeQuizId} />
+                        <QuizPane key={activeQuizId} quizId={activeQuizId} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "TEXT" && activeVideo.content ? (
                         <ReadingLesson key={activeVideo.id} title={activeVideo.title} content={activeVideo.content} />
                     ) : activeVideo && !activeVideo.isLocked && activeVideo.type === "RESOURCE" && activeVideo.resourceUrl ? (
-                        <div className="mx-auto grid w-full max-w-6xl place-items-center rounded-xl border border-border bg-secondary/30 px-6 py-14 text-center">
-                            <div className="space-y-3">
-                                <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
-                                    <LinkIcon className="size-6" aria-hidden />
-                                </span>
-                                <p className="text-sm text-muted-foreground">
-                                    Learning resource on{" "}
-                                    <span className="font-medium text-foreground">
-                                        {hostnameOf(activeVideo.resourceUrl)}
-                                    </span>
-                                </p>
-                                <Button asChild>
-                                    <a href={activeVideo.resourceUrl} target="_blank" rel="noopener noreferrer">
-                                        Open resource <ExternalLink className="size-4" />
-                                    </a>
-                                </Button>
-                            </div>
-                        </div>
+                        <ResourceCard url={activeVideo.resourceUrl} />
                     ) : activeVideo?.youtubeVideoId ? (
                         // Our own controls over a YouTube frame that can't be
                         // clicked into — see LessonVideoPlayer. Keyed per lesson
@@ -1001,18 +1286,8 @@ export default function LearnPage() {
                                 activeVideo.duration > 0 ? ` · ${activeVideo.durationLabel}` : ""
                             }`}
                             coverImage={data.course.thumbnail}
-                            prev={
-                                prevVideo && canOpen(prevVideo.id)
-                                    ? { title: prevVideo.title, onSelect: () => goTo(prevVideo.id) }
-                                    : null
-                            }
-                            next={
-                                leadsToModuleComplete
-                                    ? { title: `${moduleLabel} complete`, onSelect: advance, label: `Finish ${moduleLabel.toLowerCase()}` }
-                                    : nextVideo && nextOpens
-                                        ? { title: nextVideo.title, onSelect: advance }
-                                        : null
-                            }
+                            prev={playerPrev}
+                            next={playerNext}
                             watermark={user?.email}
                             onDuration={
                                 activeVideo.duration > 0
@@ -1055,7 +1330,72 @@ export default function LearnPage() {
                         </div>
                     )}
 
-                    {!activeAssignmentId && !completePlace && activeVideo && (
+                    {/* A quiz, or an assignment's or practice day's lesson or page:
+                        where it sits, and Previous / Next along the course. */}
+                    {(activeStop?.kind === "QUIZ" || activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP") && (
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-1">
+                                <div className="min-w-0">
+                                    <p className="flex flex-wrap items-center gap-x-2 text-xs font-medium text-muted-foreground">
+                                        <span className="font-semibold uppercase tracking-wider text-primary">
+                                            {data.course.milestoneLabel} {String(activeStop.milestone.order).padStart(2, "0")}
+                                        </span>
+                                        <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
+                                        <span className="truncate">
+                                            {activeStop.kind === "QUIZ"
+                                                ? activeStop.courseModule.title
+                                                : `${GROUP_LABEL[activeStop.group.kind]}: ${activeStop.group.entry.title}`}
+                                        </span>
+                                        <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
+                                        <span className="tabular-nums">
+                                            {activeStop.kind === "QUIZ"
+                                                ? "Quiz"
+                                                : activeStop.kind === "MATERIAL"
+                                                    ? `Lesson ${activeStop.index + 1} of ${activeStop.group.entry.materials.length}`
+                                                    : groupPageTitle(activeStop.group)}
+                                        </span>
+                                    </p>
+                                    {activeStop.kind === "MATERIAL" && (
+                                        <h2 className="mt-1.5 text-balance text-xl font-bold leading-tight tracking-tight wrap-break-word sm:text-2xl">
+                                            {activeStop.material.title}
+                                        </h2>
+                                    )}
+                                </div>
+
+                                <div className="flex w-full items-center gap-2 sm:w-auto *:flex-1 sm:*:flex-none">
+                                    {prevStop && (
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-full pl-4 pr-5"
+                                            title={prevOpens ? `Previous: ${stopTitle(prevStop)}` : "Finish the lessons before it first"}
+                                            disabled={!prevOpens}
+                                            onClick={goBack}
+                                        >
+                                            <ChevronLeft className="size-4" /> Previous
+                                        </Button>
+                                    )}
+                                    {nextStop && (
+                                        <Button
+                                            className="rounded-full pl-5 pr-4"
+                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : "Finish the lessons before it first"}
+                                            disabled={!nextOpens}
+                                            onClick={advance}
+                                        >
+                                            Next <ChevronRight className="size-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {activeStop.kind === "MATERIAL" && activeStop.material.description && (
+                                <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground wrap-break-word">
+                                    {linkify(activeStop.material.description)}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {showsLesson && activeVideo && (
                         <div className="space-y-3">
                             {/* Previous / Next sit beside the lesson title. "Next"
                                 also counts this lesson as done; the last lesson has
@@ -1092,19 +1432,19 @@ export default function LearnPage() {
                                 {/* On a phone, a full-width pair — big enough to hit with a thumb. */}
                                 <div className="flex w-full items-center gap-2 sm:w-auto *:flex-1 sm:*:flex-none">
                                     {/* A matching pair: "Previous" outlined, "Next" filled. */}
-                                    {prevVideo && (
+                                    {prevStop && (
                                         <Button
                                             variant="outline"
                                             className="rounded-full pl-4 pr-5"
-                                            title={`Previous: ${prevVideo.title}`}
-                                            disabled={!canOpen(prevVideo.id)}
-                                            onClick={() => goTo(prevVideo.id)}
+                                            title={`Previous: ${stopTitle(prevStop)}`}
+                                            disabled={!prevOpens}
+                                            onClick={goBack}
                                         >
                                             <ChevronLeft className="size-4" /> Previous
                                         </Button>
                                     )}
 
-                                    {leadsToModuleComplete && !nextVideo && !activeVideo.isCompleted ? (
+                                    {nextFinishesCourse && !activeVideo.isCompleted ? (
                                         // The course's last lesson: "Finish" counts it and opens the module's "complete" screen.
                                         <Button
                                             className="rounded-full px-5"
@@ -1113,17 +1453,11 @@ export default function LearnPage() {
                                         >
                                             <Check className="size-4" /> Finish
                                         </Button>
-                                    ) : nextVideo || leadsToModuleComplete ? (
+                                    ) : nextStop ? (
                                         <Button
                                             className="rounded-full pl-5 pr-4"
-                                            title={
-                                                leadsToModuleComplete
-                                                    ? `Next: ${moduleLabel} complete`
-                                                    : nextOpens && nextVideo
-                                                        ? `Next: ${nextVideo.title}`
-                                                        : "Finish the lessons before this one first"
-                                            }
-                                            disabled={!leadsToModuleComplete && !nextOpens}
+                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : "Finish the lessons before this one first"}
+                                            disabled={!nextOpens}
                                             onClick={advance}
                                         >
                                             Next <ChevronRight className="size-4" />
@@ -1407,6 +1741,68 @@ export default function LearnPage() {
     );
 }
 
+/** A link lesson in the player's place: where it goes, and a button that opens it in a new tab. */
+function ResourceCard({ url }: { url: string }) {
+    return (
+        <div className="mx-auto grid w-full max-w-6xl place-items-center rounded-xl border border-border bg-secondary/30 px-6 py-14 text-center">
+            <div className="space-y-3">
+                <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
+                    <LinkIcon className="size-6" aria-hidden />
+                </span>
+                <p className="text-sm text-muted-foreground">
+                    Learning resource on <span className="font-medium text-foreground">{hostnameOf(url)}</span>
+                </p>
+                <Button asChild>
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                        Open resource <ExternalLink className="size-4" />
+                    </a>
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * One lesson of an assignment or a practice day, in the player — the same
+ * video player, reading box or link card a module's lesson gets.
+ */
+function MaterialPlayer({
+    material,
+    subtitle,
+    coverImage,
+    prev,
+    next,
+    watermark,
+}: {
+    material: LessonMaterial;
+    subtitle: string;
+    coverImage: string | null;
+    prev: { title: string; onSelect: () => void } | null;
+    next: { title: string; onSelect: () => void; label?: string } | null;
+    watermark?: string;
+}) {
+    if (material.type === "VIDEO" && material.youtubeVideoId) {
+        return (
+            <LessonVideoPlayer
+                youtubeVideoId={material.youtubeVideoId}
+                title={material.title}
+                subtitle={subtitle}
+                coverImage={coverImage}
+                prev={prev}
+                next={next}
+                watermark={watermark}
+            />
+        );
+    }
+    if (material.type === "TEXT" && material.content) return <ReadingLesson title={material.title} content={material.content} />;
+    if (material.type === "RESOURCE" && material.resourceUrl) return <ResourceCard url={material.resourceUrl} />;
+    return (
+        <div className="grid aspect-video place-items-center rounded-2xl border border-dashed border-border bg-secondary/30 p-6 text-center text-sm text-muted-foreground">
+            This lesson has nothing to show yet.
+        </div>
+    );
+}
+
 /** The copyright notice, shown in the notes' place when its tab is picked. */
 function CopyrightPanel({ slug }: { slug: string }) {
     return (
@@ -1456,7 +1852,11 @@ interface CurriculumSidebarProps {
     activeVideoId: string | null;
     goTo: (id: string) => void;
     activeAssignmentId: string | null;
-    goToAssignment: (id: string) => void;
+    goToAssignment: (id: string, materialId?: string | null) => void;
+    activePracticeId: string | null;
+    goToPractice: (id: string, materialId?: string | null) => void;
+    /** The open assignment's or practice day's lesson; null while its own page shows. */
+    activeMaterialId: string | null;
     activeQuizId: string | null;
     goToQuiz: (id: string) => void;
     /** The module whose "complete" screen is open, if one is. */
@@ -1464,6 +1864,7 @@ interface CurriculumSidebarProps {
     goToModuleComplete: (moduleId: string) => void;
     openMilestones: Set<string>;
     toggleMilestone: (id: string) => void;
+    /** Modules, assignments and practice days open in the list. */
     openModules: Set<string>;
     toggleModule: (id: string) => void;
     /** Whether "Expand all" means anything — more than one milestone or module. */
@@ -1494,6 +1895,9 @@ function CurriculumSidebar({
     goTo,
     activeAssignmentId,
     goToAssignment,
+    activePracticeId,
+    goToPractice,
+    activeMaterialId,
     activeQuizId,
     goToQuiz,
     activeCompleteModuleId,
@@ -1716,13 +2120,17 @@ function CurriculumSidebar({
                                         // A search shows every match, so it opens every module.
                                         isModuleOpen={(id) => Boolean(query) || openModules.has(id)}
                                         onToggleModule={query ? undefined : toggleModule}
-                                        slug={slug}
                                         activeVideoId={
-                                            activeAssignmentId || activeQuizId || activeCompleteModuleId ? null : activeVideoId
+                                            activeAssignmentId || activePracticeId || activeQuizId || activeCompleteModuleId
+                                                ? null
+                                                : activeVideoId
                                         }
                                         goTo={goTo}
                                         activeAssignmentId={activeAssignmentId}
                                         goToAssignment={goToAssignment}
+                                        activePracticeId={activePracticeId}
+                                        goToPractice={goToPractice}
+                                        activeMaterialId={activeMaterialId}
                                         activeQuizId={activeQuizId}
                                         goToQuiz={goToQuiz}
                                         activeCompleteModuleId={activeCompleteModuleId}
@@ -1791,10 +2199,12 @@ function Stop({ state, done, icon: Icon }: { state: StopState; done: boolean; ic
 type RouteItem =
     | { kind: "MODULE"; key: string; courseModule: LearningModule; isOpen: boolean }
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule }
-    | { kind: "QUIZ"; key: string; quiz: NonNullable<LearningModule["quiz"]> }
+    | { kind: "QUIZ"; key: string; quiz: LearningQuiz }
     | { kind: "FINISH"; key: string; courseModule: LearningModule }
-    | { kind: "ASSIGNMENT"; key: string; assignment: LearningMilestone["assignments"][number] }
-    | { kind: "PRACTICE"; key: string; practice: LearningMilestone["practiceDays"][number] };
+    // An assignment or practice day: its heading, its lessons, then its own page.
+    | { kind: "GROUP"; key: string; group: WeekGroup; isOpen: boolean }
+    | { kind: "MATERIAL"; key: string; group: WeekGroup; material: LessonMaterial }
+    | { kind: "GROUP_PAGE"; key: string; group: WeekGroup };
 
 const isDone = (item: RouteItem) => {
     switch (item.kind) {
@@ -1806,19 +2216,26 @@ const isDone = (item: RouteItem) => {
             return item.video.isCompleted;
         case "QUIZ":
             return item.quiz.isCompleted;
-        case "ASSIGNMENT":
-            return item.assignment.isAccepted;
-        case "PRACTICE":
-            return item.practice.isCompleted;
+        case "GROUP":
+        case "MATERIAL":
+        case "GROUP_PAGE":
+            return groupDone(item.group);
     }
 };
 
+const MATERIAL_ICON = { VIDEO: PlayCircle, TEXT: FileText, RESOURCE: LinkIcon } as const;
+const MATERIAL_KIND = { VIDEO: "Video", TEXT: "Read", RESOURCE: "Link" } as const;
+
 /**
  * One week of the course as a route: every lesson, quiz, assignment and
- * practice day a stop on a line, in the Module Manager's order, each module
- * named where its stops begin. The line fills in the brand colour as stops
- * are done, and the one being studied pulses — so where you are, and how far
- * you've come, is one glance down the sidebar.
+ * practice day a stop on a line, in the Module Manager's order. Modules,
+ * assignments and practice days each get a labelled heading that opens to
+ * their stops — a module's lessons with its quiz where staff placed it; an
+ * assignment's or practice day's lessons, then its own page. A module's
+ * "complete" stop comes after the practice days and assignments that follow
+ * it. The line fills in the brand colour as stops are done, and the one being
+ * studied pulses — so where you are, and how far you've come, is one glance
+ * down the sidebar.
  */
 function WeekRoute({
     milestone,
@@ -1826,11 +2243,13 @@ function WeekRoute({
     withAssignmentsAndPractice,
     isModuleOpen,
     onToggleModule,
-    slug,
     activeVideoId,
     goTo,
     activeAssignmentId,
     goToAssignment,
+    activePracticeId,
+    goToPractice,
+    activeMaterialId,
     activeQuizId,
     goToQuiz,
     activeCompleteModuleId,
@@ -1846,14 +2265,17 @@ function WeekRoute({
     /** The course's word for a module ("Module", "Chapter", …). */
     moduleLabel: string;
     withAssignmentsAndPractice: boolean;
-    isModuleOpen: (moduleId: string) => boolean;
+    /** Modules, assignments and practice days alike. */
+    isModuleOpen: (id: string) => boolean;
     /** Absent while searching — every module is shown open then. */
-    onToggleModule?: (moduleId: string) => void;
-    slug: string;
+    onToggleModule?: (id: string) => void;
     activeVideoId: string | null;
     goTo: (id: string) => void;
     activeAssignmentId: string | null;
-    goToAssignment: (id: string) => void;
+    goToAssignment: (id: string, materialId?: string | null) => void;
+    activePracticeId: string | null;
+    goToPractice: (id: string, materialId?: string | null) => void;
+    activeMaterialId: string | null;
     activeQuizId: string | null;
     goToQuiz: (id: string) => void;
     bookmarkedVideoIds: Set<string>;
@@ -1861,23 +2283,49 @@ function WeekRoute({
 }) {
     // The week in the order it was arranged in — a search only matches
     // lessons, so it leaves assignments and practice days out.
-    const items: RouteItem[] = weekRows(milestone, withAssignmentsAndPractice).flatMap((row): RouteItem[] => {
-        if (row.kind === "ASSIGNMENT") return [{ kind: "ASSIGNMENT", key: `ASSIGNMENT:${row.entry.id}`, assignment: row.entry }];
-        if (row.kind === "PRACTICE") return [{ kind: "PRACTICE", key: `PRACTICE:${row.entry.id}`, practice: row.entry }];
-        const courseModule = row.entry;
-        const isOpen = isModuleOpen(courseModule.id);
-        // A collapsed module keeps just its heading on the route.
-        if (!isOpen) return [{ kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen }];
-        return [
-            { kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen },
-            ...courseModule.videos.map((video): RouteItem => ({ kind: "VIDEO", key: `VIDEO:${video.id}`, video, courseModule })),
-            ...(courseModule.quiz ? [{ kind: "QUIZ" as const, key: `QUIZ:${courseModule.quiz.id}`, quiz: courseModule.quiz }] : []),
-            // The module's finish line — not while searching, when only matching lessons show.
-            ...(withAssignmentsAndPractice && courseModule.videos.length > 0
-                ? [{ kind: "FINISH" as const, key: `FINISH:${courseModule.id}`, courseModule }]
-                : []),
-        ];
-    });
+    const items: RouteItem[] = [];
+    // The open module whose "complete" stop is still to place: after the
+    // assignments and practice days that follow it, before the next module.
+    let finishing: LearningModule | null = null;
+    const closeModule = () => {
+        if (finishing) items.push({ kind: "FINISH", key: `FINISH:${finishing.id}`, courseModule: finishing });
+        finishing = null;
+    };
+    for (const row of weekRows(milestone, withAssignmentsAndPractice)) {
+        if (row.kind === "MODULE") {
+            closeModule();
+            const courseModule = row.entry;
+            const isOpen = isModuleOpen(courseModule.id);
+            items.push({ kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen });
+            // A collapsed module keeps just its heading on the route.
+            if (!isOpen) continue;
+            for (const step of moduleSteps(courseModule)) {
+                items.push(
+                    step.kind === "VIDEO"
+                        ? { kind: "VIDEO", key: `VIDEO:${step.video.id}`, video: step.video, courseModule }
+                        : { kind: "QUIZ", key: `QUIZ:${step.quiz.id}`, quiz: step.quiz },
+                );
+            }
+            // Not while searching, when only matching lessons show.
+            if (withAssignmentsAndPractice && courseModule.videos.length > 0) finishing = courseModule;
+            continue;
+        }
+        const group: WeekGroup = row.kind === "PRACTICE" ? { kind: "PRACTICE", entry: row.entry } : { kind: "ASSIGNMENT", entry: row.entry };
+        const isOpen = isModuleOpen(group.entry.id);
+        items.push({ kind: "GROUP", key: `GROUP:${group.entry.id}`, group, isOpen });
+        if (!isOpen) continue;
+        for (const material of group.entry.materials) {
+            items.push({ kind: "MATERIAL", key: `MATERIAL:${group.entry.id}:${material.id}`, group, material });
+        }
+        items.push({ kind: "GROUP_PAGE", key: `GROUP_PAGE:${group.entry.id}`, group });
+    }
+    closeModule();
+
+    /** Whether this assignment or practice day is the one open in the player. */
+    const isActiveGroup = (group: WeekGroup) =>
+        group.kind === "PRACTICE" ? activePracticeId === group.entry.id : activeAssignmentId === group.entry.id;
+    const openGroup = (group: WeekGroup, materialId: string | null = null) =>
+        group.kind === "PRACTICE" ? goToPractice(group.entry.id, materialId) : goToAssignment(group.entry.id, materialId);
 
     const rowClass =
         "relative flex w-full min-w-0 items-center gap-3 py-2 pl-4 pr-3 text-left text-sm transition-colors hover:bg-secondary/60";
@@ -2083,6 +2531,8 @@ function WeekRoute({
                             );
                         })()
                     ) : item.kind === "QUIZ" ? (
+                        // Where staff placed it among the lessons. The score shows
+                        // inside the quiz, not here.
                         <button
                             type="button"
                             onClick={() => goToQuiz(item.quiz.id)}
@@ -2095,40 +2545,145 @@ function WeekRoute({
                                 done={item.quiz.isCompleted}
                                 icon={HelpCircle}
                             />
-                            <span className="min-w-0 flex-1 truncate">Quiz: {item.quiz.title}</span>
-                            {item.quiz.isCompleted && <Badge variant="success">{item.quiz.bestScore}%</Badge>}
+                            <span
+                                className={cn(
+                                    "min-w-0 flex-1 truncate",
+                                    activeQuizId === item.quiz.id && "font-semibold text-primary",
+                                    item.quiz.isCompleted && activeQuizId !== item.quiz.id && "text-muted-foreground",
+                                )}
+                            >
+                                Quiz: {item.quiz.title}
+                            </span>
                         </button>
-                    ) : item.kind === "ASSIGNMENT" ? (
-                        <button
-                            type="button"
-                            onClick={() => goToAssignment(item.assignment.id)}
-                            aria-current={activeAssignmentId === item.assignment.id ? "true" : undefined}
-                            className={cn(rowClass, activeAssignmentId === item.assignment.id && activeRow)}
-                        >
-                            {activeAssignmentId === item.assignment.id && <Marker />}
-                            <Stop
-                                state={
-                                    activeAssignmentId === item.assignment.id
-                                        ? "active"
-                                        : item.assignment.isAccepted
-                                            ? "done"
-                                            : "open"
-                                }
-                                done={item.assignment.isAccepted}
-                                icon={ClipboardCheck}
-                            />
-                            <span className="min-w-0 flex-1 truncate">{item.assignment.title}</span>
-                            {item.assignment.isAccepted ? (
-                                <Badge variant="success">{item.assignment.score}</Badge>
-                            ) : item.assignment.isSubmitted ? (
-                                <Badge variant="secondary">Submitted</Badge>
-                            ) : null}
-                        </button>
+                    ) : item.kind === "GROUP" ? (
+                        // An assignment or practice day opens with a labelled block
+                        // like a module's — its kind, its name, how it stands —
+                        // that opens and closes its lessons.
+                        (() => {
+                            const { group } = item;
+                            const done = groupDone(group);
+                            const Icon = group.kind === "PRACTICE" ? Dumbbell : ClipboardCheck;
+                            const lessons = group.entry.materials.length;
+                            const status =
+                                group.kind === "PRACTICE"
+                                    ? done
+                                        ? "Done"
+                                        : lessons > 0
+                                            ? `${lessons} lesson${lessons === 1 ? "" : "s"}`
+                                            : "To do"
+                                    : group.entry.isAccepted
+                                        ? "Marked"
+                                        : group.entry.isSubmitted
+                                            ? "Submitted"
+                                            : lessons > 0
+                                                ? `${lessons} lesson${lessons === 1 ? "" : "s"}`
+                                                : "To do";
+                            return (
+                                <div className={cn("px-2 pb-1", index > 0 ? "pt-3" : "pt-1")}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onToggleModule?.(group.entry.id)}
+                                        disabled={!onToggleModule}
+                                        aria-expanded={item.isOpen}
+                                        title={item.isOpen ? "Hide its lessons" : "Show its lessons"}
+                                        className={cn(
+                                            "relative flex w-full items-center gap-3 rounded-xl border bg-secondary py-2 pl-1.75 pr-2 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default",
+                                            isActiveGroup(group) ? "border-primary/40" : "border-border",
+                                        )}
+                                    >
+                                        <span
+                                            className={cn(
+                                                "relative z-10 grid size-6 shrink-0 place-items-center rounded-md",
+                                                done ? "bg-primary text-primary-foreground" : "border border-primary/40 bg-card text-primary",
+                                            )}
+                                        >
+                                            {done ? <Check className="size-3.5" strokeWidth={3} /> : <Icon className="size-3.5" />}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[0.625rem] font-semibold uppercase tracking-wider text-primary">
+                                                {GROUP_LABEL[group.kind]}
+                                            </span>
+                                            <span className="block truncate text-sm font-semibold leading-snug">{group.entry.title}</span>
+                                        </span>
+                                        <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">{status}</span>
+                                        <ChevronDown
+                                            aria-hidden
+                                            className={cn(
+                                                "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                                                item.isOpen && "rotate-180",
+                                            )}
+                                        />
+                                    </button>
+                                </div>
+                            );
+                        })()
+                    ) : item.kind === "MATERIAL" ? (
+                        (() => {
+                            const { group, material } = item;
+                            const isActive = isActiveGroup(group) && activeMaterialId === material.id;
+                            const done = groupDone(group);
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => openGroup(group, material.id)}
+                                    aria-current={isActive ? "true" : undefined}
+                                    className={cn(rowClass, isActive && activeRow)}
+                                >
+                                    {isActive && <Marker />}
+                                    <Stop state={isActive ? "active" : done ? "done" : "open"} done={done} icon={MATERIAL_ICON[material.type]} />
+                                    <span
+                                        className={cn(
+                                            "min-w-0 flex-1 truncate",
+                                            isActive && "font-semibold text-primary",
+                                            done && !isActive && "text-muted-foreground",
+                                        )}
+                                    >
+                                        {material.title}
+                                    </span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">{MATERIAL_KIND[material.type]}</span>
+                                </button>
+                            );
+                        })()
                     ) : (
-                        <Link href={`/learn/${slug}/practice/${item.practice.id}`} className={rowClass}>
-                            <Stop state={item.practice.isCompleted ? "done" : "open"} done={item.practice.isCompleted} icon={Dumbbell} />
-                            <span className="min-w-0 flex-1 truncate">{item.practice.title}</span>
-                        </Link>
+                        // The group's own page, its last stop: where a practice day
+                        // is marked done, or an assignment's brief and submission box.
+                        (() => {
+                            const { group } = item;
+                            const isActive = isActiveGroup(group) && !activeMaterialId;
+                            const done = groupDone(group);
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => openGroup(group)}
+                                    aria-current={isActive ? "true" : undefined}
+                                    className={cn(rowClass, isActive && activeRow)}
+                                >
+                                    {isActive && <Marker />}
+                                    <Stop
+                                        state={isActive ? "active" : done ? "done" : "open"}
+                                        done={done}
+                                        icon={group.kind === "PRACTICE" ? CheckCircle2 : Send}
+                                    />
+                                    <span
+                                        className={cn(
+                                            "min-w-0 flex-1 truncate",
+                                            isActive ? "font-semibold text-primary" : done && "text-muted-foreground",
+                                        )}
+                                    >
+                                        {groupPageTitle(group)}
+                                    </span>
+                                    {group.kind === "PRACTICE" ? (
+                                        <span className="shrink-0 text-xs text-muted-foreground">{done ? "Done" : "To do"}</span>
+                                    ) : group.entry.isAccepted && group.entry.score !== null ? (
+                                        <Badge variant="success">{group.entry.score}</Badge>
+                                    ) : group.entry.isSubmitted ? (
+                                        <Badge variant="secondary">Submitted</Badge>
+                                    ) : (
+                                        <span className="shrink-0 text-xs text-muted-foreground">To do</span>
+                                    )}
+                                </button>
+                            );
+                        })()
                     )}
                 </li>
             ))}
@@ -2142,7 +2697,16 @@ function WeekRoute({
  * content, not a separate destination, so opening one never navigates away
  * from the course shell (header, sidebar, everything stays put).
  */
-function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: string }) {
+function AssignmentPane({
+    slug,
+    assignmentId,
+    onOpenMaterial,
+}: {
+    slug: string;
+    assignmentId: string;
+    /** Opens one of its lessons in the player. */
+    onOpenMaterial: (materialId: string) => void;
+}) {
     const queryClient = useQueryClient();
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [draft, setDraft] = useState("");
@@ -2368,8 +2932,8 @@ function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: st
             </div>
 
             {/* The assignment's own lessons — what to watch, read or open before
-                submitting. Visible whenever the assignment is. */}
-            <LessonMaterials materials={data.materials} intro="Watch, read or open these before you submit." />
+                submitting. Each opens in the player, like a module's lesson. */}
+            <MaterialList materials={data.materials} onOpen={onOpenMaterial} intro="Watch, read or open these before you submit." />
 
             {/* The verdict, whenever the student may see one: the final mark with
                 how it was reached and the rechecks, or the feedback on work sent
