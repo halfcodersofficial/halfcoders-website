@@ -1,7 +1,7 @@
 "use client";
 
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Toaster } from "sonner";
 
 /**
@@ -20,8 +20,28 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     );
 }
 
-/** Sonner draws its own surfaces, so it's told the theme rather than reading the tokens. */
+/**
+ * Sonner draws its own surfaces: it's told the theme, and its plain toast is
+ * pointed at the site's popover colours (its own are pure white and pure
+ * black). A long message — an announcement, say — is cut to three lines; the
+ * whole of it is in the bell.
+ */
 export function ThemedToaster() {
     const { resolvedTheme } = useTheme();
-    return <Toaster theme={resolvedTheme === "dark" ? "dark" : "light"} position="top-center" richColors closeButton />;
+    return (
+        <Toaster
+            theme={resolvedTheme === "dark" ? "dark" : "light"}
+            position="top-center"
+            richColors
+            closeButton
+            style={
+                {
+                    "--normal-bg": "var(--popover)",
+                    "--normal-text": "var(--popover-foreground)",
+                    "--normal-border": "var(--border)",
+                } as CSSProperties
+            }
+            toastOptions={{ classNames: { description: "line-clamp-3" } }}
+        />
+    );
 }

@@ -184,6 +184,8 @@ export const createNotificationsFor = async (
             message: input.message,
             type: input.type ?? NotificationType.GENERAL,
             link: input.link ?? null,
+            // A pop-up broadcast opens as the pop-up for anyone online, not as a toast.
+            showOnLogin: input.showOnLogin ?? false,
             createdAt: new Date().toISOString(),
         };
         for (const userId of userIds) emitNotification(userId, payload);

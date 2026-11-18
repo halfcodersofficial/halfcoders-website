@@ -44,7 +44,7 @@ export default function AboutClosing() {
         <section aria-labelledby="about-closing-title" className="relative overflow-hidden py-16 sm:py-24">
             <div
                 aria-hidden
-                className="bg-dots pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_50%,#000_30%,transparent_80%)]"
+                className="bg-dots pointer-events-none absolute inset-0 mask-[radial-gradient(ellipse_70%_60%_at_50%_50%,#000_30%,transparent_80%)]"
             />
 
             <div ref={rootRef} className="container-page relative">
@@ -53,7 +53,7 @@ export default function AboutClosing() {
                 <div className="mx-auto max-w-3xl">
                     <article
                         data-letter
-                        className="relative -rotate-1 bg-[#fffdf8] px-6 pb-10 pt-10 shadow-[0_34px_70px_-34px_rgb(21_17_42/0.5)] ring-1 ring-black/5 transition-[rotate] duration-500 ease-out hover:rotate-0 motion-reduce:hover:-rotate-1 sm:px-14 sm:pb-14 sm:pt-14"
+                        className="paper relative -rotate-1 bg-[#fffdf8] px-6 pb-10 pt-10 shadow-[0_34px_70px_-34px_rgb(21_17_42/0.5)] ring-1 ring-black/5 transition-[rotate] duration-500 ease-out hover:rotate-0 motion-reduce:hover:-rotate-1 sm:px-14 sm:pb-14 sm:pt-14"
                     >
                         {/* The margin rule, as on writing paper. */}
                         <span aria-hidden className="absolute inset-y-0 left-9 hidden w-px bg-rose-300/70 sm:block" />

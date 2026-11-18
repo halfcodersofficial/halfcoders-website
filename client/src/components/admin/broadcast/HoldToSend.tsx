@@ -91,7 +91,10 @@ export default function HoldToSend({
                 isLoading={isLoading}
                 disabled={disabled}
                 aria-describedby={hintId}
-                className="w-full select-none [-webkit-touch-callout:none] sm:w-auto sm:min-w-72"
+                // `relative overflow-hidden` keeps the fill below inside the button (without
+                // them it spread over the page around it); `touch-none` keeps a finger's
+                // slight drift from turning the hold into a scroll that cancels it.
+                className="relative w-full touch-none select-none overflow-hidden [-webkit-touch-callout:none] sm:w-auto sm:min-w-72"
                 onPointerDown={(event) => {
                     // A blocked press has just moved focus to the first problem;
                     // the mousedown that follows would pull it back to the button.
@@ -122,7 +125,8 @@ export default function HoldToSend({
                 {/* The fill: linear while held so it reads as a timer, quick on the way back. */}
                 <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 origin-left bg-white/25"
+                    // The button's own ink, faded: shows on its violet in either theme.
+                    className="pointer-events-none absolute inset-0 origin-left bg-primary-foreground/25"
                     style={{
                         transform: `scaleX(${holding ? 1 : 0})`,
                         transition: holding ? `transform ${HOLD_MS}ms linear` : "transform 220ms ease-out",
@@ -140,9 +144,11 @@ export default function HoldToSend({
                 )}
                 aria-live="polite"
             >
-                {releasedEarly && !holding
-                    ? "Keep holding until the bar fills — letting go cancels."
-                    : "Press and hold to send. Letting go early cancels."}
+                {holding
+                    ? "Keep holding…"
+                    : releasedEarly
+                      ? "Keep holding until the bar fills — letting go cancels."
+                      : "Press and hold to send. Letting go early cancels."}
             </p>
         </div>
     );

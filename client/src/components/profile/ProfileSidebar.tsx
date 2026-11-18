@@ -19,7 +19,6 @@ import {
     MapPin,
     MonitorSmartphone,
     Receipt,
-    RefreshCw,
     Ticket,
     UserRound,
     type LucideIcon,
@@ -71,7 +70,6 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
             { href: "/dashboard/profile/order-history", label: "Order History", icon: Receipt },
             { href: "/dashboard/profile/admission-ticket", label: "Admission Ticket", icon: Ticket },
             { href: "/dashboard/profile/certification", label: "Certification", icon: BadgeCheck },
-            { href: "/dashboard/profile/course-updates", label: "Course Updates", icon: RefreshCw },
         ],
     },
     {

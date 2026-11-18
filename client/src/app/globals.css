@@ -440,6 +440,44 @@
   ::selection {
     background-color: color-mix(in oklch, var(--violet-500) 26%, transparent);
   }
+
+  /*
+   * A sheet that stays light in both themes — the sample certificate, the
+   * About page's letter and its photo prints. Inside it the light palette
+   * applies again (the same values as :root), so text set in the theme's
+   * colours stays dark ink on the paper instead of turning pale with the dark
+   * theme. In the base layer, so a utility on the sheet itself still wins.
+   */
+  .paper {
+    --background: #FCFBFE;
+    --foreground: #15112A;
+    --surface: #F3F1F9;
+    --card: #FFFFFF;
+    --card-foreground: #15112A;
+    --popover: #FFFFFF;
+    --popover-foreground: #15112A;
+    --primary: var(--violet-600);
+    --primary-foreground: #FFFFFF;
+    --primary-hover: var(--violet-700);
+    --primary-ink: var(--violet-600);
+    --secondary: #EFEBFA;
+    --secondary-foreground: var(--violet-900);
+    --muted: #F3F1F9;
+    --muted-foreground: #5F5975;
+    --success: var(--green-700);
+    --success-foreground: #FFFFFF;
+    --success-ink: var(--green-800);
+    --warning-ink: #B45309;
+    --destructive: #DC2626;
+    --destructive-foreground: #FFFFFF;
+    --destructive-ink: #B91C1C;
+    --border: #E4E0EF;
+    --border-strong: #CCC5DE;
+    --input: #CCC5DE;
+    --ring: var(--violet-500);
+    --grid-line: rgb(110 43 230 / 0.06);
+    color: var(--foreground);
+  }
 }
 
 @layer components {
@@ -1127,6 +1165,12 @@ html.lenis body {
 
 .swal2-container .swal2-actions {
   @apply gap-2;
+}
+
+/* The login pop-up's countdown line ("You can close this in 8s…"): the
+   theme's rule and ink, not SweetAlert's light grey. */
+.swal2-container .swal2-footer {
+  @apply border-border text-sm text-muted-foreground;
 }
 
 /* Modal (components/ui/modal.tsx): on a phone the sheet slides up from the
