@@ -11,7 +11,7 @@ import NotificationsDropdown from "@/components/shared/NotificationsDropdown";
 import ProfileMenu from "@/components/shared/ProfileMenu";
 import SupportSessionModal from "@/components/shared/SupportSessionModal";
 import ThemeToggle, { ThemePicker } from "@/components/shared/ThemeToggle";
-import { XpHistoryPanel } from "@/components/shared/XpHistoryPanel";
+import { XpPanel } from "@/components/shared/XpPanel";
 import CtaButton from "@/components/site/CtaButton";
 import { FileIcon } from "@/components/site/EditorWindow";
 import { Avatar } from "@/components/ui/avatar";
@@ -426,7 +426,7 @@ export default function Navbar() {
                 <>
                     {/* Opened from the bar's Support button and the avatar's menu on wide screens (the explorer has its own). */}
                     <SupportSessionModal dashboard={dashboard} variant="none" open={supportOpen} onOpenChange={setSupportOpen} />
-                    <XpHistoryPanel open={xpOpen} onOpenChange={setXpOpen} totalXp={totalXp} />
+                    <XpPanel open={xpOpen} onOpenChange={setXpOpen} totalXp={totalXp} />
                 </>
             )}
         </header>

@@ -7,7 +7,7 @@ export const FREQUENCIES = [
     {
         value: "ONCE",
         label: "Once",
-        description: "The next time they open Half Coders — then never again.",
+        description: "Straight away if they're on the site, otherwise their next visit — then never again.",
         shows: [true, false, false, false],
     },
     {

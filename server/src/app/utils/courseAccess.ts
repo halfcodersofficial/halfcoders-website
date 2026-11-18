@@ -1,4 +1,5 @@
 import status from "http-status";
+import { Prisma } from "../../generated/prisma/client";
 import { EnrollmentStatus } from "../../generated/prisma/enums";
 import { Role } from "../lib/roles";
 import AppError from "../errorHelpers/AppError";
@@ -140,14 +141,60 @@ export const assertModuleUnlocked = async (enrollmentId: string | null, moduleId
 export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId: string) => {
     const target = await prisma.video.findUnique({
         where: { id: videoId },
-        select: {
-            courseId: true,
-            moduleId: true,
-            order: true,
-            module: { select: { milestoneId: true, order: true, milestone: { select: { order: true } } } },
-        },
+        select: { moduleId: true, order: true },
     });
     if (!target) return;
+
+    const firstUnfinished = await firstUnfinishedLessonBefore(enrollmentId, target.moduleId, { lt: target.order });
+    if (firstUnfinished) {
+        throw new AppError(
+            status.FORBIDDEN,
+            `Complete the lessons before this one first — start with "${firstUnfinished.title}".`,
+        );
+    }
+};
+
+/**
+ * A module's quiz opens once every lesson before it is complete: the lessons
+ * of its module up to where staff placed it (all of them when it sits at the
+ * end) and every lesson of the course before that module — the order the
+ * learning page walks. A notification link or a direct API call can't open
+ * it early. Like `assertEarlierLessonsComplete`, this holds whether or not
+ * sequential learning is on.
+ */
+export const assertLessonsBeforeQuizComplete = async (
+    enrollmentId: string,
+    quiz: { moduleId: string; position: number | null },
+) => {
+    const firstUnfinished = await firstUnfinishedLessonBefore(
+        enrollmentId,
+        quiz.moduleId,
+        quiz.position === null ? undefined : { lte: quiz.position },
+    );
+    if (firstUnfinished) {
+        throw new AppError(
+            status.FORBIDDEN,
+            `Finish the lessons before this quiz first — start with "${firstUnfinished.title}".`,
+        );
+    }
+};
+
+/**
+ * The earliest published lesson the student hasn't completed among those
+ * before a point in the course: every lesson of earlier milestones and
+ * earlier modules, plus the lessons of `moduleId` whose order matches
+ * `withinModule` (every one of them when it's left out).
+ */
+const firstUnfinishedLessonBefore = async (
+    enrollmentId: string,
+    moduleId: string,
+    withinModule?: Prisma.IntFilter,
+) => {
+    const target = await prisma.courseModule.findUnique({
+        where: { id: moduleId },
+        select: { courseId: true, milestoneId: true, order: true, milestone: { select: { order: true } } },
+    });
+    if (!target) return null;
 
     const earlier = await prisma.video.findMany({
         where: {
@@ -155,9 +202,9 @@ export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId
             isPublished: true,
             module: { isPublished: true, milestone: { isPublished: true } },
             OR: [
-                { module: { milestone: { order: { lt: target.module.milestone.order } } } },
-                { module: { milestoneId: target.module.milestoneId, order: { lt: target.module.order } } },
-                { moduleId: target.moduleId, order: { lt: target.order } },
+                { module: { milestone: { order: { lt: target.milestone.order } } } },
+                { module: { milestoneId: target.milestoneId, order: { lt: target.order } } },
+                { moduleId, ...(withinModule && { order: withinModule }) },
             ],
         },
         select: {
@@ -167,7 +214,7 @@ export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId
             module: { select: { order: true, milestone: { select: { order: true } } } },
         },
     });
-    if (earlier.length === 0) return;
+    if (earlier.length === 0) return null;
 
     const completed = await prisma.videoProgress.findMany({
         where: { enrollmentId, videoId: { in: earlier.map((video) => video.id) }, isCompleted: true },
@@ -175,20 +222,15 @@ export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId
     });
     const completedIds = new Set(completed.map((row) => row.videoId));
 
-    // Name the earliest unfinished lesson, so the student knows where to go.
-    const firstUnfinished = earlier
-        .filter((video) => !completedIds.has(video.id))
-        .sort(
-            (a, b) =>
-                a.module.milestone.order - b.module.milestone.order ||
-                a.module.order - b.module.order ||
-                a.order - b.order,
-        )[0];
-
-    if (firstUnfinished) {
-        throw new AppError(
-            status.FORBIDDEN,
-            `Complete the lessons before this one first — start with "${firstUnfinished.title}".`,
-        );
-    }
+    // The earliest one, so the student is told where to go.
+    return (
+        earlier
+            .filter((video) => !completedIds.has(video.id))
+            .sort(
+                (a, b) =>
+                    a.module.milestone.order - b.module.milestone.order ||
+                    a.module.order - b.module.order ||
+                    a.order - b.order,
+            )[0] ?? null
+    );
 };

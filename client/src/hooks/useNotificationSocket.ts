@@ -7,6 +7,7 @@ import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import envConfig from "@/lib/envConfig";
 import { refreshLiveData } from "@/lib/liveRefresh";
+import { showPendingPopups } from "@/lib/loginPopups";
 
 interface IncomingNotification {
     title: string;
@@ -14,6 +15,8 @@ interface IncomingNotification {
     link?: string | null;
     /** An unread entry updated in place (a mentor's hand-in count going up) — refresh, no second toast. */
     silent?: boolean;
+    /** An admin's pop-up broadcast: it opens as the pop-up itself, not a toast. */
+    showOnLogin?: boolean;
 }
 
 /**
@@ -61,6 +64,12 @@ export const useNotificationSocket = (enabled: boolean) => {
             // nobody has to reload to see it.
             void refreshLiveData(queryClient);
             if (payload.silent) return;
+            // A pop-up broadcast shows as the pop-up, right now — the same one
+            // they'd otherwise meet on their next visit — not squeezed into a toast.
+            if (payload.showOnLogin) {
+                showPendingPopups();
+                return;
+            }
 
             toast.message(payload.title, {
                 description: payload.message,

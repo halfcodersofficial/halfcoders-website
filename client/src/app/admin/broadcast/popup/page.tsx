@@ -95,8 +95,8 @@ export default function AdminPopupAlertPage() {
             const reach = people(result.recipients, values.audience);
             toast.success(
                 values.frequency === "EVERY_LOGIN"
-                    ? `Sent — it pops up for ${reach} every time they sign in.`
-                    : `Sent — it pops up for ${reach} the next time they open Half Coders.`,
+                    ? `Sent — it pops up now for ${reach} on the site, and at every sign-in.`
+                    : `Sent — it pops up now for ${reach} on the site, the rest at their next visit.`,
             );
             setSent({ values, reach, at: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) });
             setDeliveries((n) => n + 1);
@@ -143,8 +143,8 @@ export default function AdminPopupAlertPage() {
         const confirmed = await confirmAction({
             title: `Send this pop-up to ${reach ?? "this audience"}?`,
             text: repeat
-                ? "It covers their screen at every sign-in until they read it or you stop it."
-                : "It covers their screen the next time they open Half Coders.",
+                ? "It covers their screen straight away if they're on the site, then at every sign-in until they read it or you stop it."
+                : "It covers their screen straight away if they're on the site — otherwise the next time they open Half Coders.",
             confirmText: "Send now",
             tone: "default",
         });
@@ -253,7 +253,7 @@ export default function AdminPopupAlertPage() {
                                     <>
                                         Pops up for{" "}
                                         {reach ? <strong className="font-semibold text-foreground">{reach}</strong> : "the whole audience"}{" "}
-                                        {repeat ? "every time they sign in" : "the next time they open Half Coders"}, locked for its
+                                        {repeat ? "straight away if they're on the site, then every time they sign in" : "straight away if they're on the site, otherwise the next time they open Half Coders"}, locked for its
                                         first {LOGIN_POPUP_LOCK_SECONDS} seconds, and lands in their bell too.{" "}
                                         {repeat ? (
                                             <>
@@ -288,7 +288,7 @@ export default function AdminPopupAlertPage() {
                                     note={
                                         sent.values.frequency === "EVERY_LOGIN"
                                             ? "It's listed below, where you can stop it."
-                                            : "It shows at their next visit."
+                                            : "Anyone on the site sees it now; the rest at their next visit."
                                     }
                                 />
                             )}

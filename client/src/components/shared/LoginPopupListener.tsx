@@ -2,8 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { loginPopupAlert } from "@/lib/confirm";
+import { LOGIN_POPUPS_DUE } from "@/lib/loginPopups";
 import { useSession } from "@/hooks/useSession";
 import { notificationService } from "@/services";
 
@@ -35,7 +36,10 @@ const rememberShown = (session: string, ids: string[]) => {
 /**
  * Mounted once in the root layout. The moment a session resolves to a signed-
  * in user, it asks the API for the admin broadcasts flagged to pop up at
- * login and walks through them one at a time as blocking SweetAlert modals.
+ * login and walks through them one at a time as blocking SweetAlert modals —
+ * and again whenever one arrives live (`showPendingPopups`, sent by the
+ * notification socket), so someone already on the site sees the pop-up
+ * straight away instead of a toast.
  *
  * A one-shot pop-up is marked read once the recipient has closed it — not
  * when it's fetched — so one cut short by a reload or a navigation comes back
@@ -48,40 +52,68 @@ export default function LoginPopupListener() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const lastUserId = useRef<string | null>(null);
+    // One walk through the pop-ups at a time: one asked for while a walk is
+    // under way runs after it, so a pop-up is never opened over another.
+    const running = useRef(false);
+    const again = useRef(false);
+
+    const walk = useCallback(async () => {
+        const result = await notificationService.loginPopups().catch(() => null);
+        if (!result) return;
+
+        const { session, popups } = result;
+        const shown = session ? readShown(session) : [];
+
+        for (const popup of popups) {
+            if (popup.repeatOnLogin && shown.includes(popup.id)) continue;
+
+            const link = await loginPopupAlert({
+                title: popup.title,
+                text: popup.message,
+                link: popup.link,
+            });
+
+            if (!popup.repeatOnLogin) {
+                await notificationService.markRead(popup.id).catch(() => undefined);
+            } else if (session) {
+                shown.push(popup.id);
+                rememberShown(session, shown);
+            }
+            // The bell's unread count and list move with it.
+            void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+            if (link) router.push(link);
+        }
+    }, [router, queryClient]);
+
+    const showPopups = useCallback(async () => {
+        if (running.current) {
+            again.current = true;
+            return;
+        }
+        running.current = true;
+        try {
+            do {
+                again.current = false;
+                await walk();
+            } while (again.current);
+        } finally {
+            running.current = false;
+        }
+    }, [walk]);
 
     useEffect(() => {
         if (!user || lastUserId.current === user.id) return;
         lastUserId.current = user.id;
+        void showPopups();
+    }, [user, showPopups]);
 
-        (async () => {
-            const result = await notificationService.loginPopups().catch(() => null);
-            if (!result) return;
-
-            const { session, popups } = result;
-            const shown = session ? readShown(session) : [];
-
-            for (const popup of popups) {
-                if (popup.repeatOnLogin && shown.includes(popup.id)) continue;
-
-                const link = await loginPopupAlert({
-                    title: popup.title,
-                    text: popup.message,
-                    link: popup.link,
-                });
-
-                if (!popup.repeatOnLogin) {
-                    await notificationService.markRead(popup.id).catch(() => undefined);
-                } else if (session) {
-                    shown.push(popup.id);
-                    rememberShown(session, shown);
-                }
-                // The bell's unread count and list move with it.
-                void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-
-                if (link) router.push(link);
-            }
-        })();
-    }, [user, router, queryClient]);
+    useEffect(() => {
+        if (!user) return;
+        const onDue = () => void showPopups();
+        window.addEventListener(LOGIN_POPUPS_DUE, onDue);
+        return () => window.removeEventListener(LOGIN_POPUPS_DUE, onDue);
+    }, [user, showPopups]);
 
     return null;
 }

@@ -6,7 +6,6 @@ import {
     CheckCircle2,
     Circle,
     Eye,
-    EyeOff,
     HelpCircle,
     ImagePlus,
     Pencil,
@@ -30,7 +29,7 @@ import { useZodForm } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { optionalTextField, textField } from "@/lib/validation";
 import { curriculumAuthoring } from "@/services/curriculum";
 import type { AdminQuiz, AdminQuizQuestion, QuizOptionInput } from "@/types/admin.types";
@@ -374,6 +373,13 @@ export default function ModuleQuizEditor({
         queryFn: () => curriculumAuthoring.getModuleQuiz(moduleId),
     });
 
+    // The quiz goes live with its module — the header's query, already cached.
+    const { data: milestones } = useQuery({
+        queryKey: ["curriculum", courseId],
+        queryFn: () => curriculumAuthoring.listMilestones(courseId),
+    });
+    const courseModule = milestones?.flatMap((milestone) => milestone.modules).find((m) => m.id === moduleId);
+
     const refresh = () => {
         void queryClient.invalidateQueries({ queryKey: ["quiz", moduleId] });
         void queryClient.invalidateQueries({ queryKey: ["curriculum", courseId] });
@@ -420,13 +426,15 @@ export default function ModuleQuizEditor({
         if (quiz) resetMetaForm({ title: quiz.title, description: quiz.description ?? "" });
     }, [quiz, resetMetaForm]);
 
-    const togglePublish = useMutation({
-        mutationFn: (next: boolean) => curriculumAuthoring.updateQuiz(quiz!.id, { isPublished: next }),
-        onSuccess: (_r, next) => {
-            toast.success(next ? "Quiz published — students can take it now." : "Quiz hidden from students.");
+    // Only for a quiz written after its module went live — otherwise it goes
+    // live with the module, by itself.
+    const makeLive = useMutation({
+        mutationFn: () => curriculumAuthoring.updateQuiz(quiz!.id, { isPublished: true }),
+        onSuccess: () => {
+            toast.success("Quiz is live — students can take it now.");
             refresh();
         },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't update the quiz.")),
+        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't make the quiz live.")),
     });
 
     const deleteQuiz = useMutation({
@@ -539,7 +547,9 @@ export default function ModuleQuizEditor({
     }
 
     const PANEL = "rounded-card border border-border bg-card shadow-card";
-    const canPublish = Boolean(quiz && (quiz.isPublished || quiz.questions.length > 0));
+    const hasQuestions = Boolean(quiz && quiz.questions.length > 0);
+    // A draft quiz in a module that's already live waits on staff; any other draft waits on the module.
+    const waitsOnStaff = Boolean(quiz && !quiz.isPublished && courseModule?.isPublished);
 
     return (
         <div className="w-full space-y-6">
@@ -598,24 +608,36 @@ export default function ModuleQuizEditor({
                                     .
                                 </p>
                                 {quiz.description && <p className="mt-2 text-sm">{quiz.description}</p>}
+                                {/* When students get it: with the module, never on its own — and no separate notification. */}
+                                {!quiz.isPublished && courseModule && (
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                        {waitsOnStaff
+                                            ? hasQuestions
+                                                ? "The module is already live — make the quiz live when its questions are ready."
+                                                : "The module is already live — add the questions, then make the quiz live."
+                                            : courseModule.releaseAt
+                                              ? `Goes live together with the module, ${formatDateTime(courseModule.releaseAt)}.`
+                                              : "Goes live together with the module — nothing to publish here."}
+                                        {!waitsOnStaff && !hasQuestions && " Add at least one question by then, or it stays a draft."}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex shrink-0 items-center gap-1">
-                                {!quiz.isPublished && (
+                                {waitsOnStaff && (
                                     <Button
                                         size="sm"
-                                        isLoading={togglePublish.isPending}
-                                        disabled={!canPublish}
-                                        title={canPublish ? undefined : "Add at least one question first"}
-                                        onClick={() => togglePublish.mutate(true)}
+                                        isLoading={makeLive.isPending}
+                                        disabled={!hasQuestions}
+                                        title={hasQuestions ? undefined : "Add at least one question first"}
+                                        onClick={() => makeLive.mutate()}
                                     >
-                                        {!togglePublish.isPending && <Eye />} Publish
+                                        {!makeLive.isPending && <Eye />} Make it live
                                     </Button>
                                 )}
                                 <RowActions
                                     label="More for the quiz"
                                     items={[
                                         { label: "Edit the title and description", icon: Pencil, onSelect: () => setEditingMeta(true) },
-                                        { label: "Unpublish — hide from students", icon: EyeOff, hidden: !quiz.isPublished, onSelect: () => togglePublish.mutate(false) },
                                         {
                                             label: "Delete the quiz",
                                             icon: Trash2,
@@ -625,7 +647,7 @@ export default function ModuleQuizEditor({
                                                 if (
                                                     await confirmAction({
                                                         title: "Delete this quiz?",
-                                                        text: "Every question and option goes with it. Refused once a student has taken it — unpublish it instead then.",
+                                                        text: "Every question and option goes with it. Refused once a student has taken it.",
                                                         confirmText: "Delete quiz",
                                                     })
                                                 ) {

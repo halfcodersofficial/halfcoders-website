@@ -119,7 +119,8 @@ export default function HomeCertificate() {
                         <div
                             onPointerMove={tilt}
                             onPointerLeave={settle}
-                            className="group relative rounded-panel border border-border bg-card p-2.5 shadow-panel"
+                            // Paper in both themes, so its ink stays dark on it.
+                            className="paper group relative rounded-panel border border-border bg-card p-2.5 shadow-panel"
                             style={{ transform: "perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))", transition: "transform 0.25s ease-out" }}
                         >
                             <span className="absolute -right-2 -top-3 z-20 rounded-sm bg-warning px-2 py-0.5 text-xs font-bold text-warning-foreground">{sample.badge}</span>

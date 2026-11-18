@@ -117,7 +117,7 @@ export default function AboutTimeline() {
                             <figure
                                 key={item.title}
                                 className={cn(
-                                    "absolute left-1/2 top-1/2 w-[min(100%,27rem)] bg-white p-2.5 pb-11 shadow-[0_24px_50px_-26px_rgb(21_17_42/0.55)] ring-1 ring-black/5 transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.2,0.9,0.3,1.15)] motion-reduce:transition-none",
+                                    "paper absolute left-1/2 top-1/2 w-[min(100%,27rem)] bg-white p-2.5 pb-11 shadow-[0_24px_50px_-26px_rgb(21_17_42/0.55)] ring-1 ring-black/5 transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.2,0.9,0.3,1.15)] motion-reduce:transition-none",
                                     item.upcoming && "outline-2 -outline-offset-8 outline-dashed outline-primary/40",
                                 )}
                                 style={printStyle(index, active)}
@@ -240,7 +240,7 @@ export default function AboutTimeline() {
                                 <p className="mt-1.5 leading-relaxed text-muted-foreground">{item.text}</p>
                                 <figure
                                     className={cn(
-                                        "mt-4 bg-white p-2 pb-2.5 shadow-[0_16px_34px_-20px_rgb(21_17_42/0.5)] ring-1 ring-black/5",
+                                        "paper mt-4 bg-white p-2 pb-2.5 shadow-[0_16px_34px_-20px_rgb(21_17_42/0.5)] ring-1 ring-black/5",
                                         index % 2 ? "rotate-1" : "-rotate-1",
                                     )}
                                 >

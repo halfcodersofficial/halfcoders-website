@@ -66,6 +66,8 @@ export default function RecipientPreview({
     const shownMessage = message.trim() || "Your message shows here as you write it.";
     const titleEmpty = !title.trim();
     const messageEmpty = !message.trim();
+    // A pop-up broadcast reaches anyone online as the pop-up itself, not a toast.
+    const isPopup = views.includes("popup");
 
     return (
         <div className={cn("space-y-3", className)}>
@@ -111,31 +113,32 @@ export default function RecipientPreview({
 
                 {view === "bell" ? (
                     <>
-                        {/* The live toast — sonner's default light theme, top centre, as app/layout.tsx mounts
-                            it. Dropped below their header here, which the miniature has no room to share. */}
-                        <div
-                            key={`toast-${deliveries}`}
-                            className={cn(
-                                "absolute left-1/2 top-15 z-20 w-[min(17rem,calc(100%-2rem))] -translate-x-1/2 rounded-lg border border-[hsl(0,0%,93%)] bg-white p-3.5 text-[hsl(0,0%,9%)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]",
-                                ARRIVE,
-                                "slide-in-from-top-3 delay-500",
-                            )}
-                        >
-                            <span className="absolute -left-1.5 -top-1.5 grid size-5 place-items-center rounded-full border border-[hsl(0,0%,93%)] bg-white">
-                                <X className="size-2.5" />
-                            </span>
-                            <div className="flex items-start gap-3">
-                                <div className="min-w-0 flex-1 text-[13px] leading-snug">
-                                    <p className={cn("font-medium", titleEmpty && "text-[hsl(0,0%,60%)]")}>{shownTitle}</p>
-                                    <p className={cn("mt-0.5 line-clamp-3 text-[#3f3f3f]", messageEmpty && "text-[hsl(0,0%,60%)]")}>
-                                        {shownMessage}
-                                    </p>
-                                </div>
-                                {link && (
-                                    <span className="shrink-0 rounded bg-[hsl(0,0%,9%)] px-2 py-1 text-xs font-medium text-white">View</span>
+                        {/* The live toast — sonner in the site's popover colours (ThemedToaster), top centre.
+                            Dropped below their header here, which the miniature has no room to share. Not for a
+                            pop-up, which opens as the pop-up for anyone online instead. */}
+                        {!isPopup && (
+                            <div
+                                key={`toast-${deliveries}`}
+                                className={cn(
+                                    "absolute left-1/2 top-15 z-20 w-[min(17rem,calc(100%-2rem))] -translate-x-1/2 rounded-lg border border-border bg-popover p-3.5 text-popover-foreground shadow-[0_4px_12px_rgba(0,0,0,0.1)]",
+                                    ARRIVE,
+                                    "slide-in-from-top-3 delay-500",
                                 )}
+                            >
+                                <span className="absolute -left-1.5 -top-1.5 grid size-5 place-items-center rounded-full border border-border bg-popover">
+                                    <X className="size-2.5" />
+                                </span>
+                                <div className="flex items-start gap-3">
+                                    <div className="min-w-0 flex-1 text-[13px] leading-snug">
+                                        <p className={cn("font-medium", titleEmpty && "text-muted-foreground/60")}>{shownTitle}</p>
+                                        <p className={cn("mt-0.5 line-clamp-3 opacity-80", messageEmpty && "text-muted-foreground/60")}>{shownMessage}</p>
+                                    </div>
+                                    {link && (
+                                        <span className="shrink-0 rounded bg-popover-foreground px-2 py-1 text-xs font-medium text-popover">View</span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* The bell, opened. */}
                         <div
@@ -238,7 +241,8 @@ export default function RecipientPreview({
                 {view === "popup" ? (
                     <>
                         Covers the screen of {reach ? <span className="font-medium text-foreground">{reach}</span> : "everyone you picked"}{" "}
-                        {repeat ? "once every time they sign in" : "the next time they open Half Coders"}. For the first{" "}
+                        straight away if they&apos;re on the site,{" "}
+                        {repeat ? "then once every time they sign in" : "otherwise the next time they open Half Coders"}. For the first{" "}
                         {LOGIN_POPUP_LOCK_SECONDS} seconds it can&apos;t be closed; after that{" "}
                         {link ? (
                             <>
@@ -256,6 +260,17 @@ export default function RecipientPreview({
                             <RotateCcw className="size-3" aria-hidden />
                             Replay
                         </button>
+                    </>
+                ) : view === "bell" && isPopup ? (
+                    <>
+                        It also lands in the bell of {reach ? <span className="font-medium text-foreground">{reach}</span> : "everyone you picked"}
+                        , where they can read it again any time.
+                        {link && (
+                            <>
+                                {" "}
+                                It opens <PathChip path={link} />.
+                            </>
+                        )}
                     </>
                 ) : view === "bell" ? (
                     <>
@@ -352,7 +367,7 @@ function LoginPopupMock({
                 </p>
 
                 {locked ? (
-                    <p className="mt-4 border-t border-[#eee] pt-3 text-sm tabular-nums">
+                    <p className="mt-4 border-t border-border pt-3 text-sm tabular-nums text-muted-foreground">
                         You can close this in {left}s…
                     </p>
                 ) : (

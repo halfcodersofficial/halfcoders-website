@@ -162,7 +162,7 @@ function Print({
     return (
         <figure
             className={cn(
-                "absolute rounded-[3px] bg-white p-1.5 pb-7 shadow-[0_22px_45px_-22px_rgb(21_17_42/0.5)] ring-1 ring-black/5 transition-[rotate,translate,scale,box-shadow] duration-500 ease-out hover:z-40 hover:-translate-y-2 hover:rotate-0 hover:scale-[1.03] hover:shadow-[0_30px_60px_-24px_rgb(21_17_42/0.55)] motion-reduce:hover:translate-y-0 sm:p-2 sm:pb-9",
+                "paper absolute rounded-[3px] bg-white p-1.5 pb-7 shadow-[0_22px_45px_-22px_rgb(21_17_42/0.5)] ring-1 ring-black/5 transition-[rotate,translate,scale,box-shadow] duration-500 ease-out hover:z-40 hover:-translate-y-2 hover:rotate-0 hover:scale-[1.03] hover:shadow-[0_30px_60px_-24px_rgb(21_17_42/0.55)] motion-reduce:hover:translate-y-0 sm:p-2 sm:pb-9",
                 "animate-in fade-in slide-in-from-bottom-10 motion-reduce:animate-none",
                 className,
             )}

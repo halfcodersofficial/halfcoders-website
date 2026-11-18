@@ -118,11 +118,8 @@ const createSession = async (
         },
     });
 
-    await notifyEnrolled(session.course, {
-        title: "Support session scheduled",
-        message: `A support session for ${session.course.title} is scheduled for ${dhakaWhen(session.startTime)}.`,
-        senderId: user.userId,
-    });
+    // No notification for scheduling it: students hear once, when it goes
+    // live ("Support session is live now") — and if it's moved or cancelled.
 
     return { ...session, isLive: computeLive(session) };
 };
