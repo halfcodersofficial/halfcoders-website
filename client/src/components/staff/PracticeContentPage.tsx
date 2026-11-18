@@ -21,8 +21,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * One practice day, opened from its row in the Module Manager — its short
  * summary and the lessons that come with it: videos, texts and links, built
  * exactly the way a module's and an assignment's are. Students open them one
- * by one from the practice day in the course player, like a module's lessons,
- * then mark the day done.
+ * by one from the practice day in the course player, like a module's lessons;
+ * Next on the last one marks the day done.
  */
 export default function PracticeContentPage({
     courseId,
@@ -161,7 +161,7 @@ export default function PracticeContentPage({
                 queryKey={["practice-materials", practiceDayId]}
                 api={materialsApi}
                 intro="Videos to watch, notes to read and links to open while practising — the same three a module's lessons are. Put the steps to follow in a text lesson."
-                listNote="students open them one by one from the practice day, like a module's lessons, then mark the day done"
+                listNote="students open them one by one from the practice day, like a module's lessons — Next on the last one marks the day done"
                 emptyTitle="No lessons for this practice day yet"
                 // The week's row shows a lesson count.
                 onChanged={refreshCurriculum}

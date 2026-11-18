@@ -333,7 +333,7 @@ export function PracticeDayModal({
             onOpenChange={onOpenChange}
             closeOnOutsideClick={false}
             title={practice ? "Edit practice day" : `New practice day — ${weekName}`}
-            description="A hands-on day: the videos, texts and links you add on its page, opened one by one like a module's lessons. Nothing to submit or grade — students work through it and mark the day done."
+            description="A hands-on day: the videos, texts and links you add on its page, opened one by one like a module's lessons. Nothing to submit or grade — students work through it, and Next on the last lesson marks the day done."
         >
             {milestone && (
                 <PracticeEditor

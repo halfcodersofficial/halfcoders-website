@@ -1,5 +1,5 @@
 import status from "http-status";
-import { NotificationType, QuizAttemptStatus } from "../../../generated/prisma/enums";
+import { QuizAttemptStatus } from "../../../generated/prisma/enums";
 import {
     deleteFileFromCloudinary,
     isQuizImageAsset,
@@ -10,10 +10,14 @@ import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
 import { STUDENT_NAME_ONLY } from "../../lib/studentPrivacy";
-import { assertCanManageCourse, assertModuleUnlocked, requireEnrollment } from "../../utils/courseAccess";
+import {
+    assertCanManageCourse,
+    assertLessonsBeforeQuizComplete,
+    assertModuleUnlocked,
+    requireEnrollment,
+} from "../../utils/courseAccess";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
-import { createNotification } from "../notification/notification.service";
 
 // ---------------------------------------------------------------------------
 // Authoring (admin + assigned mentors)
@@ -100,30 +104,13 @@ const createQuiz = async (
     });
 };
 
-/** Announces a newly published quiz to everyone currently enrolled, same pattern as `AssignmentService.notifyCohort`. */
-const notifyCohort = async (courseId: string, title: string, quizId: string) => {
-    const [course, enrollments] = await Promise.all([
-        prisma.course.findUnique({ where: { id: courseId }, select: { title: true, slug: true } }),
-        prisma.enrollment.findMany({
-            where: { courseId, status: { not: "CANCELLED" } },
-            select: { studentId: true },
-        }),
-    ]);
-    if (!course) return;
-
-    await Promise.all(
-        enrollments.map((enrollment) =>
-            createNotification({
-                userId: enrollment.studentId,
-                title: "New quiz available",
-                message: `"${title}" has been published in ${course.title}.`,
-                type: NotificationType.QUIZ,
-                link: `/learn/${course.slug}?quiz=${quizId}`,
-            }),
-        ),
-    );
-};
-
+/**
+ * A quiz goes live with its module (`setQuizzesLive` in courseModule.service)
+ * and is never announced on its own — "New module available" covers it. The
+ * one time staff make it live here is a quiz written after its module already
+ * went live; never before the module, which would put it in front of students
+ * ahead of the lessons it tests.
+ */
 const updateQuiz = async (
     user: IRequestUser,
     quizId: string,
@@ -135,6 +122,7 @@ const updateQuiz = async (
             courseId: true,
             title: true,
             isPublished: true,
+            module: { select: { isPublished: true } },
             _count: { select: { questions: true } },
         },
     });
@@ -142,23 +130,22 @@ const updateQuiz = async (
 
     await assertCanManageCourse(user, quiz.courseId);
 
+    const isNewlyPublished = payload.isPublished === true && !quiz.isPublished;
+    if (isNewlyPublished && !quiz.module.isPublished) {
+        throw new AppError(status.BAD_REQUEST, "This quiz goes live together with its module — publish the module and the quiz goes with it.");
+    }
     // Every question is written with exactly one correct option and at least
     // two options (`quiz.validation.ts` enforces this on every write), so the
     // only thing left to check before letting students see this quiz is that
     // it actually has content.
     if (payload.isPublished === true && quiz._count.questions === 0) {
-        throw new AppError(status.BAD_REQUEST, "Add at least one question before publishing this quiz.");
+        throw new AppError(status.BAD_REQUEST, "Add at least one question before making this quiz live.");
     }
 
-    const isNewlyPublished = payload.isPublished === true && !quiz.isPublished;
     const data: Record<string, unknown> = { ...payload, updatedById: user.userId };
     if (isNewlyPublished) data.publishedAt = new Date();
 
-    const updated = await prisma.quiz.update({ where: { id: quizId }, data });
-
-    if (isNewlyPublished) void notifyCohort(quiz.courseId, updated.title, updated.id);
-
-    return updated;
+    return prisma.quiz.update({ where: { id: quizId }, data });
 };
 
 const deleteQuiz = async (user: IRequestUser, quizId: string) => {
@@ -413,6 +400,7 @@ const getQuizForStudent = async (user: IRequestUser, quizId: string) => {
             title: true,
             description: true,
             courseId: true,
+            position: true,
             module: { select: { id: true, title: true } },
             questions: {
                 orderBy: { order: "asc" },
@@ -432,6 +420,9 @@ const getQuizForStudent = async (user: IRequestUser, quizId: string) => {
     await assertModuleUnlocked(enrollment.id, quiz.module.id);
 
     const result = await findSubmission(quizId, user.userId);
+    // A quiz already taken keeps showing its result; one not taken yet waits
+    // for the lessons before it.
+    if (!result) await assertLessonsBeforeQuizComplete(enrollment.id, { moduleId: quiz.module.id, position: quiz.position });
 
     return {
         id: quiz.id,
@@ -464,6 +455,7 @@ const submitQuiz = async (
             id: true,
             courseId: true,
             moduleId: true,
+            position: true,
             questions: { select: { id: true, options: { select: { id: true, isCorrect: true } } } },
         },
     });
@@ -474,6 +466,7 @@ const submitQuiz = async (
 
     const enrollment = await requireEnrollment(user, quiz.courseId);
     await assertModuleUnlocked(enrollment.id, quiz.moduleId);
+    await assertLessonsBeforeQuizComplete(enrollment.id, quiz);
 
     const questionsById = new Map(quiz.questions.map((question) => [question.id, question]));
     const selected = new Map<string, string>();

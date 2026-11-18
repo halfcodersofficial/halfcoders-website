@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Eye, EyeOff, Gift, HelpCircle, ListPlus, Pencil, PlayCircle, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
@@ -43,79 +43,27 @@ const quizSchema = z.object({
     description: optionalTextField({ label: "Description", max: 2000 }),
 });
 
+/** One video in the "add many" form — `key` only tells React the rows apart. */
+type BulkRow = { key: number; title: string; youtubeUrl: string };
+
 /**
- * Parses the bulk paste box. One lesson per line:
- *
- *   Intro to JavaScript | https://youtu.be/xyz | 18:42
- *
- * Duration is optional. Anything unparseable is reported by line number rather
- * than silently dropped — losing a lesson from a 40-line paste without being
- * told would be worse than refusing the whole batch.
+ * What's wrong with one row, if anything — the same checks the single-lesson
+ * form runs, so a batch fails on the row to fix rather than half-importing.
+ * A row left completely empty is skipped, not an error.
  */
-const parseBulkInput = (raw: string) => {
-    const rows = raw
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-
-    const videos: { title: string; youtubeUrl: string; duration?: string }[] = [];
-    const problems: string[] = [];
-
-    rows.forEach((line, index) => {
-        const label = `Line ${index + 1}`;
-        const [title, youtubeUrl, duration] = line.split("|").map((part) => part.trim());
-
-        if (!title || !youtubeUrl) {
-            problems.push(`${label}: needs a title and a link separated by "|"`);
-            return;
-        }
-        if (title.length < 3) {
-            problems.push(`${label}: the title "${title}" is shorter than 3 characters`);
-            return;
-        }
-        // Same check the single-lesson form runs, so a 40-line paste fails on
-        // the offending line rather than half-importing and then erroring.
-        if (!extractYoutubeId(youtubeUrl)) {
-            problems.push(`${label}: "${youtubeUrl}" isn't a YouTube link`);
-            return;
-        }
-        if (duration && !/^(\d{1,2}:)?[0-5]?\d:[0-5]\d$/.test(duration)) {
-            problems.push(`${label}: "${duration}" isn't a duration like 18:42`);
-            return;
-        }
-
-        videos.push({ title, youtubeUrl, duration: duration || undefined });
-    });
-
-    return { videos, problems };
+const bulkRowErrors = (row: BulkRow) => {
+    const title = row.title.trim();
+    const link = row.youtubeUrl.trim();
+    if (!title && !link) return null;
+    const errors: { title?: string; youtubeUrl?: string } = {};
+    if (!title) errors.title = "Give it a title";
+    else if (title.length < 3) errors.title = "At least 3 characters";
+    if (!link) errors.youtubeUrl = "Paste its YouTube link";
+    else if (!extractYoutubeId(link)) errors.youtubeUrl = "That isn't a YouTube link";
+    return errors.title || errors.youtubeUrl ? errors : null;
 };
 
-const bulkSchema = z.object({
-    bulkText: z
-        .string()
-        .trim()
-        .min(1, "Paste at least one lesson, one per line")
-        .superRefine((raw, ctx) => {
-            const { videos, problems } = parseBulkInput(raw);
-
-            if (problems.length > 0) {
-                ctx.addIssue({
-                    code: "custom",
-                    message: `${problems.length} line${problems.length === 1 ? "" : "s"} need fixing — see below`,
-                });
-                return;
-            }
-            if (videos.length === 0) {
-                ctx.addIssue({ code: "custom", message: "Paste at least one lesson, one per line" });
-            }
-            if (videos.length > MAX_BULK_ROWS) {
-                ctx.addIssue({
-                    code: "custom",
-                    message: `Add at most ${MAX_BULK_ROWS} lessons at a time — this paste has ${videos.length}`,
-                });
-            }
-        }),
-});
+const isEmptyRow = (row: BulkRow) => !row.title.trim() && !row.youtubeUrl.trim();
 
 /**
  * One module's lessons — video, text or resource — with its quiz as a row
@@ -212,25 +160,14 @@ export default function ModuleLessonsEditor({
     });
 
     const addBulk = useMutation({
-        mutationFn: (values: z.output<typeof bulkSchema>) =>
-            curriculumAuthoring.bulkCreateVideos({
-                moduleId,
-                isPublished: publishOnAdd,
-                videos: parseBulkInput(values.bulkText).videos,
-            }),
-        onSuccess: async () => {
+        mutationFn: (rows: { title: string; youtubeUrl: string }[]) =>
+            curriculumAuthoring.bulkCreateVideos({ moduleId, isPublished: publishOnAdd, videos: rows }),
+        onSuccess: async (_result, rows) => {
             await refresh();
-            toast.success("Lessons imported.");
-            bulkForm.reset({ bulkText: "" });
+            toast.success(`${rows.length} video${rows.length === 1 ? "" : "s"} added.`);
             setAdding(null);
         },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't import those lessons.")),
-    });
-
-    const bulkForm = useZodForm({
-        schema: bulkSchema,
-        initialValues: { bulkText: "" },
-        onSubmit: (values) => addBulk.mutate(values),
+        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't add those videos.")),
     });
 
     /** A module has one quiz: made here, then straight on to its questions. */
@@ -368,9 +305,6 @@ export default function ModuleLessonsEditor({
         );
     }
 
-    // Only listed once the mentor has typed something, so an empty box isn't a
-    // wall of complaints about lines that don't exist yet.
-    const problems = bulkForm.values.bulkText.trim() ? parseBulkInput(bulkForm.values.bulkText).problems : [];
     const publishedCount = videos.filter((video) => video.isPublished).length;
 
     // The lessons with the quiz slotted in after the first `position` of them
@@ -412,7 +346,7 @@ export default function ModuleLessonsEditor({
                         aria-pressed={adding === "BULK"}
                         onClick={() => setAdding(adding === "BULK" ? null : "BULK")}
                     >
-                        <ListPlus /> Paste many videos
+                        <ListPlus /> Add many videos
                     </Button>
                 </div>
 
@@ -457,8 +391,9 @@ export default function ModuleLessonsEditor({
                 {adding === "QUIZ" && !quiz && (
                     <form className="mt-4 space-y-4 border-t border-border pt-4" noValidate onSubmit={quizForm.handleSubmit}>
                         <p className="text-sm text-muted-foreground">
-                            One quiz per {moduleLabel}. Name it here, then add its questions on the next page and publish it from there. It shows up
-                            in the list below — drag it to where students should take it.
+                            One quiz per {moduleLabel}. Name it here, then add its questions on the next page — it goes live together with the{" "}
+                            {moduleLabel}, so there&apos;s nothing to publish separately. It shows up in the list below — drag it to where students should
+                            take it.
                         </p>
                         <FormField form={quizForm} name="title" label="Quiz title" required counterMax={200}>
                             <Input placeholder={`${course?.moduleLabel ?? "Module"} quiz`} autoFocus />
@@ -488,44 +423,7 @@ export default function ModuleLessonsEditor({
                         </Checkbox>
 
                         {adding === "BULK" ? (
-                            <form className="space-y-3" noValidate onSubmit={bulkForm.handleSubmit}>
-                                <FormField
-                                    form={bulkForm}
-                                    name="bulkText"
-                                    label="One video per line"
-                                    required
-                                    hint={
-                                        <>
-                                            Format: <span className="font-mono">Title | YouTube link | duration</span> — duration optional, up to{" "}
-                                            {MAX_BULK_ROWS} lessons per paste.
-                                        </>
-                                    }
-                                >
-                                    <Textarea
-                                        rows={8}
-                                        spellCheck={false}
-                                        className="font-mono text-xs sm:text-xs"
-                                        placeholder={"Intro to JavaScript | https://youtu.be/W6NZfCO5SIk | 18:42\nArrays and Objects | https://youtu.be/hdI2bqOjy3c | 25:10"}
-                                    />
-                                </FormField>
-
-                                {problems.length > 0 && (
-                                    <ul className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-                                        {problems.map((problem) => (
-                                            <li key={problem}>{problem}</li>
-                                        ))}
-                                    </ul>
-                                )}
-
-                                <div className="flex flex-wrap gap-2">
-                                    <Button type="submit" isLoading={addBulk.isPending}>
-                                        Import lessons
-                                    </Button>
-                                    <Button type="button" variant="ghost" onClick={() => setAdding(null)}>
-                                        Cancel
-                                    </Button>
-                                </div>
-                            </form>
+                            <BulkVideoForm isPending={addBulk.isPending} onSubmit={(rows) => addBulk.mutate(rows)} onCancel={() => setAdding(null)} />
                         ) : (
                             <LessonForm
                                 key={`${adding}-${addFormKey}`}
@@ -732,6 +630,133 @@ export default function ModuleLessonsEditor({
                 )}
             </Modal>
         </div>
+    );
+}
+
+/**
+ * Several video lessons in one go: a title and a YouTube link per row, rows
+ * added and removed as needed, then one button adds them all. The running
+ * time is measured from YouTube, so there's nothing else to type. Problems
+ * show under the row they belong to once "Add" has been tried.
+ */
+function BulkVideoForm({
+    isPending,
+    onSubmit,
+    onCancel,
+}: {
+    isPending: boolean;
+    onSubmit: (rows: { title: string; youtubeUrl: string }[]) => void;
+    onCancel: () => void;
+}) {
+    const nextKey = useRef(3);
+    const [rows, setRows] = useState<BulkRow[]>([
+        { key: 1, title: "", youtubeUrl: "" },
+        { key: 2, title: "", youtubeUrl: "" },
+    ]);
+    const [tried, setTried] = useState(false);
+    // The row whose title takes the cursor — the first, then each one added.
+    const [focusKey, setFocusKey] = useState(1);
+
+    const filled = rows.filter((row) => !isEmptyRow(row));
+    const errorsByKey = new Map(rows.map((row) => [row.key, bulkRowErrors(row)]));
+    const hasErrors = [...errorsByKey.values()].some(Boolean);
+
+    const update = (key: number, patch: Partial<BulkRow>) =>
+        setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+    const addRow = () => {
+        const key = nextKey.current++;
+        setRows((current) => [...current, { key, title: "", youtubeUrl: "" }]);
+        setFocusKey(key);
+    };
+    const removeRow = (key: number) => setRows((current) => (current.length > 1 ? current.filter((row) => row.key !== key) : current));
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setTried(true);
+        if (hasErrors || filled.length === 0) return;
+        onSubmit(filled.map((row) => ({ title: row.title.trim(), youtubeUrl: row.youtubeUrl.trim() })));
+    };
+
+    return (
+        <form className="space-y-3" noValidate onSubmit={submit}>
+            <div>
+                <p className="text-sm font-medium">Videos</p>
+                <p className="text-xs text-muted-foreground">A title and an unlisted YouTube link for each. Empty rows are skipped.</p>
+            </div>
+
+            <ol className="space-y-2">
+                {rows.map((row, index) => {
+                    const errors = tried ? errorsByKey.get(row.key) : null;
+                    const number = index + 1;
+                    return (
+                        <li key={row.key} className="flex items-start gap-2">
+                            <span className="mt-3 w-6 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground sm:mt-2.5">
+                                {String(number).padStart(2, "0")}
+                            </span>
+                            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+                                <div>
+                                    <Input
+                                        aria-label={`Video ${number} title`}
+                                        placeholder="Title — e.g. Intro to JavaScript"
+                                        value={row.title}
+                                        maxLength={200}
+                                        autoFocus={row.key === focusKey}
+                                        aria-invalid={errors?.title ? true : undefined}
+                                        onChange={(event) => update(row.key, { title: event.target.value })}
+                                    />
+                                    {errors?.title && <p className="mt-1 text-xs text-destructive">{errors.title}</p>}
+                                </div>
+                                <div>
+                                    <Input
+                                        aria-label={`Video ${number} YouTube link`}
+                                        placeholder="YouTube link — https://youtu.be/…"
+                                        value={row.youtubeUrl}
+                                        inputMode="url"
+                                        spellCheck={false}
+                                        aria-invalid={errors?.youtubeUrl ? true : undefined}
+                                        onChange={(event) => update(row.key, { youtubeUrl: event.target.value })}
+                                    />
+                                    {errors?.youtubeUrl && <p className="mt-1 text-xs text-destructive">{errors.youtubeUrl}</p>}
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`Remove video ${number}`}
+                                title="Remove this row"
+                                disabled={rows.length <= 1}
+                                className="mt-1 text-destructive hover:bg-destructive/10 sm:mt-0.5"
+                                onClick={() => removeRow(row.key)}
+                            >
+                                <Trash2 className="size-4" />
+                            </Button>
+                        </li>
+                    );
+                })}
+            </ol>
+
+            {rows.length < MAX_BULK_ROWS ? (
+                <Button type="button" size="sm" variant="outline" onClick={addRow}>
+                    <Plus className="size-4" /> Add another video
+                </Button>
+            ) : (
+                <p className="text-xs text-muted-foreground">
+                    That&apos;s {MAX_BULK_ROWS} — the most at a time. Add these, then do the rest.
+                </p>
+            )}
+
+            {tried && filled.length === 0 && <p className="text-sm text-destructive">Fill in at least one video.</p>}
+
+            <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                <Button type="submit" isLoading={isPending}>
+                    {filled.length > 1 ? `Add ${filled.length} videos` : "Add video"}
+                </Button>
+                <Button type="button" variant="ghost" onClick={onCancel}>
+                    Cancel
+                </Button>
+            </div>
+        </form>
     );
 }
 

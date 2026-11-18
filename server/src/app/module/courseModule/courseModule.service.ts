@@ -1,4 +1,5 @@
 import status from "http-status";
+import { Prisma } from "../../../generated/prisma/client";
 import { CourseMode, NotificationType } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
@@ -99,6 +100,23 @@ const createModule = async (user: IRequestUser, payload: CreatePayload) => {
 };
 
 /**
+ * A module's quiz goes live with the module and comes down with it — it has
+ * no release and no announcement of its own; "New module available" covers
+ * it. A quiz with no questions yet stays a draft (there's nothing to take);
+ * staff make it live from its page once it's written, the module being live.
+ */
+const setQuizzesLive = async (tx: Prisma.TransactionClient, moduleIds: string[], live: boolean) => {
+    if (!live) {
+        await tx.quiz.updateMany({ where: { moduleId: { in: moduleIds }, isPublished: true }, data: { isPublished: false } });
+        return;
+    }
+    const ready = { moduleId: { in: moduleIds }, isPublished: false, questions: { some: {} } };
+    // Stamped once, like the module's own `publishedAt`.
+    await tx.quiz.updateMany({ where: { ...ready, publishedAt: null }, data: { publishedAt: new Date() } });
+    await tx.quiz.updateMany({ where: ready, data: { isPublished: true } });
+};
+
+/**
  * Tells everyone enrolled that a module just opened up (plan §17-ish). Links
  * straight to the module's first published video when it has one — the same
  * `?video=` deep link the player already resolves on load (`learn/[slug]/page.tsx`)
@@ -174,7 +192,13 @@ const updateModule = async (
         payload.publishedAt = new Date();
     }
 
-    const updated = await prisma.courseModule.update({ where: { id: moduleId }, data: payload });
+    const goesLive = payload.isPublished === true && !courseModule.isPublished;
+    const comesDown = payload.isPublished === false && courseModule.isPublished;
+    const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.courseModule.update({ where: { id: moduleId }, data: payload });
+        if (goesLive || comesDown) await setQuizzesLive(tx, [moduleId], goesLive);
+        return row;
+    });
 
     if (payload.isPublished !== undefined) scheduleCourseRecalculation(courseModule.courseId);
 
@@ -203,9 +227,12 @@ const publishDueModules = async () => {
     if (due.length === 0) return;
 
     const now = new Date();
-    await prisma.courseModule.updateMany({
-        where: { id: { in: due.map((m) => m.id) } },
-        data: { isPublished: true, publishedAt: now },
+    await prisma.$transaction(async (tx) => {
+        await tx.courseModule.updateMany({
+            where: { id: { in: due.map((m) => m.id) } },
+            data: { isPublished: true, publishedAt: now },
+        });
+        await setQuizzesLive(tx, due.map((m) => m.id), true);
     });
 
     logger.create("Auto-published scheduled modules", { count: due.length });
