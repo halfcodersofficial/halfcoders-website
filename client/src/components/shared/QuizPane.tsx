@@ -17,6 +17,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { confirmAction } from "@/lib/confirm";
@@ -220,32 +221,6 @@ export default function QuizPane({ quizId }: { quizId: string }) {
                 </div>
                 <Progress value={(answeredCount / questions.length) * 100} />
 
-                {/* Jump to any question — filled in once it has an answer. */}
-                <nav aria-label="Questions" className="flex flex-wrap gap-1.5">
-                    {questions.map((item, itemIndex) => {
-                        const isAnswered = Boolean(selections[item.id]);
-                        const isCurrent = itemIndex === index;
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => setCurrentIndex(itemIndex)}
-                                aria-current={isCurrent ? "step" : undefined}
-                                aria-label={`Question ${itemIndex + 1}${isAnswered ? ", answered" : ", not answered yet"}`}
-                                className={cn(
-                                    "grid size-8 place-items-center rounded-md border text-xs font-medium transition-colors",
-                                    isAnswered
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-border text-muted-foreground hover:bg-secondary",
-                                    isCurrent && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-                                )}
-                            >
-                                {itemIndex + 1}
-                            </button>
-                        );
-                    })}
-                </nav>
-
                 <fieldset className="rounded-xl border border-border bg-card p-6 shadow-sm">
                     <legend className="sr-only">Question {index + 1}</legend>
                     <p className="mb-5 whitespace-pre-line text-lg font-semibold">{question.question}</p>
@@ -369,27 +344,49 @@ export default function QuizPane({ quizId }: { quizId: string }) {
 }
 
 /**
- * The picture that goes with a question — code, a diagram, some output.
- * Shown whole, never cropped; a click opens it full size in a new tab for a
- * closer look.
+ * The picture that goes with a question — code, a diagram, some output —
+ * shown at the size it was uploaded (only ever narrowed to fit a small
+ * screen), never cropped. A click opens it in a popup on the same page,
+ * closed with ×, Escape or a click outside; the quiz stays where it was.
  */
 function QuestionImage({ src, number, className }: { src: string; number: number; className?: string }) {
+    const [open, setOpen] = useState(false);
+    const alt = `Image for question ${number}`;
+
     return (
-        <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open the image full size"
-            className={cn("block w-fit max-w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
-        >
-            {/* Any size, straight from Cloudinary — a plain <img> keeps its own proportions. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-                src={src}
-                alt={`Image for question ${number}`}
-                className="max-h-96 w-auto max-w-full rounded-lg border border-border bg-white object-contain"
-            />
-        </a>
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                title="Click to view larger"
+                className={cn(
+                    "block w-fit max-w-full cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    className,
+                )}
+            >
+                {/* Any size, straight from Cloudinary — a plain <img> keeps its own size and proportions. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={alt} className="block h-auto max-w-full rounded-lg border border-border bg-white" />
+            </button>
+
+            <Modal
+                open={open}
+                onOpenChange={setOpen}
+                title={`Question ${number}`}
+                size="xl"
+                // As wide as the picture needs, up to the screen's edges.
+                className="sm:w-auto sm:max-w-[calc(100vw-3rem)]"
+            >
+                <div className="overflow-auto p-4 sm:p-6">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={src}
+                        alt={alt}
+                        className="mx-auto block h-auto max-h-[calc(100dvh-10rem)] max-w-full rounded-lg border border-border bg-white object-contain"
+                    />
+                </div>
+            </Modal>
+        </>
     );
 }
 
