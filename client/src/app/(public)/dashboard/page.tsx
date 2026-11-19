@@ -123,7 +123,12 @@ function StudentDashboardView() {
     return (
         <div className="container-page space-y-8 py-8 sm:py-10">
             <header className="flex flex-wrap items-end justify-between gap-3">
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My learning</h1>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My learning</h1>
+                    <p lang="bn" className="text-sm font-medium text-muted-foreground sm:text-base">
+                        নিজের খাটা নিজে খেটে খাও, আটকে গেলে সাপোর্ট সেশনে আসো।
+                    </p>
+                </div>
                 {bestStreak > 0 && (
                     <p className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1 text-sm">
                         <Flame className="size-4 text-syn-number" aria-hidden />
