@@ -299,7 +299,7 @@ function AssignmentRow({
                 <p className="px-6 py-6 text-sm text-muted-foreground">Nothing handed in yet.</p>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[36rem] text-sm">
+                    <table className="w-full min-w-xl text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs text-muted-foreground">
                                 <th scope="col" className="px-5 py-2 font-medium sm:px-6">Student</th>
@@ -383,12 +383,14 @@ function QuizRow({ quiz, course, term }: { quiz: Quiz; course: CourseResults["co
                 <span className="grid items-center gap-x-6 gap-y-2 md:grid-cols-[minmax(0,1fr)_12rem_5rem]">
                     <span className="min-w-0">
                         <span className="block text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
-                            {course.milestoneLabel} {pad2(quiz.module.milestone.order)} · {course.moduleLabel} {pad2(quiz.module.order)}
+                            {quiz.module
+                                ? `${course.milestoneLabel} ${pad2(quiz.module.milestone.order)} · ${course.moduleLabel} ${pad2(quiz.module.order)}`
+                                : `${course.milestoneLabel} ${pad2(quiz.assignment?.milestone.order ?? 0)} · Assignment`}
                             {!quiz.isPublished && <span className="ml-2 normal-case tracking-normal">· not out yet</span>}
                         </span>
                         <span className="mt-0.5 block truncate font-semibold">{quiz.title}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                            {plural(quiz._count.questions, "question")} · {quiz.module.title}
+                            {plural(quiz._count.questions, "question")} · {quiz.module?.title ?? quiz.assignment?.title}
                         </span>
                     </span>
                     <span className="text-xs text-muted-foreground">
@@ -448,7 +450,7 @@ function QuizRow({ quiz, course, term }: { quiz: Quiz; course: CourseResults["co
                         )
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[34rem] text-sm">
+                            <table className="w-full min-w-136 text-sm">
                                 <thead>
                                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                                         <th scope="col" className="px-5 py-2 font-medium sm:px-6">Student</th>

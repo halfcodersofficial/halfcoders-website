@@ -23,6 +23,7 @@ const STAFF = [Role.MENTOR, Role.ADMIN, Role.SUPER_ADMIN] as const;
 // literal segments like "manage" and "attempts" are never captured by them.
 // ---------------------------------------------------------------------------
 router.get("/manage/module/:moduleId", checkAuth(...STAFF), QuizController.getQuizForModule);
+router.get("/manage/assignment/:assignmentId", checkAuth(...STAFF), QuizController.getQuizForAssignment);
 // Every finished attempt (students by name only) and how each question went.
 router.get("/manage/:quizId/results", checkAuth(...STAFF), QuizController.getQuizResults);
 

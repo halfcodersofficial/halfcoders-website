@@ -319,7 +319,14 @@ export const curriculumAuthoring = {
             .get<ApiResponse<AdminQuiz | null>>(`/quizzes/manage/module/${moduleId}`)
             .then(unwrap),
 
-    createQuiz: (payload: { moduleId: string; title: string; description?: string }) =>
+    /** Null when the assignment has no quiz yet. */
+    getAssignmentQuiz: (assignmentId: string) =>
+        httpClient
+            .get<ApiResponse<AdminQuiz | null>>(`/quizzes/manage/assignment/${assignmentId}`)
+            .then(unwrap),
+
+    /** A module's quiz, or an assignment's — one each at most. */
+    createQuiz: (payload: ({ moduleId: string } | { assignmentId: string }) & { title: string; description?: string }) =>
         httpClient.post<ApiResponse<AdminQuiz>>("/quizzes/manage", payload).then(unwrap),
 
     updateQuiz: (

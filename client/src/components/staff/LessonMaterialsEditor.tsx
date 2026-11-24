@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, PlayCircle, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import RowActions from "@/components/admin/RowActions";
 import { LessonDetail, type LessonFields, LessonForm, LessonTypePicker, TYPE_META } from "@/components/staff/lessonForms";
@@ -50,6 +50,8 @@ export default function LessonMaterialsEditor({
     listNote,
     emptyTitle,
     onChanged,
+    extraTile,
+    footer,
 }: {
     /** The list's cache key — unique to its parent. */
     queryKey: readonly unknown[];
@@ -62,6 +64,10 @@ export default function LessonMaterialsEditor({
     emptyTitle: string;
     /** After any change — e.g. to refresh a lesson count elsewhere. */
     onChanged?: () => Promise<unknown> | void;
+    /** A fourth tile after Video, Text and Resource — an assignment's quiz. */
+    extraTile?: ReactNode;
+    /** A row under the lessons — what students take after them (an assignment's quiz). */
+    footer?: ReactNode;
 }) {
     const queryClient = useQueryClient();
     const [adding, setAdding] = useState<LessonType | null>(null);
@@ -150,7 +156,7 @@ export default function LessonMaterialsEditor({
                     <p className="text-sm text-muted-foreground">{intro}</p>
                 </div>
 
-                <LessonTypePicker active={adding} onPick={setAdding} />
+                <LessonTypePicker active={adding} onPick={setAdding} extra={extraTile} />
 
                 {adding && (
                     <div className="border-t border-border pt-4">
@@ -263,6 +269,7 @@ export default function LessonMaterialsEditor({
                         </ul>
                     </SortableList>
                 )}
+                {footer && <div className="border-t border-border">{footer}</div>}
             </section>
 
             <Modal

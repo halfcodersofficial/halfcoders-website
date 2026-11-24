@@ -68,7 +68,11 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                 assignments: {
                     where: { isPublished: true },
                     orderBy: { order: "asc" },
-                    include: { materials: { orderBy: { order: "asc" }, select: MATERIAL_SELECT } },
+                    include: {
+                        materials: { orderBy: { order: "asc" }, select: MATERIAL_SELECT },
+                        // At most one, taken after its lessons.
+                        quizzes: { where: { isPublished: true }, select: { id: true, title: true } },
+                    },
                 },
                 practiceDays: {
                     where: { isPublished: true, ...PRACTICE_COURSE_FILTER },
@@ -199,6 +203,7 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                 const found = submissionByAssignment.get(assignment.id);
                 // A mark still waiting for its results reads as waiting, here as everywhere a student looks.
                 const submission = found && forStudent(found, assignment.resultsPublishedAt);
+                const quiz = assignment.quizzes[0];
                 return {
                     id: assignment.id,
                     title: assignment.title,
@@ -213,6 +218,16 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                     isSubmitted: Boolean(submission),
                     isAccepted: submission?.status === SubmissionStatus.ACCEPTED,
                     materials: assignment.materials,
+                    // Taken after the assignment's lessons, before its brief & submission.
+                    quiz: quiz
+                        ? {
+                            id: quiz.id,
+                            title: quiz.title,
+                            position: null,
+                            isCompleted: bestScoreByQuiz.has(quiz.id),
+                            bestScore: bestScoreByQuiz.get(quiz.id) ?? null,
+                        }
+                        : null,
                 };
             }),
             practiceDays: milestone.practiceDays.map((practice) => ({

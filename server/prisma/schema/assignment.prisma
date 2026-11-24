@@ -42,6 +42,8 @@ model Assignment {
   materials   AssignmentMaterial[]
   rubric      RubricCriterion[]
   rechecks    AssignmentRecheck[]
+  /// At most one (`Quiz.assignmentId` is unique) — a list like `CourseModule.quizzes`.
+  quizzes     Quiz[]
 
   @@unique([milestoneId, order])
   @@index([courseId])

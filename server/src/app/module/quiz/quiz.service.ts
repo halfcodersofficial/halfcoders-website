@@ -65,39 +65,45 @@ const uploadQuestionImage = async (
     return { url: uploaded.secure_url };
 };
 
-const loadModuleForWrite = async (user: IRequestUser, moduleId: string) => {
-    const courseModule = await prisma.courseModule.findUnique({
-        where: { id: moduleId },
-        select: { id: true, courseId: true },
-    });
-    if (!courseModule) throw new AppError(status.NOT_FOUND, "Module not found.");
+/** What a quiz belongs to: a module, or an assignment. */
+type QuizOwner = { moduleId: string } | { assignmentId: string };
 
-    await assertCanManageCourse(user, courseModule.courseId);
-    return courseModule;
+/** The module or assignment a quiz is for, once the caller is checked to manage its course. */
+const loadOwnerForWrite = async (user: IRequestUser, owner: QuizOwner) => {
+    const row =
+        "moduleId" in owner
+            ? await prisma.courseModule.findUnique({ where: { id: owner.moduleId }, select: { id: true, courseId: true } })
+            : await prisma.assignment.findUnique({ where: { id: owner.assignmentId }, select: { id: true, courseId: true } });
+    if (!row) throw new AppError(status.NOT_FOUND, "moduleId" in owner ? "Module not found." : "Assignment not found.");
+
+    await assertCanManageCourse(user, row.courseId);
+    return row;
 };
 
+/** A module's quiz, or an assignment's — one each at most. */
 const createQuiz = async (
     user: IRequestUser,
-    payload: { moduleId: string; title: string; description?: string },
+    payload: { moduleId?: string; assignmentId?: string; title: string; description?: string },
 ) => {
-    const courseModule = await loadModuleForWrite(user, payload.moduleId);
+    const owner: QuizOwner = payload.moduleId ? { moduleId: payload.moduleId } : { assignmentId: payload.assignmentId as string };
+    const row = await loadOwnerForWrite(user, owner);
 
-    const existing = await prisma.quiz.findUnique({
-        where: { moduleId: payload.moduleId },
-        select: { id: true },
-    });
+    const existing = await prisma.quiz.findFirst({ where: owner, select: { id: true } });
     if (existing) {
-        throw new AppError(status.CONFLICT, "This module already has a quiz — edit it instead.");
+        throw new AppError(
+            status.CONFLICT,
+            `This ${"moduleId" in owner ? "module" : "assignment"} already has a quiz — edit it instead.`,
+        );
     }
 
-    logger.create("Creating quiz", { moduleId: payload.moduleId });
+    logger.create("Creating quiz", owner);
 
     return prisma.quiz.create({
         data: {
+            ...owner,
             title: payload.title,
             description: payload.description,
-            moduleId: payload.moduleId,
-            courseId: courseModule.courseId,
+            courseId: row.courseId,
             createdById: user.userId,
         },
         include: { questions: { include: { options: true }, orderBy: { order: "asc" } } },
@@ -105,11 +111,11 @@ const createQuiz = async (
 };
 
 /**
- * A quiz goes live with its module (`setQuizzesLive` in courseModule.service)
- * and is never announced on its own — "New module available" covers it. The
- * one time staff make it live here is a quiz written after its module already
- * went live; never before the module, which would put it in front of students
- * ahead of the lessons it tests.
+ * A quiz goes live with its module or assignment (`utils/quizLive.ts`) and
+ * is never announced on its own — "New module available" (or assignment)
+ * covers it. The one time staff make it live here is a quiz written after its
+ * owner already went live; never before it, which would put it in front of
+ * students ahead of the lessons it tests.
  */
 const updateQuiz = async (
     user: IRequestUser,
@@ -123,6 +129,7 @@ const updateQuiz = async (
             title: true,
             isPublished: true,
             module: { select: { isPublished: true } },
+            assignment: { select: { isPublished: true } },
             _count: { select: { questions: true } },
         },
     });
@@ -130,10 +137,16 @@ const updateQuiz = async (
 
     await assertCanManageCourse(user, quiz.courseId);
 
+    const ownerWord = quiz.module ? "module" : "assignment";
     const isNewlyPublished = payload.isPublished === true && !quiz.isPublished;
-    if (isNewlyPublished && !quiz.module.isPublished) {
-        throw new AppError(status.BAD_REQUEST, "This quiz goes live together with its module — publish the module and the quiz goes with it.");
+    if (isNewlyPublished && !(quiz.module ?? quiz.assignment)?.isPublished) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            `This quiz goes live together with its ${ownerWord} — publish the ${ownerWord} and the quiz goes with it.`,
+        );
     }
+    // An assignment's quiz always sits after its lessons — there's no place among them to move it to.
+    if (quiz.assignment) delete payload.position;
     // Every question is written with exactly one correct option and at least
     // two options (`quiz.validation.ts` enforces this on every write), so the
     // only thing left to check before letting students see this quiz is that
@@ -173,12 +186,12 @@ const deleteQuiz = async (user: IRequestUser, quizId: string) => {
     removeQuizImages(quiz.questions.map((question) => question.imageUrl));
 };
 
-/** The quiz for one module, full detail (correct answers included) — staff editing only. */
-const getQuizForModule = async (user: IRequestUser, moduleId: string) => {
-    const courseModule = await loadModuleForWrite(user, moduleId);
+/** The quiz of a module or an assignment, full detail (correct answers included) — staff editing only. */
+const getQuizFor = async (user: IRequestUser, owner: QuizOwner) => {
+    await loadOwnerForWrite(user, owner);
 
-    return prisma.quiz.findUnique({
-        where: { moduleId: courseModule.id },
+    return prisma.quiz.findFirst({
+        where: owner,
         include: {
             questions: {
                 orderBy: { order: "asc" },
@@ -187,6 +200,10 @@ const getQuizForModule = async (user: IRequestUser, moduleId: string) => {
         },
     });
 };
+
+const getQuizForModule = (user: IRequestUser, moduleId: string) => getQuizFor(user, { moduleId });
+
+const getQuizForAssignment = (user: IRequestUser, assignmentId: string) => getQuizFor(user, { assignmentId });
 
 const createQuestion = async (
     user: IRequestUser,
@@ -402,6 +419,7 @@ const getQuizForStudent = async (user: IRequestUser, quizId: string) => {
             courseId: true,
             position: true,
             module: { select: { id: true, title: true } },
+            assignment: { select: { title: true, isPublished: true } },
             questions: {
                 orderBy: { order: "asc" },
                 select: {
@@ -414,21 +432,24 @@ const getQuizForStudent = async (user: IRequestUser, quizId: string) => {
             },
         },
     });
-    if (!quiz) throw new AppError(status.NOT_FOUND, "Quiz not found.");
+    if (!quiz || quiz.assignment?.isPublished === false) throw new AppError(status.NOT_FOUND, "Quiz not found.");
 
     const enrollment = await requireEnrollment(user, quiz.courseId);
-    await assertModuleUnlocked(enrollment.id, quiz.module.id);
+    if (quiz.module) await assertModuleUnlocked(enrollment.id, quiz.module.id);
 
     const result = await findSubmission(quizId, user.userId);
-    // A quiz already taken keeps showing its result; one not taken yet waits
-    // for the lessons before it.
-    if (!result) await assertLessonsBeforeQuizComplete(enrollment.id, { moduleId: quiz.module.id, position: quiz.position });
+    // A module's quiz already taken keeps showing its result; one not taken
+    // yet waits for the lessons before it. An assignment's opens with it.
+    if (!result && quiz.module) {
+        await assertLessonsBeforeQuizComplete(enrollment.id, { moduleId: quiz.module.id, position: quiz.position });
+    }
 
     return {
         id: quiz.id,
         title: quiz.title,
         description: quiz.description,
-        moduleTitle: quiz.module.title,
+        // What it belongs to: its module's title, or its assignment's.
+        moduleTitle: quiz.module?.title ?? quiz.assignment?.title ?? "",
         totalQuestions: quiz.questions.length,
         result,
         questions: result ? [] : quiz.questions.map(sanitiseQuestion),
@@ -456,17 +477,21 @@ const submitQuiz = async (
             courseId: true,
             moduleId: true,
             position: true,
+            assignment: { select: { isPublished: true } },
             questions: { select: { id: true, options: { select: { id: true, isCorrect: true } } } },
         },
     });
-    if (!quiz) throw new AppError(status.NOT_FOUND, "Quiz not found.");
+    if (!quiz || quiz.assignment?.isPublished === false) throw new AppError(status.NOT_FOUND, "Quiz not found.");
     if (quiz.questions.length === 0) {
         throw new AppError(status.BAD_REQUEST, "This quiz has no questions yet.");
     }
 
     const enrollment = await requireEnrollment(user, quiz.courseId);
-    await assertModuleUnlocked(enrollment.id, quiz.moduleId);
-    await assertLessonsBeforeQuizComplete(enrollment.id, quiz);
+    // Only a module's quiz waits for its module to open and the lessons before it.
+    if (quiz.moduleId) {
+        await assertModuleUnlocked(enrollment.id, quiz.moduleId);
+        await assertLessonsBeforeQuizComplete(enrollment.id, { moduleId: quiz.moduleId, position: quiz.position });
+    }
 
     const questionsById = new Map(quiz.questions.map((question) => [question.id, question]));
     const selected = new Map<string, string>();
@@ -616,6 +641,7 @@ const getQuizResults = async (user: IRequestUser, quizId: string) => {
         select: {
             id: true, title: true, courseId: true, isPublished: true,
             module: { select: { id: true, title: true, order: true } },
+            assignment: { select: { id: true, title: true } },
             questions: {
                 orderBy: { order: "asc" },
                 select: {
@@ -644,7 +670,7 @@ const getQuizResults = async (user: IRequestUser, quizId: string) => {
 
     const pickedOf = new Map(picks.map((row) => [row.selectedOptionId, row._count._all]));
     return {
-        quiz: { id: quiz.id, title: quiz.title, isPublished: quiz.isPublished, module: quiz.module },
+        quiz: { id: quiz.id, title: quiz.title, isPublished: quiz.isPublished, module: quiz.module, assignment: quiz.assignment },
         attempts,
         questions: quiz.questions.map(({ options, ...question }) => {
             const rows = outcomes.filter((row) => row.questionId === question.id);
@@ -686,6 +712,7 @@ export const QuizService = {
     updateQuiz,
     deleteQuiz,
     getQuizForModule,
+    getQuizForAssignment,
     createQuestion,
     updateQuestion,
     deleteQuestion,

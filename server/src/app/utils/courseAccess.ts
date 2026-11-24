@@ -189,11 +189,15 @@ const firstUntakenQuizBefore = async (enrollmentId: string, moduleId: string, le
         select: { title: true, module: { select: { order: true, milestone: { select: { order: true } } } } },
     });
 
-    // The earliest one, so the student is told where to go.
+    // The earliest one, so the student is told where to go. Every one has a
+    // module (the filters above) — an assignment's quiz never holds lessons back.
+    const placeOf = (quiz: (typeof untaken)[number]) => [quiz.module?.milestone.order ?? 0, quiz.module?.order ?? 0];
     return (
-        untaken.sort(
-            (a, b) => a.module.milestone.order - b.module.milestone.order || a.module.order - b.module.order,
-        )[0] ?? null
+        untaken.sort((a, b) => {
+            const [aWeek, aModule] = placeOf(a);
+            const [bWeek, bModule] = placeOf(b);
+            return aWeek - bWeek || aModule - bModule;
+        })[0] ?? null
     );
 };
 

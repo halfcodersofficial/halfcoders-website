@@ -806,6 +806,8 @@ const getStaffCourseResults = async (user: IRequestUser, courseId: string) => {
             select: {
                 id: true, title: true, isPublished: true,
                 module: { select: { id: true, title: true, order: true, milestone: { select: { order: true } } } },
+                // Or the assignment it belongs to.
+                assignment: { select: { id: true, title: true, milestone: { select: { order: true } } } },
                 _count: { select: { questions: true } },
             },
         }),
@@ -824,6 +826,7 @@ const getStaffCourseResults = async (user: IRequestUser, courseId: string) => {
     });
     const nameOf = new Map(takers.map((student) => [student.id, student]));
     const average = (values: number[]) => (values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null);
+    const weekOf = (quiz: (typeof quizzes)[number]) => (quiz.module ?? quiz.assignment)?.milestone.order ?? 0;
 
     return {
         course,
@@ -846,7 +849,8 @@ const getStaffCourseResults = async (user: IRequestUser, courseId: string) => {
                 submissions,
             };
         }),
-        quizzes: quizzes.map((quiz) => {
+        // In course order: by week, a module's before an assignment's in the same week.
+        quizzes: [...quizzes].sort((a, b) => weekOf(a) - weekOf(b) || (a.module ? 0 : 1) - (b.module ? 0 : 1)).map((quiz) => {
             const rows = bestAttempts
                 .filter((row) => row.quizId === quiz.id && nameOf.has(row.studentId))
                 .map((row) => ({

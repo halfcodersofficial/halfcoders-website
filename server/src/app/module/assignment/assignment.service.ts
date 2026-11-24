@@ -18,6 +18,7 @@ import { assertCanManageCourse, requireEnrollment } from "../../utils/courseAcce
 import { type LateTier, normaliseLateTiers, parseLateTiers, submissionWindow } from "../../utils/lateWindows";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
+import { setQuizzesLive } from "../../utils/quizLive";
 import { applyReleaseRules, assertCanSchedule, nextWeekPosition, SCHEDULED_COURSE_FILTER } from "../../utils/weekItems";
 import { getXpRules } from "../../utils/platformSettings";
 import { QueryBuilder } from "../../utils/QueryBuilder";
@@ -211,7 +212,13 @@ const updateAssignment = async (
             : [];
     }
 
-    const updated = await prisma.assignment.update({ where: { id: assignmentId }, data });
+    // Its quiz goes live with it and comes down with it ("New assignment available" covers it).
+    const comesDown = data.isPublished === false && assignment.isPublished;
+    const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.assignment.update({ where: { id: assignmentId }, data });
+        if (isNewlyPublished || comesDown) await setQuizzesLive(tx, { assignmentId: { in: [assignmentId] } }, isNewlyPublished);
+        return row;
+    });
 
     if (isNewlyPublished) {
         void notifyCohort(assignment.courseId, updated.title, updated.id);
@@ -233,9 +240,10 @@ const publishDueAssignments = async () => {
     });
     if (due.length === 0) return;
 
-    await prisma.assignment.updateMany({
-        where: { id: { in: due.map((a) => a.id) } },
-        data: { isPublished: true, publishedAt: new Date() },
+    const ids = due.map((a) => a.id);
+    await prisma.$transaction(async (tx) => {
+        await tx.assignment.updateMany({ where: { id: { in: ids } }, data: { isPublished: true, publishedAt: new Date() } });
+        await setQuizzesLive(tx, { assignmentId: { in: ids } }, true);
     });
     logger.create("Auto-published scheduled assignments", { count: due.length });
 

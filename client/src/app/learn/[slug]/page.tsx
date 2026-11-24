@@ -166,10 +166,21 @@ const moduleSteps = (courseModule: LearningModule): ModuleStep[] => {
     return steps;
 };
 
-/** One place the player can open, in the order a student meets them. */
+/**
+ * One place the player can open, in the order a student meets them. A quiz
+ * belongs to a module (`courseModule`) or to an assignment (`group`, with
+ * `courseModule` null) — only a module's holds back the lessons after it.
+ */
 type CourseStop =
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule; milestone: LearningMilestone }
-    | { kind: "QUIZ"; key: string; quiz: LearningQuiz; courseModule: LearningModule; milestone: LearningMilestone }
+    | {
+        kind: "QUIZ";
+        key: string;
+        quiz: LearningQuiz;
+        courseModule: LearningModule | null;
+        group: WeekGroup | null;
+        milestone: LearningMilestone;
+    }
     | { kind: "FINISH"; key: string; courseModule: LearningModule; milestone: LearningMilestone }
     | { kind: "MATERIAL"; key: string; group: WeekGroup; material: LessonMaterial; index: number; milestone: LearningMilestone }
     | { kind: "GROUP"; key: string; group: WeekGroup; milestone: LearningMilestone };
@@ -208,7 +219,7 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
                     stops.push(
                         step.kind === "VIDEO"
                             ? { kind: "VIDEO", key: stopKey.video(step.video.id), video: step.video, courseModule, milestone }
-                            : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, milestone },
+                            : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, group: null, milestone },
                     );
                 }
                 finishing = courseModule;
@@ -218,6 +229,11 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
             group.entry.materials.forEach((material, index) =>
                 stops.push({ kind: "MATERIAL", key: stopKey.material(group.entry.id, material.id), group, material, index, milestone }),
             );
+            // An assignment's quiz: after its lessons, before its brief & submission.
+            if (group.kind === "ASSIGNMENT" && group.entry.quiz) {
+                const quiz = group.entry.quiz;
+                stops.push({ kind: "QUIZ", key: stopKey.quiz(quiz.id), quiz, courseModule: null, group, milestone });
+            }
             if (hasGroupPage(group)) stops.push({ kind: "GROUP", key: stopKey.group(group.entry.id), group, milestone });
         }
         closeModule();
@@ -225,28 +241,36 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
     return stops;
 };
 
+/** A module's quiz — the kind that holds back the lessons after it, on the server too. */
+const isModuleQuiz = (stop: CourseStop) => stop.kind === "QUIZ" && stop.courseModule !== null;
+
 /**
  * A stop nothing after it gets past until it's done: a lesson not finished,
- * or a quiz not taken. A locked module's lessons aren't counted — they can't
- * be done yet.
+ * or a module's quiz not taken. A locked module's lessons aren't counted —
+ * they can't be done yet.
  */
 const isOpenGate = (stop: CourseStop) =>
     (stop.kind === "VIDEO" && !stop.video.isCompleted && !stop.courseModule.isLocked) ||
-    (stop.kind === "QUIZ" && !stop.quiz.isCompleted);
+    (stop.kind === "QUIZ" && isModuleQuiz(stop) && !stop.quiz.isCompleted);
 
 /**
  * Where a returning student picks up: the first lesson or quiz they haven't
- * done — unless a practice day or assignment between it and the last one they
- * did is still to do (one just released, say), which comes first. With
- * everything done, the last module's "complete" screen.
+ * done — unless a practice day or assignment (or an assignment's quiz)
+ * between it and the last one they did is still to do (one just released,
+ * say), which comes first. With everything done, the last module's
+ * "complete" screen.
  */
 const resumeStop = (stops: CourseStop[]): CourseStop | null => {
     const gateAt = stops.findIndex(isOpenGate);
     const end = gateAt < 0 ? stops.length : gateAt;
-    const lastDoneAt = stops.slice(0, end).findLastIndex((stop) => stop.kind === "VIDEO" || stop.kind === "QUIZ");
+    const lastDoneAt = stops.slice(0, end).findLastIndex((stop) => stop.kind === "VIDEO" || isModuleQuiz(stop));
     const pending = stops
         .slice(lastDoneAt + 1, end)
-        .find((stop) => (stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupDone(stop.group));
+        .find(
+            (stop) =>
+                ((stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupDone(stop.group)) ||
+                (stop.kind === "QUIZ" && !stop.courseModule && !stop.quiz.isCompleted),
+        );
     if (pending) return pending;
     if (gateAt >= 0) return stops[gateAt];
     return stops.findLast((stop) => stop.kind === "FINISH") ?? null;
@@ -264,6 +288,8 @@ const quizOpensFor = (data: CourseLearning, stops: CourseStop[], quizId: string)
     const stop = stops[at];
     if (stop?.kind !== "QUIZ") return false;
     if (stop.quiz.isCompleted) return true;
+    // An assignment's quiz opens with its assignment, like its lessons.
+    if (!stop.courseModule) return true;
     if (stop.courseModule.isLocked) return false;
     return stops.slice(0, at).every((earlier) => earlier.kind !== "VIDEO" || earlier.video.isCompleted);
 };
@@ -374,7 +400,7 @@ export default function LearnPage() {
             if (stop.kind === "VIDEO") {
                 if (!reachedCurrent || stop.video.isCompleted) ids.add(stop.video.id);
                 if (!stop.video.isCompleted) reachedCurrent = true;
-            } else if (stop.kind === "QUIZ" && !stop.quiz.isCompleted) {
+            } else if (isModuleQuiz(stop) && stop.kind === "QUIZ" && !stop.quiz.isCompleted) {
                 reachedCurrent = true;
             }
         }
@@ -429,7 +455,9 @@ export default function LearnPage() {
 
         const requestedQuiz = searchParams.get("quiz");
         const owningQuizMilestone = requestedQuiz
-            ? data.curriculum.find((m) => m.modules.some((mod) => mod.quiz?.id === requestedQuiz))
+            ? data.curriculum.find(
+                (m) => m.modules.some((mod) => mod.quiz?.id === requestedQuiz) || m.assignments.some((a) => a.quiz?.id === requestedQuiz),
+            )
             : null;
         // A link to a quiz whose lessons aren't all done yet (the "new quiz"
         // notification goes to everyone) lands on the current lesson instead.
@@ -535,6 +563,13 @@ export default function LearnPage() {
         if (groupId) {
             const found = findGroup(data, groupId);
             return found ? { moduleId: groupId, milestoneId: found.milestone.id } : null;
+        }
+        // An assignment's quiz opens its assignment in the list.
+        if (activeQuizId && !activeCompleteModuleId) {
+            for (const milestone of data.curriculum) {
+                const assignment = milestone.assignments.find((a) => a.quiz?.id === activeQuizId);
+                if (assignment) return { moduleId: assignment.id, milestoneId: milestone.id };
+            }
         }
         for (const milestone of data.curriculum) {
             for (const courseModule of milestone.modules) {
@@ -1462,7 +1497,7 @@ export default function LearnPage() {
                                         <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
                                         <span className="truncate">
                                             {activeStop.kind === "QUIZ"
-                                                ? activeStop.courseModule.title
+                                                ? (activeStop.courseModule?.title ?? `${GROUP_LABEL.ASSIGNMENT}: ${activeStop.group?.entry.title ?? ""}`)
                                                 : `${GROUP_LABEL[activeStop.group.kind]}: ${activeStop.group.entry.title}`}
                                         </span>
                                         <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
@@ -2479,6 +2514,10 @@ function WeekRoute({
         for (const material of group.entry.materials) {
             items.push({ kind: "MATERIAL", key: `MATERIAL:${group.entry.id}:${material.id}`, group, material });
         }
+        // An assignment's quiz: after its lessons, before its brief & submission.
+        if (group.kind === "ASSIGNMENT" && group.entry.quiz) {
+            items.push({ kind: "QUIZ", key: `QUIZ:${group.entry.quiz.id}`, quiz: group.entry.quiz });
+        }
         if (hasGroupPage(group)) items.push({ kind: "GROUP_PAGE", key: `GROUP_PAGE:${group.entry.id}`, group });
     }
     closeModule();
@@ -2772,7 +2811,10 @@ function WeekRoute({
                                         title={item.isOpen ? "Hide its lessons" : "Show its lessons"}
                                         className={cn(
                                             "relative flex w-full items-center gap-3 rounded-xl border bg-secondary py-2 pl-1.75 pr-2 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default",
-                                            isActiveGroup(group) ? "border-primary/40" : "border-border",
+                                            // Also while its quiz is open.
+                                            isActiveGroup(group) || (group.kind === "ASSIGNMENT" && activeQuizId !== null && group.entry.quiz?.id === activeQuizId)
+                                                ? "border-primary/40"
+                                                : "border-border",
                                         )}
                                     >
                                         <span
