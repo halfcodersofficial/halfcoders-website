@@ -89,7 +89,8 @@ export const requestRecheckZodSchema = z.object({
 
 /**
  * A recheck's decision. VALID raises the mark — a new score, or the rubric's
- * lines again; INVALID keeps it, and must say why.
+ * lines again; INVALID keeps it, and must say why. Either may also rewrite
+ * the feedback the student reads (`feedback`; empty clears it).
  */
 export const decideRecheckZodSchema = z
     .object({
@@ -106,6 +107,7 @@ export const decideRecheckZodSchema = z
             .max(30)
             .optional(),
         note: z.string().trim().max(5000).optional(),
+        feedback: z.string().trim().max(5000).optional(),
     })
     .refine((data) => data.outcome !== "VALID" || data.score !== undefined || data.rubric !== undefined, {
         path: ["score"],

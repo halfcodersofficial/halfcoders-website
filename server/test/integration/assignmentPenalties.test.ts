@@ -193,21 +193,21 @@ describe("assignment results, penalties and rechecks", () => {
         expect(submission.rechecks[0]).toMatchObject({ status: "INVALID", scoreBefore: 80, scoreAfter: 80 });
     });
 
-    it("a valid recheck raises the mark and gives the fee back", async () => {
+    it("a valid recheck makes the mark exactly the one given — every deduction comes back — with new feedback", async () => {
         expect((await recheck()).status).toBe(201);
         const recheckId = (await view()).submission.rechecks[0].id;
         expect((await decide(recheckId, { outcome: "VALID", score: 80 })).status).toBe(400); // not a raise
-        expect((await decide(recheckId, { outcome: "VALID", score: 90 })).status).toBe(200);
+        expect((await decide(recheckId, { outcome: "VALID", score: 90, feedback: "Question 2 was right after all." })).status).toBe(200);
 
         const { submission } = await view();
-        // 90, less the resubmission (3) and the first recheck (2 + 3); the second's fee came back.
-        expect(submission).toMatchObject({ score: 90, finalScore: 82, markAdjustment: -8 });
+        // 90 as given: the resubmission (3), the first recheck (2 + 3) and this one's fee (2) all came back.
+        expect(submission).toMatchObject({ score: 90, finalScore: 90, markAdjustment: 0, feedback: "Question 2 was right after all." });
         expect(await adjustments()).toEqual([
             { kind: "RESUBMIT_PENALTY", marks: -3 },
             { kind: "RECHECK_FEE", marks: -2 },
             { kind: "RECHECK_PENALTY", marks: -3 },
             { kind: "RECHECK_FEE", marks: -2 },
-            { kind: "RECHECK_REFUND", marks: 2 },
+            { kind: "RECHECK_REFUND", marks: 10 },
         ]);
     });
 
@@ -234,8 +234,10 @@ describe("assignment results, penalties and rechecks", () => {
             [2, "VOLUNTARY", "Second go"],
             [1, "FIRST", "First go"],
         ]);
-        expect(reviews).toHaveLength(1);
-        expect(reviews[0]).toMatchObject({ status: "ACCEPTED", score: 80, feedback: "Good" });
+        // The first marking, and the feedback rewritten with the raised mark.
+        expect(reviews).toHaveLength(2);
+        expect(reviews[0]).toMatchObject({ status: "ACCEPTED", score: 90, feedback: "Question 2 was right after all." });
+        expect(reviews[1]).toMatchObject({ status: "ACCEPTED", score: 80, feedback: "Good" });
         expect(rechecks).toHaveLength(2);
 
         expect((await history(student)).status).toBe(403);
