@@ -305,6 +305,32 @@ const findGroup = (data: CourseLearning, groupId: string): { group: WeekGroup; m
     return null;
 };
 
+/**
+ * The practice days and assignments that follow a module in its week, up to
+ * the next module — the stretch its "complete" screen comes after.
+ */
+const moduleTrail = (milestone: LearningMilestone, moduleId: string): WeekGroup[] => {
+    const trail: WeekGroup[] = [];
+    let inside = false;
+    for (const row of weekRows(milestone, true)) {
+        if (row.kind === "MODULE") {
+            if (inside) break;
+            inside = row.entry.id === moduleId;
+        } else if (inside) {
+            trail.push(row.kind === "PRACTICE" ? { kind: "PRACTICE", entry: row.entry } : { kind: "ASSIGNMENT", entry: row.entry });
+        }
+    }
+    return trail;
+};
+
+/**
+ * What a module's "complete" stop is for — what was just finished: the last
+ * practice day or assignment after the module that's done, or (null) the
+ * module itself.
+ */
+const finishedLast = (milestone: LearningMilestone, courseModule: LearningModule): WeekGroup | null =>
+    moduleTrail(milestone, courseModule.id).findLast(groupDone) ?? null;
+
 /** A module and the milestone it sits in. */
 const findModule = (data: CourseLearning, moduleId: string) => {
     for (const milestone of data.curriculum) {
@@ -1195,6 +1221,13 @@ export default function LearnPage() {
         return isLastStop ? group.entry : null;
     })();
 
+    /**
+     * What "Next" into a "complete" stop finishes: the practice day or
+     * assignment open now, or else the module.
+     */
+    const finishingLabel =
+        activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP" ? GROUP_LABEL[activeStop.group.kind] : moduleLabel;
+
     /** What a stop is called on a button or the player's "Up next". */
     const stopTitle = (stop: CourseStop) => {
         switch (stop.kind) {
@@ -1203,7 +1236,7 @@ export default function LearnPage() {
             case "QUIZ":
                 return quizLabel(stop.quiz.title);
             case "FINISH":
-                return `${moduleLabel} complete`;
+                return `${finishingLabel} complete`;
             case "MATERIAL":
                 return stop.material.title;
             case "GROUP":
@@ -1236,7 +1269,7 @@ export default function LearnPage() {
                 onSelect: advance,
                 label:
                     nextStop.kind === "FINISH"
-                        ? `Finish ${moduleLabel.toLowerCase()}`
+                        ? `Finish ${finishingLabel.toLowerCase()}`
                         : nextStop.kind === "QUIZ"
                             ? "Take the quiz"
                             : nextStop.kind === "GROUP"
@@ -1415,6 +1448,7 @@ export default function LearnPage() {
                             course={data.course}
                             milestone={completePlace.milestone}
                             courseModule={completePlace.courseModule}
+                            finished={finishedLast(completePlace.milestone, completePlace.courseModule)}
                         />
                     ) : activeQuizId ? (
                         <QuizPane key={activeQuizId} quizId={activeQuizId} />
@@ -2700,6 +2734,9 @@ function WeekRoute({
                         (() => {
                             const done = isModuleDone(item.courseModule);
                             const isActive = activeCompleteModuleId === item.courseModule.id;
+                            // Named for what was just finished: the module, a practice day or an assignment.
+                            const finished = finishedLast(milestone, item.courseModule);
+                            const label = finished ? GROUP_LABEL[finished.kind] : moduleLabel;
                             return (
                                 // On the wrapper, not the disabled button — a disabled button shows no tooltip.
                                 <div
@@ -2728,7 +2765,7 @@ function WeekRoute({
                                                 isActive ? "font-semibold text-primary" : !done && "text-muted-foreground",
                                             )}
                                         >
-                                            {moduleLabel} complete
+                                            {label} complete
                                         </span>
                                         <span className="shrink-0 text-xs text-muted-foreground">
                                             {done ? "Finished" : "Finish line"}
