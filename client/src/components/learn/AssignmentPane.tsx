@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
-    ChevronDown,
     Clock,
     CodeXml,
     ExternalLink,
@@ -26,12 +25,10 @@ import { toast } from "sonner";
 import { MarkChanges, RecheckDialog, RecheckResult, ResultDetails } from "@/components/learn/AssignmentResult";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import { Eyebrow } from "@/components/site/code";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
-import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { linkify } from "@/lib/linkify";
 import { cn, formatDateTime } from "@/lib/utils";
 import { assignmentService } from "@/services";
@@ -39,9 +36,6 @@ import type { AssignmentSubmission, StudentAssignment } from "@/types/learning.t
 
 type PayWith = "MARKS" | "XP";
 type Popup = "submission" | "feedback" | "recheck" | "resubmit";
-
-/** How long a brief runs before "See more". */
-const SHORT_BRIEF = 420;
 
 /**
  * An assignment's own page in the player: what it is, then one box that
@@ -53,9 +47,6 @@ const SHORT_BRIEF = 420;
  */
 export default function AssignmentPane({ slug, assignmentId }: { slug: string; assignmentId: string }) {
     const queryClient = useQueryClient();
-    const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-    // Null: the default — open before a hand-in, when there are instructions to read.
-    const [detailsOpen, setDetailsOpen] = useState<boolean | null>(null);
     const [draft, setDraft] = useState("");
     const [files, setFiles] = useState<AttachedFile[]>([]);
     // A paid resubmission opens only once the student has picked how to pay — never by accident.
@@ -68,7 +59,6 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     useEffect(() => {
         setPayWith(null);
         setPopup(null);
-        setDetailsOpen(null);
         setRecheckView(null);
     }, [assignmentId]);
 
@@ -86,7 +76,6 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
         const content = submission?.content ?? "";
         const url = submission?.submissionUrl;
         setDraft(url && !content.includes(url) ? [url, content].filter(Boolean).join("\n\n") : content);
-        setDescriptionExpanded(false);
     }, [assignmentId, submission?.id, submission?.content, submission?.submissionUrl]);
 
     // A resubmission starts from the files already handed in; any can be taken off.
@@ -158,11 +147,6 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     const recheckMode = pendingRecheck ? (recheckView ?? (resentForRecheck ? "result" : "form")) : null;
     const showForm = data.canSubmit && (!paid || payWith !== null) && recheckMode !== "result";
     const status = submission?.status;
-    const description = data.description ?? "";
-    const isLongDescription = description.length > SHORT_BRIEF;
-    const shownDescription = !descriptionExpanded && isLongDescription ? `${description.slice(0, SHORT_BRIEF)}…` : description;
-    const hasDetails = Boolean(data.instructions) || data.rubric?.length > 0 || data.attachments.length > 0 || data.lateTiers.length > 0;
-    const showDetails = detailsOpen ?? (!submission && Boolean(data.instructions));
 
     const mySubmissionButton = (
         // A plain button — it also sits inside the answer form while a recheck waits.
@@ -403,57 +387,11 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     return (
         <div className="space-y-4">
             <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-                {/* What it is. */}
+                {/* What it is — the title; the brief and instructions are in its lessons. */}
                 <div className="px-5 py-6 text-center sm:px-8 sm:py-8">
                     <Eyebrow>Assignment</Eyebrow>
                     <h2 className="mt-1.5 text-balance text-xl font-bold tracking-tight wrap-break-word sm:text-2xl">{data.title}</h2>
-                    {description && (
-                        <p className="mx-auto mt-2 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground wrap-break-word">
-                            {linkify(shownDescription)}
-                        </p>
-                    )}
-                    {isLongDescription && (
-                        <button
-                            type="button"
-                            className="mt-1.5 text-sm font-medium text-primary hover:underline"
-                            onClick={() => setDescriptionExpanded((v) => !v)}
-                        >
-                            {descriptionExpanded ? "See less" : "See more"}
-                        </button>
-                    )}
-                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                        <Badge>{data.totalMarks} marks</Badge>
-                        {/* Only while there's no hand-in yet — after that, what counts is the mark it fixed. */}
-                        {data.deadline && !submission && (
-                            <Badge variant={data.window.status === "CLOSED" ? "destructive" : data.window.status === "LATE" ? "warning" : "secondary"}>
-                                <Clock className="size-3" aria-hidden />
-                                {data.window.status === "CLOSED"
-                                    ? "Batch ended — closed"
-                                    : data.window.status === "LATE"
-                                      ? data.window.until
-                                          ? `Late — out of ${data.window.maxScore} until ${formatDateTime(data.window.until)}`
-                                          : `Late — out of ${data.window.maxScore}`
-                                      : `Due ${formatDateTime(data.deadline)}`}
-                            </Badge>
-                        )}
-                    </div>
                 </div>
-
-                {/* Instructions, late marks, the rubric and attachments — folded away once handed in. */}
-                {hasDetails && (
-                    <div className="border-t border-border">
-                        <button
-                            type="button"
-                            aria-expanded={showDetails}
-                            onClick={() => setDetailsOpen(!showDetails)}
-                            className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold transition-colors hover:bg-secondary/50 sm:px-8"
-                        >
-                            Instructions &amp; marking
-                            <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", showDetails && "rotate-180")} />
-                        </button>
-                        {showDetails && <BriefDetails assignment={data} hasSubmission={Boolean(submission)} />}
-                    </div>
-                )}
 
                 <div className="border-t border-border px-5 py-6 sm:px-8 sm:py-8">{stage}</div>
             </div>
@@ -747,109 +685,6 @@ function MySubmission({ assignment, submission }: { assignment: StudentAssignmen
                 {submission.attempts > 1 && ` · sent ${submission.attempts} times`}
                 {costs.length > 0 && ` · resubmitting cost ${costs.join(" and ")}`}
             </p>
-        </div>
-    );
-}
-
-/** Instructions, the late-marks schedule, the rubric and attachments — what to read before handing in. */
-function BriefDetails({ assignment, hasSubmission }: { assignment: StudentAssignment; hasSubmission: boolean }) {
-    const { deadline, lateTiers, window } = assignment;
-
-    return (
-        <div className="space-y-5 px-5 pb-6 pt-1 text-sm sm:px-8">
-            {assignment.instructions && (
-                <section>
-                    <h3 className="mb-1.5 font-semibold">Instructions</h3>
-                    <div
-                        className="leading-relaxed text-muted-foreground"
-                        // Escaped and link-restricted by renderLightMarkdown.
-                        dangerouslySetInnerHTML={{ __html: renderLightMarkdown(assignment.instructions) }}
-                    />
-                </section>
-            )}
-
-            {deadline && lateTiers.length > 0 && (
-                <section>
-                    <h3 className="mb-1.5 font-semibold">Late marks</h3>
-                    <ol className="space-y-1.5">
-                        {[
-                            { key: "deadline", until: deadline, marks: assignment.totalMarks, current: window.status === "ON_TIME" },
-                            ...lateTiers.map((tier) => ({
-                                key: tier.until,
-                                until: tier.until,
-                                marks: tier.maxMarks,
-                                current: window.status === "LATE" && window.until === tier.until,
-                            })),
-                            // Past the last window it's still taken, out of that window's marks, until the batch ends.
-                            {
-                                key: "after",
-                                until: null,
-                                marks: lateTiers[lateTiers.length - 1].maxMarks,
-                                current: window.status === "LATE" && window.until === null,
-                            },
-                        ].map((step) => (
-                            <li
-                                key={step.key}
-                                aria-current={!hasSubmission && step.current ? "true" : undefined}
-                                className={cn(
-                                    "flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2",
-                                    !hasSubmission && step.current ? "bg-primary/10 font-medium text-primary" : "bg-secondary/40 text-muted-foreground",
-                                )}
-                            >
-                                <span>
-                                    {step.until
-                                        ? `Submitted by ${formatDateTime(step.until)}`
-                                        : `After ${formatDateTime(lateTiers[lateTiers.length - 1].until)}, until the batch ends`}
-                                </span>
-                                <span>
-                                    out of {step.marks}
-                                    {!hasSubmission && step.current ? " · now" : ""}
-                                </span>
-                            </li>
-                        ))}
-                        <li className="px-3 text-xs text-muted-foreground">Submissions close only when the batch ends and the course moves to recorded.</li>
-                    </ol>
-                </section>
-            )}
-
-            {assignment.rubric?.length > 0 && (
-                <section>
-                    <h3 className="mb-1.5 font-semibold">How it&apos;s marked</h3>
-                    <ul className="divide-y divide-border rounded-lg border border-border">
-                        {assignment.rubric.map((line) => (
-                            <li key={line.id} className="flex items-start justify-between gap-4 px-3 py-2">
-                                <span className="min-w-0">
-                                    <span className="block font-medium">{line.title}</span>
-                                    {line.description && <span className="block text-xs text-muted-foreground">{line.description}</span>}
-                                </span>
-                                <span className="shrink-0 tabular-nums text-muted-foreground">{line.maxPoints} marks</span>
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-            )}
-
-            {assignment.attachments.length > 0 && (
-                <section>
-                    <h3 className="mb-1.5 font-semibold">Attachments</h3>
-                    <ul className="flex flex-wrap gap-2">
-                        {assignment.attachments.map((url, index) => (
-                            <li key={url}>
-                                <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-primary hover:border-primary/60"
-                                >
-                                    <FileText className="size-4" aria-hidden />
-                                    Attachment {index + 1}
-                                    <ExternalLink className="size-3" aria-hidden />
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-            )}
         </div>
     );
 }

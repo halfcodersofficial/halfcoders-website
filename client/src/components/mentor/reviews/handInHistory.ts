@@ -60,3 +60,38 @@ export const queueHref = (history: Pick<SubmissionHistory, "id" | "status" | "re
     else if (history.status !== "SUBMITTED" && history.status !== "UNDER_REVIEW") params.set("status", history.status);
     return `/mentor/reviews?${params.toString()}`;
 };
+
+/**
+ * Where a hand-in version or a recheck request stands: resolved once it's
+ * been marked (a marking or a recheck decision after it), waiting while it's
+ * the latest and not yet marked, replaced when a newer version came in before
+ * anyone marked it. Markings and decisions are resolutions themselves — null.
+ */
+export const eventState = (event: HistoryEvent, history: SubmissionHistory): "resolved" | "waiting" | "replaced" | null => {
+    if (event.kind === "recheckAsked") return event.recheck.status === "PENDING" ? "waiting" : "resolved";
+    if (event.kind !== "version") return null;
+
+    const sent = new Date(event.version.submittedAt).getTime();
+    // Marked while this was the version on hand: after it came in, before the next one did.
+    const next = Math.min(
+        ...history.versions.map((version) => new Date(version.submittedAt).getTime()).filter((time) => time > sent),
+        Number.POSITIVE_INFINITY,
+    );
+    const markedWhileCurrent = (at: string) => {
+        const time = new Date(at).getTime();
+        return time >= sent && time < next;
+    };
+    if (
+        history.reviews.some((review) => markedWhileCurrent(review.createdAt)) ||
+        history.rechecks.some((recheck) => recheck.reviewedAt !== null && markedWhileCurrent(recheck.reviewedAt))
+    ) {
+        return "resolved";
+    }
+    return next === Number.POSITIVE_INFINITY ? "waiting" : "replaced";
+};
+
+export const STATE_META = {
+    resolved: { label: "Resolved", tone: "bg-success/10 text-success" },
+    waiting: { label: "Waiting", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+    replaced: { label: "Replaced", tone: "bg-secondary text-muted-foreground" },
+} as const;

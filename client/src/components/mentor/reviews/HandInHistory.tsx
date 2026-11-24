@@ -13,7 +13,7 @@ import { getApiErrorMessage } from "@/lib/httpClient";
 import { cn, formatDateTime } from "@/lib/utils";
 import { assignmentService } from "@/services";
 import type { SubmissionHistory } from "@/types/mentor.types";
-import { eventTitle, historyEvents, queueHref, type HistoryEvent } from "./handInHistory";
+import { eventState, eventTitle, historyEvents, queueHref, STATE_META, type HistoryEvent } from "./handInHistory";
 import { STATUS_META } from "./MarkingPane";
 import SentWork from "./SentWork";
 
@@ -117,7 +117,7 @@ export default function HandInHistory({ submissionId }: { submissionId: string }
             <ol className="space-y-4">
                 {events.map((event, index) => (
                     <li key={event.id} id={event.id} className="scroll-mt-24">
-                        <EventCard event={event} total={total} latest={index === 0} pointedAt={pointedAt === event.id} />
+                        <EventCard event={event} total={total} latest={index === 0} pointedAt={pointedAt === event.id} state={eventState(event, data)} />
                     </li>
                 ))}
             </ol>
@@ -149,7 +149,20 @@ export default function HandInHistory({ submissionId }: { submissionId: string }
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 /** One entry of the history, in full. */
-function EventCard({ event, total, latest, pointedAt }: { event: HistoryEvent; total: number; latest: boolean; pointedAt: boolean }) {
+function EventCard({
+    event,
+    total,
+    latest,
+    pointedAt,
+    state,
+}: {
+    event: HistoryEvent;
+    total: number;
+    latest: boolean;
+    pointedAt: boolean;
+    /** Resolved, waiting or replaced — for a version sent or a recheck asked. */
+    state: ReturnType<typeof eventState>;
+}) {
     const Icon = ICON[event.kind];
     return (
         <article
@@ -163,6 +176,7 @@ function EventCard({ event, total, latest, pointedAt }: { event: HistoryEvent; t
                     <Icon className="size-3.5" aria-hidden />
                 </span>
                 <h2 className="min-w-0 flex-1 font-semibold">{eventTitle(event, total)}</h2>
+                {state && <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", STATE_META[state].tone)}>{STATE_META[state].label}</span>}
                 {latest && (
                     <span className="rounded-sm bg-primary px-1.5 py-px text-[0.625rem] font-semibold uppercase tracking-wide text-primary-foreground">
                         Latest

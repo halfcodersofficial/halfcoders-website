@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, CalendarDays, Gauge, Layers, LayoutDashboard } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Gauge, Layers, LayoutDashboard, Users } from "lucide-react";
 import Link from "next/link";
 import { ROLE_LABEL, STATUS_LABEL } from "@/components/mentor/course/CourseWorkspace";
 import { clock, DAY_MS, pad2, plural } from "@/components/mentor/dashboard/time";
@@ -28,8 +28,8 @@ function nextRelease(course: MentorCourse, now: number) {
 /**
  * One course the mentor teaches: its cover, what it is to them, how many are
  * enrolled and how far they've got on average, what's waiting on a review and
- * what goes out next — then a strip with the way in and the three places
- * they go most.
+ * what goes out next — then a strip with the way in and the four places
+ * they go most, its students among them.
  */
 export default function MentorCourseCard({ course, now }: { course: MentorCourse; now: number }) {
     const routes = staffCourseRoutes("mentor", course.id);
@@ -43,7 +43,7 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
                     src={course.thumbnail}
                     alt=""
                     fill
-                    sizes="(min-width: 1280px) 400px, (min-width: 640px) 50vw, 100vw"
+                    sizes="(min-width: 1536px) 360px, (min-width: 1280px) 400px, (min-width: 640px) 50vw, 100vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
                     fallback={
                         <span className="editor grid size-full place-items-center bg-grid">
@@ -111,12 +111,13 @@ export default function MentorCourseCard({ course, now }: { course: MentorCourse
 
             </div>
 
-            {/* The way in, and the three places a mentor goes most — hairline-divided, never wrapping. */}
-            <nav aria-label={`${course.title}: go to`} className="grid grid-cols-4 divide-x divide-border border-t border-border">
+            {/* The way in, and the four places a mentor goes most — hairline-divided, never wrapping. */}
+            <nav aria-label={`${course.title}: go to`} className="grid grid-cols-5 divide-x divide-border border-t border-border">
                 <QuickLink href={routes.overview} icon={LayoutDashboard} label="Open" primary />
                 <QuickLink href={routes.modules} icon={Layers} label="Modules" />
                 <QuickLink href={routes.outline} icon={CalendarDays} label="Outline" />
                 <QuickLink href={routes.results} icon={Gauge} label="Results" />
+                <QuickLink href={routes.students} icon={Users} label="Students" />
             </nav>
         </article>
     );
@@ -127,7 +128,7 @@ function QuickLink({ href, icon: Icon, label, primary = false }: { href: string;
         <Link
             href={href}
             className={cn(
-                "relative z-10 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors hover:bg-secondary/50",
+                "relative z-10 flex min-w-0 flex-col items-center gap-1 px-1 py-3 text-xs font-medium transition-colors hover:bg-secondary/50",
                 primary ? "text-primary" : "text-muted-foreground hover:text-foreground",
             )}
         >

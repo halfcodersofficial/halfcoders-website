@@ -30,8 +30,8 @@ export default function MentorCoursesPage() {
         return (
             <div className="w-full space-y-6">
                 <Skeleton className="h-12 w-64" />
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    {Array.from({ length: 3 }).map((_, index) => (
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, index) => (
                         <Skeleton key={index} className="h-96 rounded-card" />
                     ))}
                 </div>
@@ -97,7 +97,7 @@ export default function MentorCoursesPage() {
             ) : shown.length === 0 ? (
                 <EmptyState title={`No course matches “${term.trim()}”.`} description="Try a shorter word, or clear the search." />
             ) : (
-                <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {shown.map((course, index) => (
                         <li key={course.id} className={RISE} style={{ animationDelay: `${60 + index * 50}ms` }}>
                             <MentorCourseCard course={course} now={now} />
