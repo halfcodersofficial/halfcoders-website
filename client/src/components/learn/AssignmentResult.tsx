@@ -17,7 +17,7 @@ import type { AssignmentRecheck, AssignmentSubmission, MarkAdjustment, StudentAs
 const ADJUSTMENT_LABEL: Record<MarkAdjustment["kind"], string> = {
     RESUBMIT_PENALTY: "Resubmitted before the results",
     RECHECK_FEE: "Recheck fee",
-    RECHECK_REFUND: "Recheck fee given back",
+    RECHECK_REFUND: "Given back when the mark was raised",
     RECHECK_PENALTY: "Recheck: the mark was right",
 };
 
@@ -93,7 +93,8 @@ export function ResultDetails({ assignment, submission }: { assignment: StudentA
  * "Your mentor gave 70 · Recheck fee −2 · …". Null when nothing changed it.
  */
 export function MarkChanges({ submission }: { submission: AssignmentSubmission }) {
-    if (submission.score === null || submission.adjustments.length === 0) return null;
+    // Nothing to explain when the mark is exactly the one given — after a raise on recheck, say.
+    if (submission.score === null || submission.adjustments.length === 0 || submission.finalScore === submission.score) return null;
     return (
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Your mentor gave <span className="font-semibold tabular-nums text-foreground">{submission.score}</span>
@@ -124,7 +125,7 @@ export function RecheckResult({ submission, penalties }: { submission: Assignmen
             </p>
             <p className={cn("mt-1.5", valid ? "text-success-ink" : "text-destructive-ink")}>
                 {valid
-                    ? `Your mentor raised the mark from ${latest.scoreBefore} to ${latest.scoreAfter}, and the ${penalties.recheckFeeMarks}-mark fee was given back.`
+                    ? `Your mentor raised your mark from ${latest.scoreBefore} to ${latest.scoreAfter} — that's your mark now, with nothing taken off.`
                     : `The mark stayed at ${latest.scoreBefore}, so ${penalties.recheckInvalidMarks} more marks were taken.`}
             </p>
             {latest.reviewerNote && <p className="mt-1.5 whitespace-pre-line text-muted-foreground wrap-break-word">Mentor: {latest.reviewerNote}</p>}
@@ -183,7 +184,7 @@ export function RecheckDialog({
                             <span className="font-semibold">{fee} marks are taken now</span> — your mark goes from {currentMark} to{" "}
                             {Math.max(0, currentMark - fee)} out of {outOf} while your mentor looks again.
                         </li>
-                        <li>If you deserved more, your mark goes up and the {fee} marks come back.</li>
+                        <li>If you deserved more, your mark becomes exactly what your mentor gives — everything taken off comes back.</li>
                         <li>
                             If the mark was right, {extra} more marks are taken — {fee + extra} for this recheck in all.
                         </li>

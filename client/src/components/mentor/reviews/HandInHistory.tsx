@@ -22,7 +22,7 @@ const ICON: Record<HistoryEvent["kind"], LucideIcon> = { version: Send, review: 
 const ADJUSTMENT_LABEL: Record<SubmissionHistory["adjustments"][number]["kind"], string> = {
     RESUBMIT_PENALTY: "Resubmitted before the results",
     RECHECK_FEE: "Recheck fee",
-    RECHECK_REFUND: "Recheck fee given back",
+    RECHECK_REFUND: "Given back when the mark was raised",
     RECHECK_PENALTY: "Recheck: the mark was right",
 };
 

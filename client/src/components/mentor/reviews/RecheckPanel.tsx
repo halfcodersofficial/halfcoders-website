@@ -41,6 +41,9 @@ export default function RecheckPanel({
     const [outcome, setOutcome] = useState<Outcome | null>(null);
     const [score, setScore] = useState("");
     const [note, setNote] = useState("");
+    // The feedback the student reads, ready to rewrite with the decision.
+    const [feedback, setFeedback] = useState(submission.feedback ?? "");
+    const feedbackChanged = feedback.trim() !== (submission.feedback ?? "").trim();
     const rubric = assignment.rubric ?? [];
     const [points, setPoints] = useState<Record<string, string>>(() =>
         Object.fromEntries(rubric.map((line) => [line.id, String(submission.rubricScores?.find((given) => given.criterionId === line.id)?.points ?? "")])),
@@ -50,7 +53,7 @@ export default function RecheckPanel({
     const rubricFilled = rubric.every((line) => points[line.id] !== "" && Number(points[line.id]) >= 0 && Number(points[line.id]) <= line.maxPoints);
     const newScore = rubric.length > 0 ? rubricScore : Number(score);
 
-    useEffect(() => onDirtyChange(Boolean(outcome || score || note)), [outcome, score, note, onDirtyChange]);
+    useEffect(() => onDirtyChange(Boolean(outcome || score || note || feedbackChanged)), [outcome, score, note, feedbackChanged, onDirtyChange]);
     useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
     const decide = useMutation({
@@ -59,10 +62,10 @@ export default function RecheckPanel({
                 outcome: outcome!,
                 score: outcome === "VALID" && rubric.length === 0 ? Number(score) : undefined,
                 rubric:
-                    outcome === "VALID" && rubric.length > 0
-                        ? rubric.map((line) => ({ criterionId: line.id, points: Number(points[line.id]) }))
-                        : undefined,
+                    outcome === "VALID" && rubric.length > 0 ? rubric.map((line) => ({ criterionId: line.id, points: Number(points[line.id]) })) : undefined,
                 note: note.trim() || undefined,
+                // Sent only when rewritten; an emptied box clears it.
+                feedback: feedbackChanged ? feedback.trim() : undefined,
             }),
         onSuccess: () => {
             toast.success("Recheck decided — the student has been notified.");
@@ -92,7 +95,7 @@ export default function RecheckPanel({
                 : null;
 
     const OPTIONS: { value: Outcome; label: string; icon: LucideIcon; hint: string }[] = [
-        { value: "VALID", label: "Raise the mark", icon: ArrowUp, hint: `They deserved more. The ${fee}-mark fee goes back to them.` },
+        { value: "VALID", label: "Raise the mark", icon: ArrowUp, hint: "They deserved more. Their mark becomes exactly what you give — nothing taken off." },
         { value: "INVALID", label: "Keep the mark", icon: Equal, hint: `The mark was right. ${extra} more marks are taken — ${fee + extra} in all.` },
     ];
 
@@ -153,7 +156,10 @@ export default function RecheckPanel({
                                 />
                                 <span className="flex items-center gap-2 text-sm font-semibold">
                                     <option.icon
-                                        className={cn("size-4", selected ? (option.value === "VALID" ? "text-primary" : "text-destructive") : "text-muted-foreground")}
+                                        className={cn(
+                                            "size-4",
+                                            selected ? (option.value === "VALID" ? "text-primary" : "text-destructive") : "text-muted-foreground",
+                                        )}
                                         aria-hidden
                                     />
                                     {option.label}
@@ -172,7 +178,12 @@ export default function RecheckPanel({
                         <span className="font-mono font-semibold uppercase tracking-wider text-muted-foreground">Rubric, again</span>
                         <span className="font-semibold tabular-nums">
                             {rubricSum} / {total}
-                            {maxScore !== total && <span className="font-normal text-muted-foreground"> → {rubricScore} / {maxScore} late</span>}
+                            {maxScore !== total && (
+                                <span className="font-normal text-muted-foreground">
+                                    {" "}
+                                    → {rubricScore} / {maxScore} late
+                                </span>
+                            )}
                         </span>
                     </div>
                     <ul className="divide-y divide-border">
@@ -220,18 +231,37 @@ export default function RecheckPanel({
                 </label>
             )}
 
-            {outcome && (
+            {outcome === "INVALID" && (
                 <label className="block space-y-1.5">
                     <span className="text-sm font-medium">
-                        {outcome === "INVALID" ? "Why the mark stands" : "A note for the student"}
-                        {outcome === "INVALID" ? <span className="text-destructive"> *</span> : <span className="font-normal text-muted-foreground"> · optional</span>}
+                        Why the mark stands<span className="text-destructive"> *</span>
                     </span>
                     <Textarea
                         rows={compact ? 3 : 4}
                         maxLength={5000}
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
-                        placeholder={outcome === "INVALID" ? "What you checked, and why the mark was right…" : "What you found on a second look…"}
+                        placeholder="What you checked, and why the mark was right…"
+                    />
+                </label>
+            )}
+
+            {/* The feedback the student reads — rewrite it with the decision, and it goes out with it. */}
+            {outcome && (
+                <label className="block space-y-1.5">
+                    <span className="text-sm font-medium">
+                        Feedback
+                        <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · {feedbackChanged ? "updated — the student gets this one" : "what the student reads now; edit to update it"}
+                        </span>
+                    </span>
+                    <Textarea
+                        rows={compact ? 3 : 4}
+                        maxLength={5000}
+                        value={feedback}
+                        onChange={(event) => setFeedback(event.target.value)}
+                        placeholder={outcome === "VALID" ? "What they did well, and what you found on a second look…" : "Your feedback on their work…"}
                     />
                 </label>
             )}

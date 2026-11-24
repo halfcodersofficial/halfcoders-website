@@ -1308,14 +1308,16 @@ const requestRecheck = async (user: IRequestUser, assignmentId: string, payload:
 
 /**
  * Staff decide a recheck. VALID: the mark goes up — to more than it was, at
- * most the hand-in's cap — and the fee comes back. INVALID: the mark stands
- * and a further penalty is taken (so the recheck cost fee + penalty in all).
+ * most the hand-in's cap — and becomes exactly the mark given: every fee and
+ * penalty taken so far comes back. INVALID: the mark stands and a further
+ * penalty is taken (so the recheck cost fee + penalty in all). Either way the
+ * feedback can be rewritten, and the decision is the work's latest marking.
  * Decided once: the status guard makes a second decision a no-op error.
  */
 const decideRecheck = async (
     user: IRequestUser,
     recheckId: string,
-    payload: { outcome: "VALID" | "INVALID"; score?: number; rubric?: RubricInput; note?: string },
+    payload: { outcome: "VALID" | "INVALID"; score?: number; rubric?: RubricInput; note?: string; feedback?: string },
 ) => {
     const recheck = await prisma.assignmentRecheck.findUnique({
         where: { id: recheckId },
@@ -1365,6 +1367,11 @@ const decideRecheck = async (
     const { recheckFeeMarks: fee, recheckInvalidMarks: extra } = ASSIGNMENT_PENALTIES;
     const valid = payload.outcome === "VALID";
 
+    // Rewritten feedback, when they sent any: empty clears it.
+    const feedback = payload.feedback === undefined ? undefined : payload.feedback.trim() || null;
+    const decidedAt = new Date();
+    let markNow = newScore;
+
     await prisma.$transaction(async (tx) => {
         const decided = await tx.assignmentRecheck.updateMany({
             where: { id: recheckId, status: RecheckStatus.PENDING },
@@ -1373,26 +1380,38 @@ const decideRecheck = async (
                 scoreAfter: newScore,
                 reviewerNote: note,
                 reviewedById: user.userId,
-                reviewedAt: new Date(),
+                reviewedAt: decidedAt,
             },
         });
         if (decided.count === 0) throw alreadyDecided;
 
+        // Raised: the mark is exactly the one given — every fee and penalty taken
+        // so far comes back, so nothing is taken off it. Kept: the further penalty.
+        const current = await tx.assignmentSubmission.findUniqueOrThrow({
+            where: { id: recheck.submissionId },
+            select: { markAdjustment: true, feedback: true },
+        });
         await tx.submissionMarkAdjustment.create({
             data: {
                 submissionId: recheck.submissionId,
                 kind: valid ? MarkAdjustmentKind.RECHECK_REFUND : MarkAdjustmentKind.RECHECK_PENALTY,
-                marks: valid ? fee : -extra,
+                marks: valid ? -current.markAdjustment : -extra,
                 refId: recheckId,
-                note: valid ? "Recheck fee refunded" : "Recheck: the mark stood",
+                note: valid ? "Mark raised on recheck — every deduction given back" : "Recheck: the mark stood",
             },
         });
+        markNow = valid ? newScore : Math.max(0, newScore + current.markAdjustment - extra);
+
         await tx.assignmentSubmission.update({
             where: { id: recheck.submissionId },
             data: {
                 recheckOpen: false,
-                markAdjustment: valid ? { increment: fee } : { decrement: extra },
+                markAdjustment: valid ? 0 : { decrement: extra },
                 ...(valid ? { score: newScore } : {}),
+                ...(feedback !== undefined ? { feedback } : {}),
+                // The work on hand has now been looked at: this decision is its latest marking.
+                reviewedById: user.userId,
+                reviewedAt: decidedAt,
                 ...(valid && payload.rubric
                     ? {
                         rubricScores: {
@@ -1403,18 +1422,30 @@ const decideRecheck = async (
                     : {}),
             },
         });
+
+        // New feedback goes into the history as a marking of its own.
+        if (feedback !== undefined && feedback !== current.feedback) {
+            await tx.submissionReview.create({
+                data: {
+                    submissionId: recheck.submissionId,
+                    reviewerId: user.userId,
+                    status: SubmissionStatus.ACCEPTED,
+                    score: newScore,
+                    feedback,
+                    createdAt: decidedAt,
+                },
+            });
+        }
     });
     logger.update("Recheck decided", { recheckId, outcome: payload.outcome });
     await announceMarksChanged(recheck.assignment.courseId, [recheck.submission.studentId]);
 
-    const adjustment = recheck.submission.markAdjustment + (valid ? fee : -extra);
-    const final = finalScore(newScore, adjustment);
     await createNotification({
         userId: recheck.submission.studentId,
         title: `Recheck ${valid ? "done — mark raised" : "done — mark unchanged"}: ${recheck.assignment.title}`,
         message: valid
-            ? `Your mark went from ${recheck.scoreBefore} to ${newScore}, and the ${fee}-mark recheck fee was refunded. Your mark is now ${final}/${totalMarks}.`
-            : `Your mentor checked again and the mark stands. ${extra} more marks were taken (${fee + extra} for this recheck in all). Your mark is now ${final}/${totalMarks}.`,
+            ? `Your mentor raised your mark from ${recheck.scoreBefore} to ${newScore}. That's your mark now — ${markNow}/${totalMarks}, with nothing taken off.`
+            : `Your mentor checked again and the mark stands. ${extra} more marks were taken (${fee + extra} for this recheck in all). Your mark is now ${markNow}/${totalMarks}.`,
         type: NotificationType.ASSIGNMENT,
         link: `/learn/${recheck.assignment.course.slug}?assignment=${recheck.assignmentId}`,
         senderId: user.userId,

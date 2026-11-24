@@ -458,6 +458,8 @@ export const assignmentService = {
             score?: number;
             rubric?: { criterionId: string; points: number; comment?: string }[];
             note?: string;
+            /** Rewritten feedback for the student — empty clears it. Leave out to keep it as it is. */
+            feedback?: string;
         },
     ) => httpClient.patch(`/assignments/rechecks/${recheckId}/decide`, payload).then(() => undefined),
 
