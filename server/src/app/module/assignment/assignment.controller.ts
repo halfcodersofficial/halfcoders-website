@@ -203,6 +203,17 @@ const decideRecheck = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const getSubmissionHistory = catchAsync(async (req: Request, res: Response) => {
+    const result = await AssignmentService.getSubmissionHistory(req.user, req.params.submissionId as string);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Submission history fetched successfully",
+        data: result,
+    });
+});
+
 const getSubmissionById = catchAsync(async (req: Request, res: Response) => {
     const result = await AssignmentService.getSubmissionById(
         req.user,
@@ -234,6 +245,7 @@ export const AssignmentController = {
     getRubric,
     setRubric,
     getSubmissionById,
+    getSubmissionHistory,
     publishResults,
     requestRecheck,
     decideRecheck,

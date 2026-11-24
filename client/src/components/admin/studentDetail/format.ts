@@ -5,8 +5,11 @@ import type { StudentSubmission } from "@/types/admin.types";
 export const weekLabel = (label: string, order: number) => `${label} ${String(order).padStart(2, "0")}`;
 
 /** "88 / 100", against a late submission's cap when it had one. */
-export const marksLabel = (submission: Pick<StudentSubmission, "score" | "maxScore" | "assignment">) =>
-    `${submission.score} / ${submission.maxScore ?? submission.assignment.totalMarks}`;
+export const marksLabel = (submission: Pick<StudentSubmission, "score" | "finalScore" | "maxScore" | "assignment">) =>
+    `${submission.finalScore ?? submission.score} / ${submission.maxScore ?? submission.assignment.totalMarks}`;
+
+/** The mark that counts: the mentor's, after every penalty and refund — never below zero. Null while unmarked. */
+export const finalMark = (score: number | null, markAdjustment: number) => (score === null ? null : Math.max(0, score + markAdjustment));
 
 /** A percentage to a whole number, or a dash. */
 export const percentLabel = (value: number | null | undefined) => (value === null || value === undefined ? "—" : `${Math.round(value)}%`);

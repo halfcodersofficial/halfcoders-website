@@ -155,6 +155,18 @@ enum SubmissionStatus {
   @@schema("learning")
 }
 
+/// What a hand-in (`SubmissionVersion`) was: the first, a resubmission the
+/// mentor asked for, one the student chose before the results, or the work
+/// sent again for a recheck.
+enum SubmissionVersionKind {
+  FIRST
+  REQUESTED
+  VOLUNTARY
+  RECHECK
+
+  @@schema("learning")
+}
+
 /// What changed a hand-in's marks (`SubmissionMarkAdjustment`).
 enum MarkAdjustmentKind {
   /// Resubmitting before the results were published.

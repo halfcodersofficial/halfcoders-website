@@ -221,6 +221,26 @@ describe("assignment results, penalties and rechecks", () => {
         expect(res.rows[0].total).toBe(res.rows[0].ledger);
     });
 
+    it("keeps every version as sent, and every marking, in the hand-in's history — for staff only", async () => {
+        const history = (account: TestAccount) =>
+            api().get(`/api/v1/assignments/submissions/${submissionId}/history`).set("Cookie", account.cookie);
+
+        const res = await history(mentor);
+        expect(res.status).toBe(200);
+        const { versions, reviews, rechecks } = res.body.data;
+        expect(versions.map((row: { attempt: number; kind: string; content: string }) => [row.attempt, row.kind, row.content])).toEqual([
+            [4, "RECHECK", "Fixed for the recheck"],
+            [3, "VOLUNTARY", "Third go"],
+            [2, "VOLUNTARY", "Second go"],
+            [1, "FIRST", "First go"],
+        ]);
+        expect(reviews).toHaveLength(1);
+        expect(reviews[0]).toMatchObject({ status: "ACCEPTED", score: 80, feedback: "Good" });
+        expect(rechecks).toHaveLength(2);
+
+        expect((await history(student)).status).toBe(403);
+    });
+
     it("lets a student redo work the mentor sent back, free — even after the results", async () => {
         const first = await submit(other, { content: "My answer" });
         expect(first.status).toBe(201);

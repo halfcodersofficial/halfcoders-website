@@ -79,11 +79,13 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
 
     const submission = data?.submission ?? null;
 
-    // One box in, one box out: the link and the notes are pre-joined here the
-    // same way they're split apart on submit, so a resubmission starts from
-    // what was sent and doesn't drop either half of it.
+    // A resubmission starts from exactly what was sent. The text already holds
+    // the link (it's only picked out of it on submit), so the link is added
+    // on top only for an older hand-in that stored it apart — never twice.
     useEffect(() => {
-        setDraft([submission?.submissionUrl, submission?.content].filter(Boolean).join("\n\n"));
+        const content = submission?.content ?? "";
+        const url = submission?.submissionUrl;
+        setDraft(url && !content.includes(url) ? [url, content].filter(Boolean).join("\n\n") : content);
         setDescriptionExpanded(false);
     }, [assignmentId, submission?.id, submission?.content, submission?.submissionUrl]);
 

@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import envConfig from "@/lib/envConfig";
-import { refreshLiveData } from "@/lib/liveRefresh";
+import { refreshLiveData, refreshMarks } from "@/lib/liveRefresh";
 import { showPendingPopups } from "@/lib/loginPopups";
 
 interface IncomingNotification {
@@ -56,6 +56,11 @@ export const useNotificationSocket = (enabled: boolean) => {
             if (connectedBefore) void refreshLiveData(queryClient);
             connectedBefore = true;
         });
+
+        // A mark or hand-in changed on a course this person teaches or takes —
+        // marked by a co-mentor, a recheck decided, results published, work
+        // handed in. Every page showing marks catches up to the latest.
+        socket.on("marks:changed", () => void refreshMarks(queryClient));
 
         socket.on("notification:new", (payload: IncomingNotification) => {
             // A notification means something changed for this person — a

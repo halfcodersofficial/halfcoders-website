@@ -148,6 +148,60 @@ export interface MentorPastSession extends MentorSupportSession {
     attendance: { joined: number; helped: number; skipped: number; left: number };
 }
 
+/** One hand-in, exactly as the student sent it. */
+export interface SubmissionVersion {
+    id: string;
+    attempt: number;
+    /** The first hand-in, a resubmission the mentor asked for, one the student chose, or work sent again for a recheck. */
+    kind: "FIRST" | "REQUESTED" | "VOLUNTARY" | "RECHECK";
+    content: string | null;
+    submissionUrl: string | null;
+    fileUrls: string[];
+    submittedAt: string;
+}
+
+/** One marking, as it was given. */
+export interface SubmissionReviewEntry {
+    id: string;
+    status: SubmissionStatus;
+    score: number | null;
+    feedback: string | null;
+    rubric: { title: string; points: number; maxPoints: number; comment: string | null }[] | null;
+    createdAt: string;
+    reviewer: { id: string; name: string; image: string | null } | null;
+}
+
+/** A hand-in's whole history — `GET /assignments/submissions/:id/history`. Every list newest first. */
+export interface SubmissionHistory {
+    id: string;
+    status: SubmissionStatus;
+    score: number | null;
+    finalScore: number | null;
+    maxScore: number | null;
+    markAdjustment: number;
+    attempts: number;
+    recheckOpen: boolean;
+    submittedAt: string;
+    reviewedAt: string | null;
+    feedback: string | null;
+    student: { id: string; name: string; image: string | null; email?: string };
+    assignment: {
+        id: string;
+        title: string;
+        totalMarks: number;
+        deadline: string | null;
+        courseId: string;
+        resultsPublishedAt: string | null;
+        course: { id: string; title: string; milestoneLabel: string };
+        milestone: { id: string; title: string; order: number };
+    };
+    versions: SubmissionVersion[];
+    reviews: SubmissionReviewEntry[];
+    rechecks: (AssignmentRecheck & { reviewedBy: { id: string; name: string; image: string | null } | null })[];
+    adjustments: { id: string; kind: "RESUBMIT_PENALTY" | "RECHECK_FEE" | "RECHECK_REFUND" | "RECHECK_PENALTY"; marks: number; note: string | null; createdAt: string }[];
+    penalties: AssignmentPenalties;
+}
+
 export interface ReviewQueueItem {
     id: string;
     content: string | null;
@@ -357,7 +411,9 @@ export interface CourseStudentRecord {
 export interface ResultSubmission {
     id: string;
     status: SubmissionStatus;
+    /** The mentor's mark, before penalties and refunds — the mark that counts is `score + markAdjustment`. */
     score: number | null;
+    markAdjustment: number;
     /** Set when it came in late: the most it can score. */
     maxScore: number | null;
     submittedAt: string;

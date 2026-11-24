@@ -85,6 +85,7 @@ model User {
   mentoredCourses  CourseMentor[]
   supportSessions  SupportSession[]
   reviewedWork     AssignmentSubmission[] @relation("SubmissionReviewer")
+  reviewHistory    SubmissionReview[]     @relation("SubmissionReviewHistory")
   reviewedRechecks AssignmentRecheck[]    @relation("RecheckReviewer")
   createdCourses   Course[]               @relation("CourseCreatedBy")
   sentNotification Notification[]         @relation("NotificationSender")

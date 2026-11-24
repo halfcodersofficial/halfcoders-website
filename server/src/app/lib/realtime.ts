@@ -117,6 +117,17 @@ export const emitSessionStatus = (sessionId: string, payload: unknown) => {
     io.to(sessionRoom(sessionId)).emit("support:session", payload);
 };
 
+/**
+ * Tells each of these people that a mark or a hand-in changed — the course's
+ * mentors and the student it's about — so every page they have open showing
+ * marks (the review queue, results, a student's record, the student's own
+ * assignment) refetches and shows the latest. A signal only; no data rides on it.
+ */
+export const emitMarksChanged = (userIds: string[]) => {
+    if (!io || userIds.length === 0) return;
+    io.to([...new Set(userIds)].map(userRoom)).emit("marks:changed", {});
+};
+
 /** Pushes a freshly created notification straight to its owner, if connected. */
 export const emitNotification = (userId: string, payload: unknown) => {
     if (!io) return;

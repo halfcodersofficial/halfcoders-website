@@ -12,6 +12,7 @@ import AppError from "../../errorHelpers/AppError";
 import { flattenLearner, learnerIdentitySelect, learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
+import { finalScore } from "../../utils/assignmentPenalties";
 import { scoreProfileSections } from "../studentProfile/studentProfile.service";
 
 /**
@@ -100,6 +101,7 @@ const submissionSelect = {
     status: true,
     score: true,
     maxScore: true,
+    markAdjustment: true,
     feedback: true,
     content: true,
     submissionUrl: true,
@@ -168,9 +170,11 @@ const toSubmission = (
 ) => ({
     ...row,
     reviewedBy: reviewedBy ?? null,
+    /** The mark that counts: the mentor's, after every penalty and refund — the latest, as the student sees it. */
+    finalScore: finalScore(row.score, row.markAdjustment),
     /** Marked out of a late window's cap rather than the full marks. */
     late: row.maxScore !== null && row.maxScore < row.assignment.totalMarks,
-    percent: percentOf(row.score, row.maxScore, row.assignment.totalMarks),
+    percent: percentOf(finalScore(row.score, row.markAdjustment), row.maxScore, row.assignment.totalMarks),
     history: history.get(row.id) ?? [],
 });
 

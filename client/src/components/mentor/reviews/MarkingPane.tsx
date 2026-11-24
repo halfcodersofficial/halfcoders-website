@@ -1,18 +1,18 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+    ArrowRight,
     Check,
-    Copy,
+    ChevronRight,
     CornerDownLeft,
     ExternalLink,
     Eye,
-    FileText,
-    Github,
     Hand,
-    Link2,
+    History,
     Megaphone,
     MessageSquareWarning,
+    Scale,
     Send,
     Undo2,
     X,
@@ -27,20 +27,20 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import { Input, Textarea } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNow } from "@/hooks/useNow";
 import { useSession } from "@/hooks/useSession";
 import { useZodForm } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
-import { linkify } from "@/lib/linkify";
-import { privateFileHref } from "@/lib/privateFile";
 import { cn, formatDateTime } from "@/lib/utils";
-import { submissionFileName } from "@/lib/submissionFiles";
 import { numericField, optionalTextField } from "@/lib/validation";
 import { assignmentService } from "@/services";
 import type { SubmissionStatus } from "@/types/api.types";
 import type { ReviewQueueItem } from "@/types/mentor.types";
+import { eventTitle, historyEvents, type HistoryEvent } from "./handInHistory";
 import RecheckPanel from "./RecheckPanel";
+import SentWork from "./SentWork";
 
 export const STATUS_META: Record<SubmissionStatus, { label: string; tone: string }> = {
     SUBMITTED: { label: "Waiting", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
@@ -387,67 +387,50 @@ export default function MarkingPane({
 
             <div className={cn("space-y-5", compact ? "mt-5" : "px-6 py-5")}>
                 <Step n={1} title="Check their work">
-                    <Work submission={submission} />
+                    <SentWork content={submission.content} submissionUrl={submission.submissionUrl} fileUrls={submission.fileUrls} />
                 </Step>
 
-                {/* What resubmitting and rechecks have cost — the student's mark is the mentor's mark minus this. */}
-                {submission.markAdjustment !== 0 && (
-                    <p className="rounded-card bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground">
-                        Penalties and refunds so far:{" "}
-                        <span className="font-semibold tabular-nums text-foreground">
-                            {submission.markAdjustment > 0 ? "+" : "−"}
-                            {Math.abs(submission.markAdjustment)} marks
-                        </span>
-                        {submission.xpDeducted > 0 && <span className="tabular-nums"> · −{submission.xpDeducted} XP</span>}
-                        {final !== null && (
-                            <span>
-                                {" "}
-                                · their mark: <span className="font-semibold tabular-nums text-foreground">{final}</span> / {total}
-                            </span>
-                        )}
-                    </p>
-                )}
-
-                {!pending && submission.reviewedAt && (
-                    <section aria-label="The last review" className="rounded-card border border-dashed border-border px-4 py-3 text-sm">
+                {/* The latest marking, with the mark as it stands now — after every penalty and refund, as the student sees it. */}
+                {!pending && submission.reviewedAt ? (
+                    <section aria-label="The latest review" className="rounded-card border border-dashed border-border px-4 py-3 text-sm">
                         <p className="text-xs text-muted-foreground">
-                            Reviewed {formatDateTime(submission.reviewedAt)} —{" "}
+                            Latest review · {formatDateTime(submission.reviewedAt)} —{" "}
                             <span className="font-medium text-foreground">{STATUS_META[submission.status].label}</span>
-                            {submission.score !== null && (
-                                <span className="font-medium text-foreground">
-                                    {" "}
-                                    · {submission.score} / {total}
-                                </span>
-                            )}
                         </p>
+                        {final !== null && (
+                            <p className="mt-1">
+                                Mark now{" "}
+                                <span className="font-semibold tabular-nums">
+                                    {final} / {total}
+                                </span>
+                                {(submission.markAdjustment !== 0 || submission.xpDeducted > 0) && (
+                                    <span className="text-xs text-muted-foreground">
+                                        {" "}
+                                        · {submission.score} given
+                                        {submission.markAdjustment !== 0 &&
+                                            `, ${submission.markAdjustment > 0 ? "+" : "−"}${Math.abs(submission.markAdjustment)} for resubmitting and rechecks`}
+                                        {submission.xpDeducted > 0 && ` · −${submission.xpDeducted} XP`}
+                                    </span>
+                                )}
+                            </p>
+                        )}
                         {submission.feedback && <p className="mt-1.5 whitespace-pre-line text-muted-foreground">“{submission.feedback}”</p>}
                     </section>
+                ) : (
+                    (submission.markAdjustment !== 0 || submission.xpDeducted > 0) && (
+                        <p className="rounded-card bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground">
+                            Taken so far for resubmitting:{" "}
+                            <span className="font-semibold tabular-nums text-foreground">
+                                {submission.markAdjustment > 0 ? "+" : "−"}
+                                {Math.abs(submission.markAdjustment)} marks
+                            </span>
+                            {submission.xpDeducted > 0 && <span className="tabular-nums"> · −{submission.xpDeducted} XP</span>}
+                        </p>
+                    )
                 )}
 
-                {/* Earlier rechecks, decided — the open one is decided below. */}
-                {submission.rechecks.some((entry) => entry.status !== "PENDING") && (
-                    <section aria-label="Earlier rechecks" className="space-y-2">
-                        <h3 className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Earlier rechecks</h3>
-                        <ul className="space-y-2">
-                            {submission.rechecks
-                                .filter((entry) => entry.status !== "PENDING")
-                                .map((entry) => (
-                                    <li key={entry.id} className="rounded-card border border-border px-3.5 py-2.5 text-xs">
-                                        <p className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
-                                            <span className={cn("font-semibold", entry.status === "VALID" ? "text-success" : "text-destructive")}>
-                                                {entry.status === "VALID"
-                                                    ? `Raised ${entry.scoreBefore} → ${entry.scoreAfter}`
-                                                    : `Kept at ${entry.scoreBefore}`}
-                                            </span>
-                                            {entry.reviewedAt && <span>· {formatDateTime(entry.reviewedAt)}</span>}
-                                            {entry.reviewedBy && <span>· {entry.reviewedBy.name}</span>}
-                                        </p>
-                                        <p className="mt-1 text-muted-foreground">“{entry.reason}”</p>
-                                    </li>
-                                ))}
-                        </ul>
-                    </section>
-                )}
+                {/* Everything before now — every version, marking and recheck — a click from its full detail. */}
+                <HistoryList submission={submission} />
             </div>
 
             {submission.recheckOpen ? (
@@ -666,91 +649,73 @@ export default function MarkingPane({
     );
 }
 
-/** Their link, notes and files — the work itself. */
-function Work({ submission }: { submission: ReviewQueueItem }) {
-    const url = submission.submissionUrl;
-    let host = "";
-    let path = "";
-    if (url) {
-        try {
-            const parsed = new URL(url);
-            host = parsed.hostname.replace(/^www\./, "");
-            path = parsed.pathname.replace(/\/$/, "");
-        } catch {
-            host = url;
-        }
-    }
-    const isGithub = host === "github.com";
-    // Their notes, without the line that's just the link — it's in the card above, with Open and Copy.
-    const notes = (submission.content ?? "")
-        .split("\n")
-        .filter((line) => !url || line.trim() !== url)
-        .join("\n")
-        .trim();
-    const nothing = !url && !notes && submission.fileUrls.length === 0;
+const HISTORY_ICON: Record<HistoryEvent["kind"], LucideIcon> = {
+    version: Send,
+    review: Check,
+    recheckAsked: Scale,
+    recheckDecided: Scale,
+};
+
+/**
+ * The hand-in's history in brief, newest first: every version sent, every
+ * marking and recheck. Each opens the history page at that point, in full.
+ */
+function HistoryList({ submission }: { submission: ReviewQueueItem }) {
+    // Under `["reviews"]`, so saving a review here refreshes it too.
+    const { data, isLoading } = useQuery({
+        queryKey: ["reviews", "history", submission.id],
+        queryFn: () => assignmentService.submissionHistory(submission.id),
+    });
+    const events = data ? historyEvents(data) : [];
+    const href = `/mentor/reviews/${submission.id}`;
+    const shown = events.slice(0, 6);
 
     return (
-        <div className="space-y-3">
-            {nothing && <p className="text-sm text-muted-foreground">Nothing attached — just the hand-in.</p>}
-
-            {url && (
-                <div className="flex items-center gap-3 rounded-card border border-border p-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-muted-foreground">
-                        {isGithub ? <Github className="size-5" aria-hidden /> : <Link2 className="size-5" aria-hidden />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">{isGithub ? path.slice(1) || host : host}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{url}</span>
-                    </span>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Copy the link"
-                        onClick={() => {
-                            void navigator.clipboard?.writeText(url).then(
-                                () => toast.success("Link copied."),
-                                () => toast.error("Couldn't copy — select it instead."),
-                            );
-                        }}
-                    >
-                        <Copy className="size-4" />
-                    </Button>
-                    <Button asChild size="sm" variant="brand-outline">
-                        <a href={url} target="_blank" rel="noopener noreferrer">
-                            Open <ExternalLink />
-                        </a>
-                    </Button>
-                </div>
-            )}
-
-            {notes && (
-                <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">Their note</p>
-                    <blockquote className="whitespace-pre-line rounded-card bg-secondary/40 px-4 py-3 text-sm leading-relaxed wrap-break-word">
-                        {linkify(notes)}
-                    </blockquote>
-                </div>
-            )}
-
-            {submission.fileUrls.length > 0 && (
-                <ul className="divide-y divide-border rounded-card border border-border">
-                    {submission.fileUrls.map((file) => (
-                        <li key={file}>
-                            <a
-                                href={privateFileHref(file)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40"
-                            >
-                                <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                                <span className="min-w-0 flex-1 truncate">{submissionFileName(file)}</span>
-                                <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            </a>
+        <section aria-labelledby={`history-${submission.id}`} className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+                <h3 id={`history-${submission.id}`} className="flex items-center gap-2 text-sm font-semibold">
+                    <History className="size-4 text-primary" aria-hidden /> History
+                </h3>
+                {events.length > 0 && (
+                    <Link href={href} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                        See it all <ArrowRight className="size-3" aria-hidden />
+                    </Link>
+                )}
+            </div>
+            {isLoading ? (
+                <Skeleton className="h-24 rounded-card" />
+            ) : events.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nothing yet.</p>
+            ) : (
+                <ol className="divide-y divide-border overflow-hidden rounded-card border border-border">
+                    {shown.map((event) => {
+                        const Icon = HISTORY_ICON[event.kind];
+                        return (
+                            <li key={event.id}>
+                                <Link
+                                    href={`${href}#${event.id}`}
+                                    className="group flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors hover:bg-secondary/40"
+                                >
+                                    <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                    <span className="min-w-0 flex-1 truncate">{eventTitle(event, submission.assignment.totalMarks)}</span>
+                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDateTime(event.at)}</span>
+                                    <ChevronRight
+                                        className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                        aria-hidden
+                                    />
+                                </Link>
+                            </li>
+                        );
+                    })}
+                    {events.length > shown.length && (
+                        <li>
+                            <Link href={href} className="block px-3.5 py-2 text-center text-xs font-medium text-primary hover:bg-secondary/40">
+                                {events.length - shown.length} more — see the full history
+                            </Link>
                         </li>
-                    ))}
-                </ul>
+                    )}
+                </ol>
             )}
-        </div>
+        </section>
     );
 }
