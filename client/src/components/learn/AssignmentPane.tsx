@@ -61,11 +61,15 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     // A paid resubmission opens only once the student has picked how to pay — never by accident.
     const [payWith, setPayWith] = useState<PayWith | null>(null);
     const [popup, setPopup] = useState<Popup | null>(null);
+    // While a recheck waits: the answer box, or their result. Null follows the
+    // default — the box until they've sent their work again for it.
+    const [recheckView, setRecheckView] = useState<"form" | "result" | null>(null);
 
     useEffect(() => {
         setPayWith(null);
         setPopup(null);
         setDetailsOpen(null);
+        setRecheckView(null);
     }, [assignmentId]);
 
     const { data, isLoading, isError, error } = useQuery({
@@ -117,6 +121,8 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                       : "Submitted — your mentor will check it.",
             );
             setPayWith(null);
+            // Sent for a recheck: back to their result, with its three buttons.
+            if (submission?.recheckOpen) setRecheckView("result");
             refresh();
             void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
         },
@@ -143,7 +149,12 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     }
 
     const paid = data.resubmitCost;
-    const showForm = data.canSubmit && (!paid || payWith !== null);
+    // A recheck waiting on the mentor: the answer box first, then — once they've
+    // sent their work again for it, or chosen to keep it — their result again.
+    const pendingRecheck = submission?.recheckOpen ? (submission.rechecks.find((entry) => entry.status === "PENDING") ?? null) : null;
+    const resentForRecheck = Boolean(pendingRecheck && submission && new Date(submission.submittedAt) > new Date(pendingRecheck.createdAt));
+    const recheckMode = pendingRecheck ? (recheckView ?? (resentForRecheck ? "result" : "form")) : null;
+    const showForm = data.canSubmit && (!paid || payWith !== null) && recheckMode !== "result";
     const status = submission?.status;
     const description = data.description ?? "";
     const isLongDescription = description.length > SHORT_BRIEF;
@@ -233,12 +244,16 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                                 <span className="font-semibold tabular-nums text-foreground">
                                     {submission.finalScore}/{data.totalMarks}
                                 </span>
-                                . Fixed something? Send your work again below — it&apos;s free, and your mentor rechecks the version you send.
+                                . Fixed something? Send your work again below — it&apos;s free, and your mentor rechecks the version you send. Nothing to
+                                change? Keep it as it is.
                             </p>
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {mySubmissionButton}
                                 <Button type="button" variant="outline" className="rounded-full" onClick={() => setPopup("feedback")}>
                                     <MessageSquare className="size-4" aria-hidden /> Feedback
+                                </Button>
+                                <Button type="button" variant="ghost" className="rounded-full" onClick={() => setRecheckView("result")}>
+                                    Keep my work as it is
                                 </Button>
                             </div>
                         </div>
@@ -331,6 +346,9 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                     mySubmissionButton={mySubmissionButton}
                     onFeedback={() => setPopup("feedback")}
                     onRecheck={() => setPopup("recheck")}
+                    recheckWaiting={Boolean(pendingRecheck)}
+                    resent={resentForRecheck}
+                    onSendAgain={() => setRecheckView("form")}
                 />
             );
         }
@@ -578,19 +596,31 @@ function StageMessage({
     );
 }
 
-/** The result, once it's out: the score, and the three ways into it. */
+/**
+ * The result, once it's out: the score, and the three ways into it — their
+ * work, the feedback, and a recheck (asked for, or waiting on the mentor, with
+ * a way to send the work again for it).
+ */
 function ScoreStage({
     assignment,
     submission,
     mySubmissionButton,
     onFeedback,
     onRecheck,
+    recheckWaiting,
+    resent,
+    onSendAgain,
 }: {
     assignment: StudentAssignment;
     submission: AssignmentSubmission;
     mySubmissionButton: ReactNode;
     onFeedback: () => void;
     onRecheck: () => void;
+    /** A recheck is with the mentor. */
+    recheckWaiting: boolean;
+    /** They sent their work again for it. */
+    resent: boolean;
+    onSendAgain: () => void;
 }) {
     return (
         <div className="mx-auto max-w-xl text-center">
@@ -611,12 +641,28 @@ function ScoreStage({
                 <Button variant="outline" className="rounded-full" onClick={onFeedback}>
                     <MessageSquare className="size-4" aria-hidden /> Feedback
                 </Button>
-                {assignment.canRecheck && (
+                {assignment.canRecheck ? (
                     <Button variant="outline" className="rounded-full" onClick={onRecheck}>
                         <Scale className="size-4" aria-hidden /> Recheck
                     </Button>
+                ) : (
+                    recheckWaiting && (
+                        <Button variant="outline" className="rounded-full" disabled title="Your mentor is looking at it — one recheck at a time">
+                            <Clock className="size-4" aria-hidden /> Recheck waiting
+                        </Button>
+                    )
                 )}
             </div>
+
+            {recheckWaiting && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                    Your recheck is with your mentor{resent ? " — they'll look at the work you sent again" : ""}. You&apos;ll get a notification when it&apos;s
+                    decided.{" "}
+                    <button type="button" onClick={onSendAgain} className="font-semibold text-primary underline-offset-2 hover:underline">
+                        {resent ? "Change what you sent" : "Send your work again"}
+                    </button>
+                </p>
+            )}
 
             {assignment.canRecheck && (
                 <p className="mt-3 text-xs text-muted-foreground">
