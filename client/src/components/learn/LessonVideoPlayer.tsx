@@ -64,22 +64,23 @@ const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
 const frameBleed = (videoHeight: number) => Math.max(96, Math.round(videoHeight / 4));
 
 /**
- * What the student picked: "best" — the default on every lesson — is the
- * highest quality the video has; a set quality is a lower one picked for
- * this video only (a slow connection), so the next lesson is "best" again.
+ * What the student picked: "auto" — the default on every lesson — lets
+ * YouTube choose for the connection, up to the highest quality the video has;
+ * a set quality is kept for this video only, so the next lesson is "auto" again.
  */
-type QualityPick = QualityChoice | "best";
+type QualityPick = QualityChoice | "auto";
 
 /** The highest quality YouTube has for this video, once it has said. */
 const topQuality = (levels: string[]): QualityChoice | null =>
     QUALITY_CHOICES.find((level) => levels.includes(level)) ?? null;
 
 /**
- * The quality a pick comes to for this video: its best, the pick itself, or
- * the best one under the pick it has. Null until YouTube lists the levels.
+ * The quality a pick holds this video to: the pick itself, or the best one
+ * under it the video has. Null for "auto" — YouTube adapts freely — and until
+ * YouTube lists the levels.
  */
 const lockedQuality = (pick: QualityPick, levels: string[]): QualityChoice | null => {
-    if (pick === "best") return topQuality(levels);
+    if (pick === "auto") return null;
     return (
         QUALITY_CHOICES.find(
             (level) => levels.includes(level) && QUALITY_FRAME_HEIGHT[level] <= QUALITY_FRAME_HEIGHT[pick],
@@ -111,7 +112,7 @@ interface QualityHold {
 
 // Volume and speed carry over from one lesson to the next — someone who
 // watches at 1.5× shouldn't have to pick it again on every video. Quality
-// doesn't: every lesson starts at its best (see QualityPick).
+// doesn't: every lesson starts on auto (see QualityPick).
 const PREFS_KEY = "hc-lesson-player";
 type PlayerPrefs = { volume?: number; rate?: number };
 
@@ -225,11 +226,11 @@ export default function LessonVideoPlayer({
     const stageRef = useRef<HTMLDivElement>(null);
     const [stageWidth, setStageWidth] = useState(0);
     const [pixelRatio, setPixelRatio] = useState(1);
-    const [quality, setQuality] = useState<QualityPick>("best");
+    const [quality, setQuality] = useState<QualityPick>("auto");
     const [availableQualities, setAvailableQualities] = useState<string[]>([]);
     const [currentQuality, setCurrentQuality] = useState("");
     // The picked quality, for the player's event handlers.
-    const qualityRef = useRef<QualityPick>("best");
+    const qualityRef = useRef<QualityPick>("auto");
     // Set while the video waits for its picked quality ("Loading 1080p…").
     const holdRef = useRef<QualityHold | null>(null);
     const [holding, setHolding] = useState<QualityChoice | null>(null);
@@ -672,11 +673,12 @@ export default function LessonVideoPlayer({
         }
     };
 
-    // A pick reloads the video at the same second and waits behind
+    // A set quality reloads the video at the same second and waits behind
     // "Loading 1080p…" until YouTube plays it (see `holdFor`). Picking the
     // same quality again does the same if a slow connection has since made
-    // YouTube go lower — like YouTube's own menu. A pick lasts for this
-    // video only; the next lesson starts at its best again.
+    // YouTube go lower — like YouTube's own menu. Auto stops any wait and
+    // lets YouTube choose. A pick lasts for this video only; the next lesson
+    // starts on auto again.
     const changeQuality = (next: QualityPick) => {
         setMenuOpen(false);
         const player = readyPlayer();
@@ -684,8 +686,12 @@ export default function LessonVideoPlayer({
         setQuality(next);
         qualityRef.current = next;
         if (!player || !started || status === "ended") return;
-        const target = lockedQuality(next, player.getAvailableQualityLevels() ?? []) ?? (next === "best" ? null : next);
-        if (!target) return;
+        const target = lockedQuality(next, player.getAvailableQualityLevels() ?? []) ?? (next === "auto" ? null : next);
+        if (!target) {
+            // Auto: nothing to wait for — play on at whatever YouTube has.
+            if (holdRef.current) endHold(player);
+            return;
+        }
         // Already playing what was picked: nothing to load.
         if (samePick && !holdRef.current && reaches(player.getPlaybackQuality(), target)) return;
         holdFor(player, target, active, 150);
@@ -770,23 +776,23 @@ export default function LessonVideoPlayer({
         poke();
     };
 
-    // This video's highest quality — what "Best" plays — once YouTube has
+    // This video's highest quality — as far as Auto goes — once YouTube has
     // said (on the first play). Until then the frame is sized for 1080p, and
     // grows if the video turns out to go higher.
     const bestQuality = topQuality(availableQualities);
-    // The lower ones a student can drop to, e.g. on a slow connection.
-    const lowerOptions = bestQuality
-        ? QUALITY_CHOICES.filter((choice) => availableQualities.includes(choice) && choice !== bestQuality)
-        : (["hd720", "large"] as QualityChoice[]);
-    const shownQuality: QualityPick =
-        quality === "best" || lowerOptions.includes(quality) ? quality : "best";
+    // The qualities a student can set instead of Auto — the best one among them.
+    const setOptions = bestQuality
+        ? QUALITY_CHOICES.filter((choice) => availableQualities.includes(choice))
+        : (["hd1080", "hd720", "large"] as QualityChoice[]);
+    const shownQuality: QualityPick = quality === "auto" || setOptions.includes(quality) ? quality : "auto";
 
     // The frame is drawn at the size YouTube plays the wanted quality at, then
     // scaled to fit the stage — YouTube never plays more than its frame's
     // size, so this is what lets it play its best. The frame also runs past
     // the stage above and below (see `frameBleed`), so YouTube's title strip
     // and "More videos" row fall outside the picture.
-    const frameQuality: QualityChoice = quality === "best" ? (bestQuality ?? "hd1080") : quality;
+    // On Auto the frame allows the video's best; YouTube goes as high as the connection lets it.
+    const frameQuality: QualityChoice = quality === "auto" ? (bestQuality ?? "hd1080") : quality;
     const frameStyle = (() => {
         if (stageWidth === 0) return undefined;
         const videoHeight = QUALITY_FRAME_HEIGHT[frameQuality] / pixelRatio;
@@ -1090,14 +1096,10 @@ export default function LessonVideoPlayer({
                         )}
                     </p>
                     <div className="grid grid-cols-4 gap-1">
-                        <MenuChip
-                            selected={shownQuality === "best"}
-                            onClick={() => changeQuality("best")}
-                            className="col-span-2"
-                        >
-                            Best{bestQuality && ` · ${QUALITY_LABEL[bestQuality]}`}
+                        <MenuChip selected={shownQuality === "auto"} onClick={() => changeQuality("auto")} className="col-span-2">
+                            Auto
                         </MenuChip>
-                        {lowerOptions.map((choice) => (
+                        {setOptions.map((choice) => (
                             <MenuChip
                                 key={choice}
                                 selected={choice === shownQuality}
@@ -1108,9 +1110,9 @@ export default function LessonVideoPlayer({
                         ))}
                     </div>
                     <p className="mt-1.5 text-[0.6875rem] leading-snug text-white/45">
-                        {shownQuality === "best"
-                            ? "The highest quality this video has. If slow internet lowers it, tap Best again."
-                            : "Lower quality for this video only — it uses less internet. The next lesson plays in Best again."}
+                        {shownQuality === "auto"
+                            ? `Picks the quality for your internet speed${bestQuality ? `, up to ${QUALITY_LABEL[bestQuality]}` : ""}. Choose one to keep it there for this video.`
+                            : `Kept at ${QUALITY_LABEL[shownQuality]} for this video. The next lesson starts on Auto again.`}
                     </p>
 
                     <p className="mb-2 mt-3 border-t border-white/10 pt-2.5 text-xs font-semibold text-white/60">
@@ -1210,8 +1212,10 @@ function PlayBadge({
             )}
             {/* An even violet glow on every side, so the button looks centred. */}
             <span className="absolute -inset-3 rounded-full bg-violet-500/35 blur-xl transition-opacity duration-300 group-hover:opacity-80 sm:-inset-4" />
-            {/* The glass ring — and the keyboard focus ring, when the cover has focus. */}
-            <span className="absolute -inset-1.5 rounded-full bg-black/25 ring-1 ring-white/35 backdrop-blur-md transition-colors duration-300 group-hover:bg-black/35 group-focus-visible:ring-2 group-focus-visible:ring-white sm:-inset-2" />
+            {/* The glass ring — and the keyboard focus ring, when the cover has focus. A plain tint,
+                not a backdrop blur: over the scaled YouTube frame, Chrome drew a blur's edge as a thin
+                dark line right across the video. */}
+            <span className="absolute -inset-1.5 rounded-full bg-black/40 ring-1 ring-white/35 transition-colors duration-300 group-hover:bg-black/50 group-focus-visible:ring-2 group-focus-visible:ring-white sm:-inset-2" />
             <span className="relative grid size-full place-items-center rounded-full bg-[linear-gradient(145deg,var(--violet-400),var(--violet-600)_55%,var(--violet-800))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),inset_0_-3px_8px_rgb(0_0_0/0.18)] transition-transform duration-300 ease-out group-hover:scale-[1.07] group-active:scale-95">
                 {loading ? (
                     <LoaderCircle className="size-[42%] animate-spin" />
@@ -1236,6 +1240,9 @@ function PlayBadge({
  * always, playing or not — so a screen recording shows whose account made
  * it. Positioned within the picture only, never the letterbox around it.
  */
+/** How long the watermark stays in one place before it moves. */
+const WATERMARK_MOVE_MS = 6000;
+
 function MovingWatermark({ text }: { text: string }) {
     // Fixed first spot, so the server and browser render the same thing.
     const [spot, setSpot] = useState({ x: 8, y: 10, key: 0 });
@@ -1247,7 +1254,7 @@ function MovingWatermark({ text }: { text: string }) {
                 y: 6 + Math.round(Math.random() * 82),
                 key: previous.key + 1,
             }));
-        }, 2000);
+        }, WATERMARK_MOVE_MS);
         return () => window.clearInterval(id);
     }, []);
 
