@@ -5,7 +5,9 @@ import AppError from "../errorHelpers/AppError";
  * Late-submission windows for assignments — pure rules, no database. An
  * assignment's `lateTiers` extend its deadline: a first submission after the
  * deadline but by a window's `until` is marked out of that window's
- * `maxMarks`; after the last window, submissions close.
+ * `maxMarks`; after the last window it stays out of that last window's marks.
+ * Submissions close only when the batch ends — an admin moves the course to
+ * Previous (recorded) — and then for good.
  */
 
 export type LateTier = { until: Date; maxMarks: number };
@@ -61,16 +63,22 @@ export const normaliseLateTiers = (tiers: LateTier[], deadline: Date | null, tot
 
 /**
  * Where a submission made `at` lands: on time (full marks), inside a late
- * window (capped at its `maxMarks`), or closed — past the deadline and every
- * window. No deadline means always on time.
+ * window (capped at its `maxMarks`, `until` its end), or past every window —
+ * still late, capped at the last window's marks (the full marks when there
+ * are no windows), with no end (`until` null) but the batch's. No deadline
+ * means always on time. Once the batch has ended (`batchEnded`), closed.
  */
 export const submissionWindow = (
-    assignment: { deadline: Date | null; lateTiers: unknown },
+    assignment: { deadline: Date | null; lateTiers: unknown; totalMarks: number },
     at: Date,
-): { status: "ON_TIME"; maxScore: null } | { status: "LATE"; maxScore: number; until: Date } | { status: "CLOSED" } => {
+    batchEnded = false,
+): { status: "ON_TIME"; maxScore: null } | { status: "LATE"; maxScore: number; until: Date | null } | { status: "CLOSED" } => {
+    if (batchEnded) return { status: "CLOSED" };
     if (!assignment.deadline || at.getTime() <= assignment.deadline.getTime()) {
         return { status: "ON_TIME", maxScore: null };
     }
-    const tier = parseLateTiers(assignment.lateTiers).find((t) => at.getTime() <= t.until.getTime());
-    return tier ? { status: "LATE", maxScore: tier.maxMarks, until: tier.until } : { status: "CLOSED" };
+    const tiers = parseLateTiers(assignment.lateTiers);
+    const tier = tiers.find((t) => at.getTime() <= t.until.getTime());
+    if (tier) return { status: "LATE", maxScore: tier.maxMarks, until: tier.until };
+    return { status: "LATE", maxScore: tiers.at(-1)?.maxMarks ?? assignment.totalMarks, until: null };
 };

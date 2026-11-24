@@ -1,5 +1,5 @@
 import status from "http-status";
-import { CourseType, SubmissionStatus } from "../../../generated/prisma/enums";
+import { CoursePhase, CourseType, SubmissionStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { prisma } from "../../lib/prisma";
@@ -217,6 +217,8 @@ const getCourseLearning = async (user: IRequestUser, slug: string) => {
                     score: submission?.finalScore ?? null,
                     isSubmitted: Boolean(submission),
                     isAccepted: submission?.status === SubmissionStatus.ACCEPTED,
+                    // The batch is over (course moved to Previous): no more hand-ins or checking.
+                    isClosed: course.phase === CoursePhase.PREVIOUS,
                     materials: assignment.materials,
                     // Taken after the assignment's lessons, before its brief & submission.
                     quiz: quiz

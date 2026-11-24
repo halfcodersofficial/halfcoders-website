@@ -427,6 +427,23 @@ export interface StudentCourseLesson {
     lastWatchedAt: string | null;
 }
 
+/** A module's or assignment's quiz for one student: every attempt, and the best score. */
+export interface StudentCourseQuiz {
+    id: string;
+    title: string;
+    questions: number;
+    attempts: {
+        id: string;
+        status: "IN_PROGRESS" | "COMPLETED";
+        totalQuestions: number;
+        correctCount: number;
+        percentage: number;
+        startedAt: string;
+        completedAt: string | null;
+    }[];
+    bestPercent: number | null;
+}
+
 export type StudentCourseItem =
     | {
         kind: "module";
@@ -440,21 +457,7 @@ export type StudentCourseItem =
         completedLessons: number;
         progress: number;
         completedAt: string | null;
-        quiz: {
-            id: string;
-            title: string;
-            questions: number;
-            attempts: {
-                id: string;
-                status: "IN_PROGRESS" | "COMPLETED";
-                totalQuestions: number;
-                correctCount: number;
-                percentage: number;
-                startedAt: string;
-                completedAt: string | null;
-            }[];
-            bestPercent: number | null;
-        } | null;
+        quiz: StudentCourseQuiz | null;
     }
     | {
         kind: "assignment";
@@ -464,8 +467,9 @@ export type StudentCourseItem =
         deadline: string | null;
         position: number;
         publishedAt: string | null;
-        /** When first submissions stop — the last late window, else the deadline. */
-        closesAt: string | null;
+        /** Taken after its lessons, before the brief & submission. */
+        quiz: StudentCourseQuiz | null;
+        /** The batch ended (course moved to Previous) without anything handed in. */
         missed: boolean;
         submission: StudentSubmission | null;
     }

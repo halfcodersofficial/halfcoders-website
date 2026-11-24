@@ -1,6 +1,7 @@
 import status from "http-status";
 import {
     CertificateStatus,
+    CoursePhase,
     EnrollmentStatus,
     OrderStatus,
     QuizAttemptStatus,
@@ -11,7 +12,6 @@ import AppError from "../../errorHelpers/AppError";
 import { flattenLearner, learnerIdentitySelect, learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
-import { parseLateTiers } from "../../utils/lateWindows";
 import { scoreProfileSections } from "../studentProfile/studentProfile.service";
 
 /**
@@ -47,12 +47,11 @@ const percentOf = (score: number | null, maxScore: number | null, totalMarks: nu
 const average = (values: number[]) =>
     values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null;
 
-/** When an assignment stops taking first submissions: its last late window, else its deadline. */
-const closesAt = (deadline: Date | null, lateTiers: unknown) => {
-    if (!deadline) return null;
-    const tiers = parseLateTiers(lateTiers);
-    return tiers.length ? tiers[tiers.length - 1].until : deadline;
-};
+/**
+ * An assignment stops taking work only when its batch ends — the course
+ * moved to Previous (recorded); late windows lower the marks, never close it.
+ */
+const batchEnded = (phase: CoursePhase) => phase === CoursePhase.PREVIOUS;
 
 const latest = (...dates: (Date | null | undefined)[]) =>
     dates.filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
@@ -239,7 +238,7 @@ const getStudentOverview = async (userId: string) => {
             course: {
                 select: {
                     id: true, title: true, slug: true, thumbnail: true, courseType: true, status: true,
-                    milestoneLabel: true, moduleLabel: true,
+                    milestoneLabel: true, moduleLabel: true, phase: true,
                 },
             },
             currentMilestone: { select: { id: true, title: true, order: true } },
@@ -283,7 +282,7 @@ const getStudentOverview = async (userId: string) => {
         prisma.videoProgress.groupBy({ by: ["enrollmentId"], where: mine, _max: { updatedAt: true } }),
         prisma.assignment.findMany({
             where: { ...inTheirCourses, ...publishedWeek },
-            select: { id: true, courseId: true, deadline: true, lateTiers: true },
+            select: { id: true, courseId: true },
         }),
         prisma.quiz.findMany({
             // A module's quiz or an assignment's, out in a published week.
@@ -404,10 +403,10 @@ const getStudentOverview = async (userId: string) => {
         const courseAssignments = assignments.filter((assignment) => assignment.courseId === enrollment.courseId);
         const courseSubmissions = submissions.filter((row) => row.enrollmentId === enrollment.id);
         const marked = courseSubmissions.map((row) => row.percent).filter((value): value is number => value !== null);
-        const missed = courseAssignments.filter((assignment) => {
-            const closes = closesAt(assignment.deadline, assignment.lateTiers);
-            return closes !== null && closes < now && !submittedIds.has(assignment.id);
-        }).length;
+        // Never handed in, and the batch is over.
+        const missed = batchEnded(enrollment.course.phase)
+            ? courseAssignments.filter((assignment) => !submittedIds.has(assignment.id)).length
+            : 0;
 
         const courseQuizIds = new Set(quizzes.filter((quiz) => quiz.courseId === enrollment.courseId).map((quiz) => quiz.id));
         const bestByQuiz = new Map<string, number>();
@@ -628,7 +627,7 @@ const getStudentCourse = async (userId: string, courseId: string) => {
         where: { studentId_courseId: { studentId: userId, courseId } },
         select: {
             id: true, status: true, progress: true, currentMilestoneId: true, currentModuleId: true,
-            course: { select: { id: true, title: true, slug: true, courseType: true, milestoneLabel: true, moduleLabel: true } },
+            course: { select: { id: true, title: true, slug: true, courseType: true, milestoneLabel: true, moduleLabel: true, phase: true } },
         },
     });
     if (!enrollment) throw new AppError(status.NOT_FOUND, "This student isn't enrolled in that course.");
@@ -658,8 +657,13 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                 assignments: {
                     where: { isPublished: true },
                     select: {
-                        id: true, title: true, totalMarks: true, deadline: true, lateTiers: true, position: true,
+                        id: true, title: true, totalMarks: true, deadline: true, position: true,
                         publishedAt: true,
+                        // Taken after its lessons, before the brief & submission.
+                        quizzes: {
+                            where: { isPublished: true },
+                            select: { id: true, title: true, _count: { select: { questions: true } } },
+                        },
                     },
                 },
                 practiceDays: {
@@ -696,12 +700,26 @@ const getStudentCourse = async (userId: string, courseId: string) => {
     ]);
 
     const history = await markingHistory(submissionRows.map((row) => row.id));
-    const now = new Date();
+    const ended = batchEnded(enrollment.course.phase);
     const watchedBy = new Map(watched.map((row) => [row.videoId, row]));
     const moduleBy = new Map(moduleRows.map((row) => [row.moduleId, row]));
     const weekBy = new Map(weekRows.map((row) => [row.milestoneId, row]));
     const submissionBy = new Map(submissionRows.map((row) => [row.assignment.id, toSubmission(row, history)]));
     const completionBy = new Map(completions.map((row) => [row.practiceDayId, row]));
+
+    /** A module's or assignment's quiz with every attempt at it and the best score. */
+    const quizResult = (quiz: { id: string; title: string; _count: { questions: number } } | undefined) => {
+        if (!quiz) return null;
+        const quizAttempts = attempts.filter((attempt) => attempt.quizId === quiz.id);
+        const scores = quizAttempts.filter((attempt) => attempt.status === QuizAttemptStatus.COMPLETED).map((attempt) => attempt.percentage);
+        return {
+            id: quiz.id,
+            title: quiz.title,
+            questions: quiz._count.questions,
+            attempts: quizAttempts,
+            bestPercent: scores.length ? Math.max(...scores) : null,
+        };
+    };
 
     return {
         enrollment,
@@ -717,12 +735,6 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                         lastWatchedAt: progress?.updatedAt ?? null,
                     };
                 });
-                const quiz = courseModule.quizzes[0];
-                const quizAttempts = quiz ? attempts.filter((attempt) => attempt.quizId === quiz.id) : [];
-                const scores = quizAttempts
-                    .filter((attempt) => attempt.status === QuizAttemptStatus.COMPLETED)
-                    .map((attempt) => attempt.percentage);
-
                 return {
                     kind: "module" as const,
                     id: courseModule.id,
@@ -735,27 +747,18 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                     completedLessons: lessons.filter((lesson) => lesson.completed).length,
                     progress: moduleBy.get(courseModule.id)?.progress ?? 0,
                     completedAt: moduleBy.get(courseModule.id)?.completedAt ?? null,
-                    quiz: quiz
-                        ? {
-                            id: quiz.id,
-                            title: quiz.title,
-                            questions: quiz._count.questions,
-                            attempts: quizAttempts,
-                            bestPercent: scores.length ? Math.max(...scores) : null,
-                        }
-                        : null,
+                    quiz: quizResult(courseModule.quizzes[0]),
                 };
             });
 
-            const assignments = week.assignments.map(({ lateTiers, ...assignment }) => {
-                const closes = closesAt(assignment.deadline, lateTiers);
+            const assignments = week.assignments.map(({ quizzes, ...assignment }) => {
                 const submission = submissionBy.get(assignment.id) ?? null;
                 return {
                     kind: "assignment" as const,
                     ...assignment,
-                    closesAt: closes,
-                    /** Closed without anything handed in. */
-                    missed: !submission && closes !== null && closes < now,
+                    quiz: quizResult(quizzes[0]),
+                    /** The batch ended without anything handed in. */
+                    missed: !submission && ended,
                     submission,
                 };
             });

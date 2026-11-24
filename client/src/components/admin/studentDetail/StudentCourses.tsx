@@ -29,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { cn, formatBDT, formatDate, formatDateTime } from "@/lib/utils";
 import { adminService } from "@/services/admin";
-import type { StudentCourseItem, StudentEnrollment } from "@/types/admin.types";
+import type { StudentCourseBreakdown, StudentCourseItem, StudentCourseQuiz, StudentEnrollment } from "@/types/admin.types";
 import { clockLabel, percentLabel, percentTone, weekLabel } from "./format";
 import { Marks, MarkedBy, SubmissionDetail } from "./StudentSubmissions";
 
@@ -214,7 +214,26 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
         );
     }
 
-    if (data.weeks.length === 0) {
+    return <CourseWeekList weeks={data.weeks} course={data.enrollment.course} />;
+}
+
+/**
+ * A student's course week by week, in the order they see it — each module's
+ * lessons and quiz, each assignment (its quiz, marks, feedback and who gave
+ * them), each practice day. Shared by the admin's student page and the
+ * mentor's student record; `courseHref` is where a submission's course links
+ * to (null: no link — the reader is already on that course).
+ */
+export function CourseWeekList({
+    weeks,
+    course,
+    courseHref,
+}: {
+    weeks: StudentCourseBreakdown["weeks"];
+    course: { milestoneLabel: string; moduleLabel: string };
+    courseHref?: string | null;
+}) {
+    if (weeks.length === 0) {
         return (
             <p className="rounded-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 Nothing in this course has been released yet.
@@ -222,7 +241,8 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
         );
     }
 
-    const { milestoneLabel, moduleLabel } = data.enrollment.course;
+    const { milestoneLabel, moduleLabel } = course;
+    const data = { weeks };
 
     return (
         <ol className="space-y-4">
@@ -259,7 +279,7 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
                             <ul className="divide-y divide-border">
                                 {week.items.map((item) => (
                                     <li key={`${item.kind}-${item.id}`}>
-                                        <WeekItem item={item} moduleLabel={moduleLabel} />
+                                        <WeekItem item={item} moduleLabel={moduleLabel} courseHref={courseHref} />
                                     </li>
                                 ))}
                             </ul>
@@ -271,7 +291,7 @@ function CourseWeeks({ studentId, enrollment }: { studentId: string; enrollment:
     );
 }
 
-function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel: string }) {
+function WeekItem({ item, moduleLabel, courseHref }: { item: StudentCourseItem; moduleLabel: string; courseHref?: string | null }) {
     if (item.kind === "module") {
         const done = item.lessons.length > 0 && item.completedLessons === item.lessons.length;
         return (
@@ -340,35 +360,10 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
                         <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
                             {item.quiz ? `Quiz · ${item.quiz.questions} questions` : "Quiz"}
                         </p>
-                        {!item.quiz ? (
-                            <p className="text-sm text-muted-foreground">This {moduleLabel.toLowerCase()} has no quiz.</p>
-                        ) : item.quiz.attempts.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">Not taken yet.</p>
+                        {item.quiz ? (
+                            <QuizAttempts quiz={item.quiz} />
                         ) : (
-                            <ol className="space-y-1.5">
-                                {item.quiz.attempts.map((attempt, index) => (
-                                    <li key={attempt.id} className="flex items-center justify-between gap-3 rounded-md bg-secondary/40 px-3 py-2 text-sm">
-                                        <span>
-                                            Attempt {index + 1}
-                                            <span className="block text-xs text-muted-foreground">
-                                                {formatDateTime(attempt.completedAt ?? attempt.startedAt)}
-                                            </span>
-                                        </span>
-                                        {attempt.status === "COMPLETED" ? (
-                                            <span className="text-right">
-                                                <span className={cn("font-semibold tabular-nums", percentTone(attempt.percentage))}>
-                                                    {attempt.percentage}%
-                                                </span>
-                                                <span className="block text-xs tabular-nums text-muted-foreground">
-                                                    {attempt.correctCount}/{attempt.totalQuestions} correct
-                                                </span>
-                                            </span>
-                                        ) : (
-                                            <Badge variant="secondary">Unfinished</Badge>
-                                        )}
-                                    </li>
-                                ))}
-                            </ol>
+                            <p className="text-sm text-muted-foreground">This {moduleLabel.toLowerCase()} has no quiz.</p>
                         )}
                     </div>
                 </div>
@@ -377,7 +372,7 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
     }
 
     if (item.kind === "assignment") {
-        const { submission } = item;
+        const { submission, quiz } = item;
         return (
             <Expandable
                 icon={ClipboardList}
@@ -385,27 +380,42 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
                 title={item.title}
                 subtitle={`Assignment · ${item.totalMarks} marks${item.deadline ? ` · due ${formatDateTime(item.deadline)}` : ""}`}
                 aside={
-                    submission ? (
-                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                            <Marks submission={submission} />
-                            <StatusPill kind="submission" value={submission.status} />
-                            <div className="min-w-44">
-                                <MarkedBy submission={submission} />
-                            </div>
-                        </div>
-                    ) : item.missed ? (
-                        <p className="text-sm font-medium text-destructive">
-                            Missed — closed {formatDateTime(item.closesAt as string)}
-                        </p>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            Not submitted{item.closesAt ? ` · open until ${formatDateTime(item.closesAt)}` : ""}
-                        </p>
-                    )
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {quiz && (
+                            <span className="flex items-center gap-1 text-xs">
+                                <ListChecks className="size-3.5 text-muted-foreground" aria-hidden />
+                                <span className="text-muted-foreground">Quiz</span>
+                                <span className={cn("font-semibold tabular-nums", percentTone(quiz.bestPercent))}>
+                                    {quiz.bestPercent === null ? "not taken" : percentLabel(quiz.bestPercent)}
+                                </span>
+                            </span>
+                        )}
+                        {submission ? (
+                            <>
+                                <Marks submission={submission} />
+                                <StatusPill kind="submission" value={submission.status} />
+                                <div className="min-w-44">
+                                    <MarkedBy submission={submission} />
+                                </div>
+                            </>
+                        ) : item.missed ? (
+                            <p className="text-sm font-medium text-destructive">Missed — the batch ended</p>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Not submitted · open until the batch ends</p>
+                        )}
+                    </div>
                 }
             >
+                {quiz && (
+                    <div className="border-b border-border px-4 py-4">
+                        <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
+                            Quiz · {quiz.questions} questions
+                        </p>
+                        <QuizAttempts quiz={quiz} />
+                    </div>
+                )}
                 {submission ? (
-                    <SubmissionDetail submission={submission} />
+                    <SubmissionDetail submission={submission} courseHref={courseHref} />
                 ) : (
                     <p className="px-4 py-4 text-sm text-muted-foreground">Nothing handed in for this assignment.</p>
                 )}
@@ -427,6 +437,33 @@ function WeekItem({ item, moduleLabel }: { item: StudentCourseItem; moduleLabel:
                 {item.completion ? `Done ${formatDateTime(item.completion.completedAt)}` : "Not done"}
             </p>
         </div>
+    );
+}
+
+/** Every attempt at a quiz, with its score and how many were right. */
+function QuizAttempts({ quiz }: { quiz: StudentCourseQuiz }) {
+    if (quiz.attempts.length === 0) return <p className="text-sm text-muted-foreground">Not taken yet.</p>;
+    return (
+        <ol className="space-y-1.5">
+            {quiz.attempts.map((attempt, index) => (
+                <li key={attempt.id} className="flex items-center justify-between gap-3 rounded-md bg-secondary/40 px-3 py-2 text-sm">
+                    <span>
+                        Attempt {index + 1}
+                        <span className="block text-xs text-muted-foreground">{formatDateTime(attempt.completedAt ?? attempt.startedAt)}</span>
+                    </span>
+                    {attempt.status === "COMPLETED" ? (
+                        <span className="text-right">
+                            <span className={cn("font-semibold tabular-nums", percentTone(attempt.percentage))}>{attempt.percentage}%</span>
+                            <span className="block text-xs tabular-nums text-muted-foreground">
+                                {attempt.correctCount}/{attempt.totalQuestions} correct
+                            </span>
+                        </span>
+                    ) : (
+                        <Badge variant="secondary">Unfinished</Badge>
+                    )}
+                </li>
+            ))}
+        </ol>
     );
 }
 

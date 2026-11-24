@@ -1,6 +1,6 @@
 import status from "http-status";
 import { Prisma } from "../../../generated/prisma/client";
-import { MarkAdjustmentKind, NotificationType, RecheckStatus, SubmissionStatus, XpSource } from "../../../generated/prisma/enums";
+import { CoursePhase, MarkAdjustmentKind, NotificationType, RecheckStatus, SubmissionStatus, XpSource } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IQueryParams } from "../../interfaces/query.interface";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
@@ -53,18 +53,24 @@ const scoreFromRubric = (
     return maxScore === totalMarks ? sum : Math.round((sum * maxScore) / totalMarks);
 };
 
+/** A course moved to Previous (recorded): its batch is over, and its assignments with it. */
+const batchEndedError = () =>
+    new AppError(status.CONFLICT, "Checking for this batch has ended, so assignments can't be submitted or rechecked any more.");
+
 /**
  * What handing an assignment in right now would be: the first hand-in, a
- * resubmission the mentor asked for (changes asked, or rejected — free), a
- * resubmission of the student's own choosing before the results are out
- * (charged), or none at all (`null`: in review, or results out).
+ * resubmission the mentor asked for (changes asked, or rejected — free), the
+ * work sent again for a recheck the student asked for (free — the recheck fee
+ * covers it), a resubmission of the student's own choosing before the results
+ * are out (charged), or none at all (`null`: in review, or results out).
  */
 const nextHandIn = (
-    existing: { status: SubmissionStatus } | null,
+    existing: { status: SubmissionStatus; recheckOpen?: boolean } | null,
     resultsPublishedAt: Date | null,
-): "first" | "requested" | "voluntary" | null => {
+): "first" | "requested" | "recheck" | "voluntary" | null => {
     if (!existing) return "first";
     if (existing.status === SubmissionStatus.NEEDS_REVISION || existing.status === SubmissionStatus.REJECTED) return "requested";
+    if (existing.status === SubmissionStatus.ACCEPTED && existing.recheckOpen) return "recheck";
     if (existing.status === SubmissionStatus.UNDER_REVIEW || resultsPublishedAt) return null;
     return "voluntary";
 };
@@ -321,7 +327,7 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
         where: { id: assignmentId, isPublished: true },
         include: {
             milestone: { select: { id: true, title: true, order: true } },
-            course: { select: { id: true, title: true, slug: true } },
+            course: { select: { id: true, title: true, slug: true, phase: true } },
             materials: {
                 orderBy: { order: "asc" },
                 select: {
@@ -334,6 +340,8 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
         },
     });
     if (!assignment) throw new AppError(status.NOT_FOUND, "Assignment not found.");
+    // Moved to Previous (recorded): the batch is over and its assignments are no longer taken or checked.
+    const batchEnded = assignment.course.phase === CoursePhase.PREVIOUS;
 
     const enrollment = await requireEnrollment(user, assignment.courseId);
 
@@ -359,9 +367,10 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
 
     const now = new Date();
     const isOverdue = Boolean(assignment.deadline && assignment.deadline < now);
-    const window = submissionWindow(assignment, now);
+    const window = submissionWindow(assignment, now, batchEnded);
     const published = Boolean(assignment.resultsPublishedAt);
-    const next = nextHandIn(submission, assignment.resultsPublishedAt);
+    // Nothing more goes in once the batch is over.
+    const next = batchEnded ? null : nextHandIn(submission, assignment.resultsPublishedAt);
     // What the student could pay a resubmission with in XP — only asked when one would cost anything.
     const xpAvailable =
         next === "voluntary"
@@ -387,22 +396,26 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
             until: window.status === "LATE" ? window.until : null,
         },
         resultsPublished: published,
+        // The course moved to Previous (recorded): no more hand-ins, rechecks or checking.
+        batchEnded,
         // The amounts, from the one place they're set — what the page shows is what's taken.
         penalties: ASSIGNMENT_PENALTIES,
-        // A first hand-in needs a window still open (its mark cap is fixed
-        // then); work sent back can always be reworked; before the results
-        // are out a student may resubmit at a cost; in review, or once the
-        // results are out, not at all.
-        canSubmit: next === "first" ? window.status !== "CLOSED" : next !== null,
+        // A first hand-in is always taken while the batch runs (late ones out
+        // of fewer marks); work sent back can always be reworked; while a
+        // recheck the student asked for waits, they may send their work again
+        // for it; before the results are out a student may resubmit at a
+        // cost; in review, once the results are out, or after the batch, not
+        // at all.
+        canSubmit: next !== null,
         // What the next hand-in costs — the marks *or* the XP, the student's
         // choice — and the XP they have to pay with. Null when it's free.
         resubmitCost:
             next === "voluntary"
                 ? { marks: ASSIGNMENT_PENALTIES.resubmitMarks, xp: ASSIGNMENT_PENALTIES.resubmitXp, xpAvailable }
                 : null,
-        // A published, marked result with no recheck already waiting.
+        // A published, marked result with no recheck already waiting, while the batch runs.
         canRecheck: Boolean(
-            published && submission?.status === SubmissionStatus.ACCEPTED && submission.score !== null && !submission.recheckOpen,
+            !batchEnded && published && submission?.status === SubmissionStatus.ACCEPTED && submission.score !== null && !submission.recheckOpen,
         ),
     };
 };
@@ -439,13 +452,29 @@ const uploadSubmissionFiles = async (user: IRequestUser, assignmentId: string, f
 const notifyMentorsOfHandIn = async (
     user: IRequestUser,
     assignment: { id: string; courseId: string; title: string; course: { title: string } },
-    { kind, late }: { kind: "first" | "requested" | "voluntary"; late: boolean },
+    { kind, late, submissionId }: { kind: "first" | "requested" | "recheck" | "voluntary"; late: boolean; submissionId: string },
 ) => {
     const [waiting, student] = await Promise.all([
         prisma.assignmentSubmission.count({ where: { assignmentId: assignment.id, status: SubmissionStatus.SUBMITTED } }),
         user.name ? { name: user.name } : prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } }),
     ]);
     const who = student?.name ?? "A student";
+
+    // Work sent again for a recheck goes to the recheck, not the marking queue.
+    if (kind === "recheck") {
+        await notifyCourseMentors(
+            assignment.courseId,
+            {
+                title: `Recheck: work sent again for ${assignment.title}`,
+                message: `${who} sent their work again for their recheck · ${assignment.course.title}`,
+                type: NotificationType.ASSIGNMENT,
+                link: `/mentor/reviews?course=${assignment.courseId}&assignment=${assignment.id}&recheck=open&focus=${submissionId}`,
+            },
+            { except: user.userId },
+        );
+        return;
+    }
+
     const what =
         kind === "requested"
             ? "resubmitted it after your feedback"
@@ -495,13 +524,16 @@ const submitAssignment = async (
     const assignment = await prisma.assignment.findFirst({
         where: { id: assignmentId, isPublished: true },
         select: {
-            id: true, courseId: true, title: true, deadline: true, lateTiers: true, resultsPublishedAt: true,
-            course: { select: { title: true } },
+            id: true, courseId: true, title: true, deadline: true, lateTiers: true, totalMarks: true, resultsPublishedAt: true,
+            course: { select: { title: true, phase: true } },
         },
     });
     if (!assignment) throw new AppError(status.NOT_FOUND, "Assignment not found.");
 
     const enrollment = await requireEnrollment(user, assignment.courseId);
+
+    // The batch is over (the course moved to Previous): nothing more is taken — first hand-ins, resubmissions or rechecks.
+    if (assignment.course.phase === CoursePhase.PREVIOUS) throw batchEndedError();
 
     // Files only ever come from the hand-in upload — never an arbitrary link passed off as one.
     if (payload.fileUrls?.some((url) => !isSubmissionFile(url))) {
@@ -510,7 +542,7 @@ const submitAssignment = async (
 
     const existing = await prisma.assignmentSubmission.findUnique({
         where: { assignmentId_studentId: { assignmentId, studentId: user.userId } },
-        select: { id: true, status: true, maxScore: true, attempts: true },
+        select: { id: true, status: true, maxScore: true, attempts: true, recheckOpen: true },
     });
 
     if (existing?.status === SubmissionStatus.UNDER_REVIEW) {
@@ -524,7 +556,7 @@ const submitAssignment = async (
         throw new AppError(
             status.CONFLICT,
             existing?.status === SubmissionStatus.ACCEPTED
-                ? "The results are out, so this can't be resubmitted any more. If you think your mark is wrong, ask for a recheck."
+                ? "The results are out, so this can't be resubmitted any more. If you think your mark is wrong, ask for a recheck — then you can send it again."
                 : "The results for this assignment have been published, so it can't be resubmitted any more.",
         );
     }
@@ -552,18 +584,12 @@ const submitAssignment = async (
 
     // The deadline and late windows apply only to a *first* submission, which
     // fixes the most it can score. Once a mentor has asked for revisions,
-    // blocking the fix — or marking it down again for arriving "late" — would
-    // punish the student for work they were explicitly told to redo.
+    // marking it down again for arriving "late" would punish the student for
+    // work they were explicitly told to redo. Past every window it's still
+    // taken, out of the last window's marks — it closes only with the batch.
     const window = submissionWindow(assignment, new Date());
-    if (!existing && window.status === "CLOSED") {
-        throw new AppError(
-            status.BAD_REQUEST,
-            parseLateTiers(assignment.lateTiers).length > 0
-                ? "Submissions for this assignment have closed — the last late window has passed."
-                : "The deadline for this assignment has passed.",
-        );
-    }
-    const maxScore = window.status === "LATE" ? window.maxScore : null;
+    // A cap only when it's below the full marks — late with no windows set is late, but still out of everything.
+    const maxScore = window.status === "LATE" && window.maxScore < assignment.totalMarks ? window.maxScore : null;
 
     logger.create("Assignment submitted", { assignmentId, studentId: user.userId, kind });
 
@@ -587,6 +613,28 @@ const submitAssignment = async (
             }
 
             const attempt = existing.attempts + 1;
+
+            // Sent again for a recheck: only the work changes. The mark, the
+            // feedback and the recheck stay — the mentor decides the recheck
+            // on this version. Guarded on the recheck still waiting, so work
+            // can't land after it's been decided.
+            if (kind === "recheck") {
+                const updated = await tx.assignmentSubmission.updateMany({
+                    where: { id: existing.id, attempts: existing.attempts, status: SubmissionStatus.ACCEPTED, recheckOpen: true },
+                    data: {
+                        content: payload.content ?? null,
+                        submissionUrl: payload.submissionUrl ?? null,
+                        fileUrls: payload.fileUrls ?? [],
+                        submittedAt: new Date(),
+                        attempts: attempt,
+                    },
+                });
+                if (updated.count === 0) {
+                    throw new AppError(status.CONFLICT, "Your recheck was decided while you were sending this. Reload the page to see the result.");
+                }
+                return tx.assignmentSubmission.findUniqueOrThrow({ where: { id: existing.id } });
+            }
+
             // Conditional on the attempt and state just read — see the doc comment.
             // `maxScore` deliberately untouched: it was fixed by the first submission.
             // A resubmission replaces the attempt whole — a field left out is cleared,
@@ -671,7 +719,7 @@ const submitAssignment = async (
         });
     }
 
-    await notifyMentorsOfHandIn(user, assignment, { kind, late: maxScore !== null });
+    await notifyMentorsOfHandIn(user, assignment, { kind, late: maxScore !== null, submissionId: submission.id });
 
     return {
         ...forStudent(submission, assignment.resultsPublishedAt),
@@ -1121,11 +1169,12 @@ const publishResults = async (user: IRequestUser, assignmentId: string) => {
 const requestRecheck = async (user: IRequestUser, assignmentId: string, payload: { reason: string }) => {
     const assignment = await prisma.assignment.findFirst({
         where: { id: assignmentId, isPublished: true },
-        select: { id: true, title: true, courseId: true, resultsPublishedAt: true, course: { select: { title: true } } },
+        select: { id: true, title: true, courseId: true, resultsPublishedAt: true, course: { select: { title: true, phase: true } } },
     });
     if (!assignment) throw new AppError(status.NOT_FOUND, "Assignment not found.");
     await requireEnrollment(user, assignment.courseId);
 
+    if (assignment.course.phase === CoursePhase.PREVIOUS) throw batchEndedError();
     if (!assignment.resultsPublishedAt) {
         throw new AppError(status.CONFLICT, "You can ask for a recheck once the results are published.");
     }

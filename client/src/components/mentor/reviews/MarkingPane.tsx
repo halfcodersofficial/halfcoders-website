@@ -19,7 +19,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { elapsed, pad2 } from "@/components/mentor/dashboard/time";
@@ -32,6 +32,7 @@ import { useSession } from "@/hooks/useSession";
 import { useZodForm } from "@/hooks/useZodForm";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { linkify } from "@/lib/linkify";
 import { privateFileHref } from "@/lib/privateFile";
 import { cn, formatDateTime } from "@/lib/utils";
 import { submissionFileName } from "@/lib/submissionFiles";
@@ -104,11 +105,33 @@ const reviewSchema = (maxScore: number, isLate: boolean, hasRubric: boolean) =>
 /** Full marks, then a few round steps down — never above the cap. */
 const quickScores = (max: number) => [...new Set([1, 0.9, 0.8, 0.7, 0.6, 0.5].map((share) => Math.round(max * share)))].filter((value) => value <= max);
 
+/** The save button says what it will do. */
+const SAVE_LABEL: Record<string, string> = {
+    ACCEPTED: "Accept and save",
+    NEEDS_REVISION: "Send back for changes",
+    REJECTED: "Reject and save",
+};
+
+/** One numbered step of marking: "1 Check their work", "2 Decide", "3 …". */
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+    return (
+        <section aria-label={title} className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-[0.6875rem] font-bold text-primary">
+                    {n}
+                </span>
+                {title}
+            </h3>
+            {children}
+        </section>
+    );
+}
 
 /**
- * One hand-in, ready to mark: who (by name, nothing more), the brief it
- * answers, their work — link, notes, files — any earlier review, and the
- * decision with its score and feedback. Ctrl/⌘ + Enter saves.
+ * One hand-in, ready to mark, top to bottom in the order it's done: who (by
+ * name, nothing more) and the assignment it answers; who's marking it; then
+ * three numbered steps — check their work, decide, give the mark and
+ * feedback — with the save button kept in reach. Ctrl/⌘ + Enter saves.
  */
 export default function MarkingPane({
     submission,
@@ -196,7 +219,8 @@ export default function MarkingPane({
     const [lineNotes, setLineNotes] = useState<Record<string, string>>(() =>
         Object.fromEntries(rubric.map((line) => [line.id, submission.rubricScores?.find((score) => score.criterionId === line.id)?.comment ?? ""])),
     );
-    const rubricFilled = rubric.length > 0 && rubric.every((line) => points[line.id] !== "" && Number(points[line.id]) >= 0 && Number(points[line.id]) <= line.maxPoints);
+    const rubricFilled =
+        rubric.length > 0 && rubric.every((line) => points[line.id] !== "" && Number(points[line.id]) >= 0 && Number(points[line.id]) <= line.maxPoints);
     const rubricSum = rubric.reduce((sum, line) => sum + (Number(points[line.id]) || 0), 0);
     const rubricScore = maxScore === total ? rubricSum : Math.round((rubricSum * maxScore) / total);
 
@@ -248,55 +272,61 @@ export default function MarkingPane({
 
     return (
         <article aria-label={`${submission.student.name}'s hand-in`} className="animate-in fade-in duration-300 motion-reduce:animate-none">
-            {/* Who and when. A name, and nothing more: no photo, no contact details, no profile to open. */}
-            <header className={cn("flex flex-wrap items-center gap-3", !compact && "border-b border-border px-6 py-5")}>
-                <Avatar name={submission.student.name} size={compact ? 36 : 44} />
-                <div className="min-w-0 flex-1">
-                    <h2 className={cn("truncate font-semibold", compact ? "text-base" : "text-lg")}>{submission.student.name}</h2>
-                    <p className="text-xs text-muted-foreground">
-                        Handed in {formatDateTime(submission.submittedAt)}
-                        {pending && (
-                            <span className={cn(wait.days >= 2 && "font-medium text-amber-700 dark:text-amber-400")}> · waiting {wait.text}</span>
-                        )}
-                        {submission.attempts > 1 && <span> · attempt {submission.attempts}</span>}
-                    </p>
+            {/* Who and when, and the assignment it answers. A name, and nothing more: no photo, no contact details, no profile to open. */}
+            <header className={cn(!compact && "border-b border-border px-6 py-5")}>
+                <div className="flex flex-wrap items-center gap-3">
+                    <Avatar name={submission.student.name} size={compact ? 36 : 44} />
+                    <div className="min-w-0 flex-1">
+                        <h2 className={cn("truncate font-semibold", compact ? "text-base" : "text-lg")}>{submission.student.name}</h2>
+                        <p className="text-xs text-muted-foreground">
+                            Handed in {formatDateTime(submission.submittedAt)}
+                            {pending && <span className={cn(wait.days >= 2 && "font-medium text-amber-700 dark:text-amber-400")}> · waiting {wait.text}</span>}
+                            {submission.attempts > 1 && <span> · sent {submission.attempts} times</span>}
+                        </p>
+                    </div>
+                    {submission.recheckOpen ? (
+                        <span className="rounded-sm bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">Recheck</span>
+                    ) : (
+                        <span className={cn("rounded-sm px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>
+                            {STATUS_META[submission.status].label}
+                        </span>
+                    )}
                 </div>
-                {submission.recheckOpen ? (
-                    <span className="rounded-sm bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">Recheck</span>
-                ) : (
-                    <span className={cn("rounded-sm px-2.5 py-0.5 text-xs font-semibold", STATUS_META[submission.status].tone)}>{STATUS_META[submission.status].label}</span>
-                )}
-            </header>
 
-            <div className={cn("space-y-5", compact ? "mt-4" : "px-6 py-5")}>
-                {/* The brief it answers. */}
-                <section aria-label="The assignment" className="rounded-card border border-border bg-secondary/30 p-4">
-                    <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
+                <div className="mt-4 rounded-card border border-border bg-secondary/30 px-4 py-3">
+                    <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="font-semibold">{assignment.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                            out of {total}
+                            {assignment.deadline && ` · due ${formatDateTime(assignment.deadline)}`}
+                        </span>
+                        {isLate && (
+                            <span className="rounded-sm bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                Late — at most {maxScore}
+                            </span>
+                        )}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {assignment.course.title} · {assignment.course.milestoneLabel} {pad2(assignment.milestone.order)}
                     </p>
-                    <p className="mt-1 font-semibold">{assignment.title}</p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>Out of {total}</span>
-                        {assignment.deadline && <span>Due {formatDateTime(assignment.deadline)}</span>}
-                        {isLate && (
-                            <span className="rounded-sm bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">Late — at most {maxScore}</span>
-                        )}
-                        <Link href={`/mentor/courses/${assignment.course.id}/assignments/${assignment.id}`} className="font-medium text-primary hover:underline">
-                            Read the brief
-                        </Link>
-                    </p>
                     {/* The results, for the whole assignment: hidden until published, then out for everyone. */}
-                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/70 pt-3 text-xs">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                        {/* A new tab, so the place in the queue isn't lost. */}
+                        <Link
+                            href={`/mentor/courses/${assignment.course.id}/assignments/${assignment.id}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        >
+                            Read the brief <ExternalLink className="size-3" aria-hidden />
+                        </Link>
                         {published ? (
                             <span className="text-muted-foreground">
-                                <span className="font-medium text-success">Results published</span> {formatDateTime(assignment.resultsPublishedAt!)} — students see
-                                their marks; rechecks are open.
+                                <span className="font-medium text-success">Results published</span> — students see their marks
                             </span>
                         ) : (
                             <>
                                 <span className="min-w-0 flex-1 text-muted-foreground">
-                                    <span className="font-medium text-foreground">Results not published.</span> Students don&apos;t see marks yet, and can
-                                    still resubmit (at a cost).
+                                    <span className="font-medium text-foreground">Results not published</span> — students don&apos;t see marks yet
                                 </span>
                                 <Button type="button" size="sm" variant="brand-outline" onClick={() => void publishResults()} isLoading={publish.isPending}>
                                     {!publish.isPending && <Megaphone />} Publish results
@@ -304,9 +334,61 @@ export default function MarkingPane({
                             </>
                         )}
                     </div>
-                </section>
+                </div>
 
-                <Work submission={submission} />
+                {/* Who's marking it — first, so two mentors don't mark the same work. */}
+                {pending && !submission.recheckOpen && (
+                    <div
+                        className={cn(
+                            "mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border px-3.5 py-2.5",
+                            colleagues ? "border-amber-500/40 bg-amber-500/5" : mine ? "border-primary/30 bg-primary/5" : "border-dashed border-border",
+                        )}
+                    >
+                        {colleagues ? (
+                            <Eye className="size-4 shrink-0 text-amber-600" aria-hidden />
+                        ) : mine ? (
+                            <span className="relative grid size-4 shrink-0 place-items-center" aria-hidden>
+                                <span className="absolute size-2 animate-ping rounded-full bg-primary/50 motion-reduce:animate-none" />
+                                <span className="size-2 rounded-full bg-primary" />
+                            </span>
+                        ) : (
+                            <Hand className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        )}
+                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                            {colleagues ? (
+                                <>
+                                    <span className="font-semibold text-foreground">{reviewer?.name}</span> is marking this ·{" "}
+                                    {elapsed(submission.updatedAt, now).text}
+                                </>
+                            ) : mine ? (
+                                <>
+                                    <span className="font-semibold text-foreground">You&apos;re marking this</span> · {elapsed(submission.updatedAt, now).text}
+                                </>
+                            ) : (
+                                "Marking it now? Claim it, so a co-mentor doesn't mark it too."
+                            )}
+                        </p>
+                        {colleagues ? (
+                            <Button type="button" size="sm" variant="brand-outline" onClick={() => void takeOver()} isLoading={claim.isPending}>
+                                Take over
+                            </Button>
+                        ) : mine ? (
+                            <Button type="button" size="sm" variant="ghost" onClick={() => claim.mutate("release")} isLoading={claim.isPending}>
+                                {!claim.isPending && <Undo2 />} Put back
+                            </Button>
+                        ) : (
+                            <Button type="button" size="sm" variant="brand-outline" onClick={() => claim.mutate("claim")} isLoading={claim.isPending}>
+                                Start marking
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </header>
+
+            <div className={cn("space-y-5", compact ? "mt-5" : "px-6 py-5")}>
+                <Step n={1} title="Check their work">
+                    <Work submission={submission} />
+                </Step>
 
                 {/* What resubmitting and rechecks have cost — the student's mark is the mentor's mark minus this. */}
                 {submission.markAdjustment !== 0 && (
@@ -353,7 +435,9 @@ export default function MarkingPane({
                                     <li key={entry.id} className="rounded-card border border-border px-3.5 py-2.5 text-xs">
                                         <p className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
                                             <span className={cn("font-semibold", entry.status === "VALID" ? "text-success" : "text-destructive")}>
-                                                {entry.status === "VALID" ? `Raised ${entry.scoreBefore} → ${entry.scoreAfter}` : `Kept at ${entry.scoreBefore}`}
+                                                {entry.status === "VALID"
+                                                    ? `Raised ${entry.scoreBefore} → ${entry.scoreAfter}`
+                                                    : `Kept at ${entry.scoreBefore}`}
                                             </span>
                                             {entry.reviewedAt && <span>· {formatDateTime(entry.reviewedAt)}</span>}
                                             {entry.reviewedBy && <span>· {entry.reviewedBy.name}</span>}
@@ -369,217 +453,214 @@ export default function MarkingPane({
             {submission.recheckOpen ? (
                 <RecheckPanel submission={submission} onSaved={onSaved} onDirtyChange={onDirtyChange} compact={compact} />
             ) : (
-            <form className={cn("space-y-4 border-t border-border", compact ? "mt-5 pt-5" : "px-6 py-5")} noValidate onSubmit={form.handleSubmit} onKeyDown={onKeyDown}>
-                {pending && (
-                    <div
-                        className={cn(
-                            "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border px-3.5 py-2.5 text-sm",
-                            colleagues ? "border-amber-500/40 bg-amber-500/5" : mine ? "border-primary/30 bg-primary/5" : "border-dashed border-border",
-                        )}
+                <form className={cn("border-t border-border", compact && "mt-5")} noValidate onSubmit={form.handleSubmit} onKeyDown={onKeyDown}>
+                    {/* Locked while a colleague has it. */}
+                    <fieldset
+                        disabled={colleagues}
+                        className={cn("space-y-6 transition-opacity", compact ? "pt-5" : "px-6 py-5", colleagues && "pointer-events-none opacity-50")}
                     >
-                        {colleagues ? (
-                            <Eye className="size-4 shrink-0 text-amber-600" aria-hidden />
-                        ) : mine ? (
-                            <span className="relative grid size-4 shrink-0 place-items-center" aria-hidden>
-                                <span className="absolute size-2 animate-ping rounded-full bg-primary/50 motion-reduce:animate-none" />
-                                <span className="size-2 rounded-full bg-primary" />
-                            </span>
-                        ) : (
-                            <Hand className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        )}
-                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                            {colleagues ? (
-                                <>
-                                    <span className="font-semibold text-foreground">{reviewer?.name}</span> has been reviewing this for {elapsed(submission.updatedAt, now).text}.
-                                </>
-                            ) : mine ? (
-                                <>
-                                    <span className="font-semibold text-foreground">You&apos;re reviewing this</span> · {elapsed(submission.updatedAt, now).text}. They
-                                    can&apos;t resubmit until you&apos;ve marked it.
-                                </>
-                            ) : (
-                                "Let co-mentors know you're on it — they'll see your name, and the student can't swap the work while you mark."
-                            )}
-                        </p>
-                        {colleagues ? (
-                            <Button type="button" size="sm" variant="brand-outline" onClick={() => void takeOver()} isLoading={claim.isPending}>
-                                Take over
-                            </Button>
-                        ) : mine ? (
-                            <Button type="button" size="sm" variant="ghost" onClick={() => claim.mutate("release")} isLoading={claim.isPending}>
-                                {!claim.isPending && <Undo2 />} Put back
-                            </Button>
-                        ) : (
-                            <Button type="button" size="sm" variant="brand-outline" onClick={() => claim.mutate("claim")} isLoading={claim.isPending}>
-                                Start reviewing
-                            </Button>
-                        )}
-                    </div>
-                )}
-
-                <fieldset disabled={colleagues} className={cn("space-y-4 transition-opacity", colleagues && "pointer-events-none opacity-50")}>
-                    <fieldset>
-                        <legend className="text-sm font-medium">
-                            {pending ? "Your decision" : "Change the decision"}
-                            <span className="text-destructive"> *</span>
-                        </legend>
-                        <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                            {DECISIONS.map((option) => {
-                                const selected = decision === option.value;
-                                return (
-                                    <label
-                                        key={option.value}
-                                        className={cn(
-                                            "flex cursor-pointer flex-col gap-1 rounded-card border p-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
-                                            selected
-                                                ? option.value === "ACCEPTED"
-                                                    ? "border-primary bg-primary/5"
-                                                    : option.value === "REJECTED"
-                                                      ? "border-destructive/60 bg-destructive/5"
-                                                      : "border-amber-500/60 bg-amber-500/5"
-                                                : "border-border hover:bg-secondary/40",
-                                        )}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name={`decision-${submission.id}`}
-                                            value={option.value}
-                                            checked={selected}
-                                            onChange={() => form.setValue("status", option.value)}
-                                            className="sr-only"
-                                        />
-                                        <span className="flex items-center gap-2 text-sm font-semibold">
-                                            <option.icon
+                        <Step n={2} title={pending ? "Decide" : "Change the decision"}>
+                            <fieldset>
+                                <legend className="sr-only">{pending ? "Your decision" : "Change the decision"}</legend>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    {DECISIONS.map((option) => {
+                                        const selected = decision === option.value;
+                                        return (
+                                            <label
+                                                key={option.value}
                                                 className={cn(
-                                                    "size-4",
+                                                    "flex cursor-pointer flex-col gap-1 rounded-card border p-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                                     selected
                                                         ? option.value === "ACCEPTED"
-                                                            ? "text-primary"
+                                                            ? "border-primary bg-primary/5"
                                                             : option.value === "REJECTED"
-                                                              ? "text-destructive"
-                                                              : "text-amber-600"
-                                                        : "text-muted-foreground",
+                                                              ? "border-destructive/60 bg-destructive/5"
+                                                              : "border-amber-500/60 bg-amber-500/5"
+                                                        : "border-border hover:bg-secondary/40",
                                                 )}
-                                                aria-hidden
-                                            />
-                                            {option.label}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">{option.hint(published)}</span>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                        {form.errorFor("status") && <p className="mt-1.5 text-xs text-destructive">{form.errorFor("status")}</p>}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name={`decision-${submission.id}`}
+                                                    value={option.value}
+                                                    checked={selected}
+                                                    onChange={() => form.setValue("status", option.value)}
+                                                    className="sr-only"
+                                                />
+                                                <span className="flex items-center gap-2 text-sm font-semibold">
+                                                    <option.icon
+                                                        className={cn(
+                                                            "size-4",
+                                                            selected
+                                                                ? option.value === "ACCEPTED"
+                                                                    ? "text-primary"
+                                                                    : option.value === "REJECTED"
+                                                                      ? "text-destructive"
+                                                                      : "text-amber-600"
+                                                                : "text-muted-foreground",
+                                                        )}
+                                                        aria-hidden
+                                                    />
+                                                    {option.label}
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">{option.hint(published)}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                {form.errorFor("status") && <p className="mt-1.5 text-xs text-destructive">{form.errorFor("status")}</p>}
+                            </fieldset>
+                        </Step>
+
+                        {/* The mark and the words — only once there's a decision to go with them. */}
+                        {decision && (
+                            <Step n={3} title={decision === "ACCEPTED" ? "Give the mark and feedback" : "Tell them why"}>
+                                {rubric.length > 0 && (
+                                    <fieldset className="overflow-hidden rounded-card border border-border">
+                                        <legend className="sr-only">Rubric</legend>
+                                        <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-3.5 py-2 text-xs">
+                                            <span className="font-semibold font-mono uppercase tracking-wider text-muted-foreground">
+                                                Rubric
+                                                {decision === "ACCEPTED" ? (
+                                                    <span className="text-destructive"> *</span>
+                                                ) : (
+                                                    <span className="font-normal normal-case tracking-normal"> · optional</span>
+                                                )}
+                                            </span>
+                                            <span className="font-semibold tabular-nums">
+                                                {rubricSum} / {total}
+                                                {isLate && rubricFilled && (
+                                                    <span className="font-normal text-muted-foreground">
+                                                        {" "}
+                                                        → {rubricScore} / {maxScore} late
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </div>
+                                        <ul className="divide-y divide-border">
+                                            {rubric.map((line) => (
+                                                <li key={line.id} className="grid gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem] sm:items-start">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium">{line.title}</p>
+                                                        {line.description && <p className="text-xs text-muted-foreground">{line.description}</p>}
+                                                        <input
+                                                            value={lineNotes[line.id] ?? ""}
+                                                            onChange={(event) => setLineNotes((current) => ({ ...current, [line.id]: event.target.value }))}
+                                                            placeholder="A note on this line (optional)"
+                                                            aria-label={`Note on ${line.title}`}
+                                                            maxLength={500}
+                                                            className="mt-1.5 w-full rounded-md border border-transparent bg-transparent px-0 py-0.5 text-xs outline-none placeholder:text-muted-foreground/70 focus:border-border focus:px-2"
+                                                        />
+                                                    </div>
+                                                    <label className="flex items-center gap-1.5 text-sm">
+                                                        <Input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            min={0}
+                                                            max={line.maxPoints}
+                                                            value={points[line.id] ?? ""}
+                                                            onChange={(event) => setPoints((current) => ({ ...current, [line.id]: event.target.value }))}
+                                                            aria-label={`${line.title}, out of ${line.maxPoints}`}
+                                                            className={cn(
+                                                                "h-9 w-16 text-right tabular-nums",
+                                                                Number(points[line.id]) > line.maxPoints && "border-destructive",
+                                                            )}
+                                                        />
+                                                        <span className="text-muted-foreground">/ {line.maxPoints}</span>
+                                                    </label>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </fieldset>
+                                )}
+
+                                {decision === "ACCEPTED" && rubric.length === 0 && (
+                                    <div className="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start">
+                                        <FormField
+                                            form={form}
+                                            name="score"
+                                            label="Score"
+                                            required
+                                            hint={isLate ? `Out of ${total} — at most ${maxScore} (late)` : `Out of ${total}`}
+                                        >
+                                            <Input type="number" inputMode="numeric" min={0} max={maxScore} autoFocus />
+                                        </FormField>
+                                        <div className="sm:pt-7">
+                                            <p className="sr-only">Quick scores</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {quickScores(maxScore).map((value) => (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => form.setValue("score", String(value))}
+                                                        className={cn(
+                                                            "rounded-sm border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+                                                            form.values.score === String(value)
+                                                                ? "border-primary bg-primary/10 text-primary"
+                                                                : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                                                        )}
+                                                    >
+                                                        {value === maxScore ? `${value} · full` : value}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <FormField
+                                    form={form}
+                                    name="feedback"
+                                    label="Feedback"
+                                    required={decision === "NEEDS_REVISION" || decision === "REJECTED"}
+                                    optional={decision === "ACCEPTED"}
+                                    counterMax={5000}
+                                >
+                                    <Textarea
+                                        rows={compact ? 3 : 4}
+                                        placeholder={
+                                            decision === "NEEDS_REVISION"
+                                                ? "What to fix, specifically — they'll edit and resubmit…"
+                                                : decision === "REJECTED"
+                                                  ? "Why this isn't accepted…"
+                                                  : "What they did well, and what to try next…"
+                                        }
+                                    />
+                                </FormField>
+                            </Step>
+                        )}
                     </fieldset>
 
-                    {rubric.length > 0 && decision && (
-                        <fieldset className="overflow-hidden rounded-card border border-border">
-                            <legend className="sr-only">Rubric</legend>
-                            <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-3.5 py-2 text-xs">
-                                <span className="font-semibold font-mono uppercase tracking-wider text-muted-foreground">
-                                    Rubric{decision === "ACCEPTED" ? <span className="text-destructive"> *</span> : <span className="font-normal normal-case tracking-normal"> · optional</span>}
-                                </span>
-                                <span className="font-semibold tabular-nums">
-                                    {rubricSum} / {total}
-                                    {isLate && rubricFilled && <span className="font-normal text-muted-foreground"> → {rubricScore} / {maxScore} late</span>}
-                                </span>
-                            </div>
-                            <ul className="divide-y divide-border">
-                                {rubric.map((line) => (
-                                    <li key={line.id} className="grid gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem] sm:items-start">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium">{line.title}</p>
-                                            {line.description && <p className="text-xs text-muted-foreground">{line.description}</p>}
-                                            <input
-                                                value={lineNotes[line.id] ?? ""}
-                                                onChange={(event) => setLineNotes((current) => ({ ...current, [line.id]: event.target.value }))}
-                                                placeholder="A note on this line (optional)"
-                                                aria-label={`Note on ${line.title}`}
-                                                maxLength={500}
-                                                className="mt-1.5 w-full rounded-md border border-transparent bg-transparent px-0 py-0.5 text-xs outline-none placeholder:text-muted-foreground/70 focus:border-border focus:px-2"
-                                            />
-                                        </div>
-                                        <label className="flex items-center gap-1.5 text-sm">
-                                            <Input
-                                                type="number"
-                                                inputMode="numeric"
-                                                min={0}
-                                                max={line.maxPoints}
-                                                value={points[line.id] ?? ""}
-                                                onChange={(event) => setPoints((current) => ({ ...current, [line.id]: event.target.value }))}
-                                                aria-label={`${line.title}, out of ${line.maxPoints}`}
-                                                className={cn("h-9 w-16 text-right tabular-nums", Number(points[line.id]) > line.maxPoints && "border-destructive")}
-                                            />
-                                            <span className="text-muted-foreground">/ {line.maxPoints}</span>
-                                        </label>
-                                    </li>
-                                ))}
-                            </ul>
-                        </fieldset>
-                    )}
-
-                    {decision === "ACCEPTED" && rubric.length === 0 && (
-                        <div className="grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start">
-                            <FormField form={form} name="score" label="Score" required hint={isLate ? `Out of ${total} — at most ${maxScore} (late)` : `Out of ${total}`}>
-                                <Input type="number" inputMode="numeric" min={0} max={maxScore} autoFocus />
-                            </FormField>
-                            <div className="sm:pt-7">
-                                <p className="sr-only">Quick scores</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {quickScores(maxScore).map((value) => (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            onClick={() => form.setValue("score", String(value))}
-                                            className={cn(
-                                                "rounded-sm border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
-                                                form.values.score === String(value)
-                                                    ? "border-primary bg-primary/10 text-primary"
-                                                    : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
-                                            )}
-                                        >
-                                            {value === maxScore ? `${value} · full` : value}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <FormField
-                        form={form}
-                        name="feedback"
-                        label="Feedback"
-                        required={decision === "NEEDS_REVISION" || decision === "REJECTED"}
-                        optional={decision === "ACCEPTED"}
-                        counterMax={5000}
+                    {/* Save, kept in reach at the foot of the pane while the feedback is written. */}
+                    <div
+                        className={cn(
+                            "flex flex-wrap items-center justify-between gap-3 border-t border-border",
+                            compact ? "pt-4" : "sticky bottom-0 z-10 bg-card/95 px-6 py-3 backdrop-blur",
+                        )}
                     >
-                        <Textarea
-                            rows={compact ? 3 : 4}
-                            placeholder={
-                                decision === "NEEDS_REVISION"
-                                    ? "What to fix, specifically — they'll edit and resubmit…"
-                                    : decision === "REJECTED"
-                                      ? "Why this isn't accepted…"
-                                      : "What they did well, and what to try next…"
-                            }
-                        />
-                    </FormField>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
-                            <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[0.6875rem]">Ctrl</kbd>
-                            <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[0.6875rem]">
-                                <CornerDownLeft className="inline size-3" aria-label="Enter" />
-                            </kbd>
-                            saves and moves on
+                        <p className="text-xs text-muted-foreground">
+                            {decision ? (
+                                <span className="hidden items-center gap-1 sm:inline-flex">
+                                    <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[0.6875rem]">Ctrl</kbd>
+                                    <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[0.6875rem]">
+                                        <CornerDownLeft className="inline size-3" aria-label="Enter" />
+                                    </kbd>
+                                    saves and opens the next one
+                                </span>
+                            ) : (
+                                "Choose a decision to save."
+                            )}
                         </p>
-                        <Button type="submit" isLoading={review.isPending}>
-                            {!review.isPending && <Send />} Save review
+                        <Button
+                            type="submit"
+                            isLoading={review.isPending}
+                            disabled={!decision || colleagues}
+                            variant={decision === "REJECTED" ? "destructive" : "default"}
+                        >
+                            {!review.isPending && <Send />} {SAVE_LABEL[decision] ?? "Save review"}
                         </Button>
                     </div>
-                </fieldset>
-            </form>
+                </form>
             )}
         </article>
     );
@@ -600,11 +681,16 @@ function Work({ submission }: { submission: ReviewQueueItem }) {
         }
     }
     const isGithub = host === "github.com";
-    const nothing = !url && !submission.content && submission.fileUrls.length === 0;
+    // Their notes, without the line that's just the link — it's in the card above, with Open and Copy.
+    const notes = (submission.content ?? "")
+        .split("\n")
+        .filter((line) => !url || line.trim() !== url)
+        .join("\n")
+        .trim();
+    const nothing = !url && !notes && submission.fileUrls.length === 0;
 
     return (
-        <section aria-label="Their work" className="space-y-3">
-            <h3 className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">Their work</h3>
+        <div className="space-y-3">
             {nothing && <p className="text-sm text-muted-foreground">Nothing attached — just the hand-in.</p>}
 
             {url && (
@@ -638,15 +724,25 @@ function Work({ submission }: { submission: ReviewQueueItem }) {
                 </div>
             )}
 
-            {submission.content && (
-                <blockquote className="whitespace-pre-line rounded-card bg-secondary/40 px-4 py-3 text-sm leading-relaxed">{submission.content}</blockquote>
+            {notes && (
+                <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Their note</p>
+                    <blockquote className="whitespace-pre-line rounded-card bg-secondary/40 px-4 py-3 text-sm leading-relaxed wrap-break-word">
+                        {linkify(notes)}
+                    </blockquote>
+                </div>
             )}
 
             {submission.fileUrls.length > 0 && (
                 <ul className="divide-y divide-border rounded-card border border-border">
                     {submission.fileUrls.map((file) => (
                         <li key={file}>
-                            <a href={privateFileHref(file)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40">
+                            <a
+                                href={privateFileHref(file)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-secondary/40"
+                            >
                                 <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                                 <span className="min-w-0 flex-1 truncate">{submissionFileName(file)}</span>
                                 <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -655,6 +751,6 @@ function Work({ submission }: { submission: ReviewQueueItem }) {
                     ))}
                 </ul>
             )}
-        </section>
+        </div>
     );
 }

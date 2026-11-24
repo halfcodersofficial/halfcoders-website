@@ -404,7 +404,8 @@ function PracticeEditor({
 /**
  * The late-submission windows after the deadline: each one says "submitted by
  * this time → marked out of this many". Marks only go down window to window,
- * and after the last one submissions close. A new window starts two days
+ * and after the last one work is still taken out of its marks — submissions
+ * close only when the batch ends (the course moves to Previous). A new window starts two days
  * after the previous one with a fifth of the total knocked off — the usual
  * shape — and both are editable.
  */
@@ -433,8 +434,8 @@ function LateWindowsField({ form }: { form: ZodFormApi<AssignmentFormValues> }) 
             </legend>
             <p className="text-xs text-muted-foreground">
                 {deadline
-                    ? `Work in by the deadline is marked out of ${total}. Add windows after it for late work — each allows fewer marks. After the last window, submissions close.`
-                    : "Set a deadline first — late windows run after it. Without any, submissions close at the deadline."}
+                    ? `Work in by the deadline is marked out of ${total}. Add windows after it for late work — each allows fewer marks. After the last window, work is still taken out of its marks. Submissions close only when the batch ends (the course moves to Previous).`
+                    : "Set a deadline first — late windows run after it. Submissions close only when the batch ends (the course moves to Previous)."}
             </p>
 
             {tiers.map((tier, index) => {

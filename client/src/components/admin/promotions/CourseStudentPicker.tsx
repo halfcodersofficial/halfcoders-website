@@ -136,7 +136,8 @@ export default function CourseStudentPicker({
                                             name={single ? `${id}-student` : undefined}
                                             checked={checked}
                                             disabled={!has}
-                                            onChange={() => toggle(student)}
+                                            // Admins always get the email; only a mentor's roster leaves it out.
+                                            onChange={() => toggle({ ...student, email: student.email ?? "" })}
                                             className="size-4 shrink-0 accent-primary"
                                         />
                                         <Avatar src={student.image} name={student.name} size={32} />

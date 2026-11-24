@@ -1,12 +1,14 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
 import {
     ArrowRight,
     Award,
     BookOpen,
     CheckCheck,
+    ChevronLeft,
+    ChevronRight,
     ClipboardList,
     CreditCard,
     Headphones,
@@ -20,7 +22,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { linkifyMessage } from "@/components/shared/AnnouncementsView";
 import { Avatar } from "@/components/ui/avatar";
@@ -29,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { confirmAction } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
+import { paginationRange } from "@/lib/pagination";
 import { cn, formatDateTime } from "@/lib/utils";
 import { notificationService } from "@/services";
 import type { ApiMeta } from "@/types/api.types";
@@ -90,14 +93,17 @@ const isFresh = (notification: AppNotification) =>
 
 type Page = { data: AppNotification[]; meta?: ApiMeta };
 
+/** Notifications per page of the list. */
+const PAGE_SIZE = 10;
+
 const Kbd = ({ children }: { children: ReactNode }) => (
     <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[0.6875rem]">{children}</kbd>
 );
 
 /**
  * A staff inbox — the admin's and the mentor's, from one component and a
- * config each: a day-by-day list beside a reading pane (inline under the row
- * on a phone), filter tabs that carry their own unread counts, and the one
+ * config each: a day-by-day list, a page at a time, beside a reading pane
+ * (inline under the row on a phone), filter tabs that carry their own unread counts, and the one
  * thing to do about each notification a click away, with whatever live
  * context the console adds. Keyboard: ↑ ↓ / j k to move, o to open, u for
  * read/unread, Delete to delete. Live: the notification socket invalidates
@@ -107,9 +113,12 @@ export default function Inbox({ config }: { config: InboxConfig }) {
     const router = useRouter();
     const queryClient = useQueryClient();
     const [filterValue, setFilterValue] = useState(config.filters[0].value);
+    const [page, setPage] = useState(1);
     const [selected, setSelected] = useState<AppNotification | null>(null);
+    const listRef = useRef<HTMLDivElement>(null);
     const filter = config.filters.find((entry) => entry.value === filterValue) ?? config.filters[0];
-    const typeOf = (notification: AppNotification) => config.types?.[notification.type] ?? TYPES[notification.type] ?? TYPES.GENERAL;
+    const metaOf = (type: string) => config.types?.[type] ?? TYPES[type] ?? TYPES.GENERAL;
+    const typeOf = (notification: AppNotification) => metaOf(notification.type);
 
     // Shared with the sidebar badge, so it's one request between them.
     const unread = useQuery({ queryKey: ["notifications", "unread-count"], queryFn: notificationService.unreadCount });
@@ -117,19 +126,32 @@ export default function Inbox({ config }: { config: InboxConfig }) {
     const tabCount = (entry: InboxFilter) =>
         entry.counts === "all" ? unreadCount : (entry.counts ?? []).reduce((sum, type) => sum + (unread.data?.byType?.[type] ?? 0), 0);
 
-    const list = useInfiniteQuery({
-        queryKey: ["notifications", "inbox", filter.value],
-        queryFn: ({ pageParam }): Promise<Page> => notificationService.list({ page: pageParam, limit: 20, ...filter.params }),
-        initialPageParam: 1,
-        getNextPageParam: (last) => (last.meta && last.meta.page < last.meta.totalPages ? last.meta.page + 1 : undefined),
+    // One page at a time; the page on screen stays while the next one loads.
+    const list = useQuery({
+        queryKey: ["notifications", "inbox", filter.value, page],
+        queryFn: (): Promise<Page> => notificationService.list({ page, limit: PAGE_SIZE, ...filter.params }),
+        placeholderData: keepPreviousData,
     });
+    const items = list.data?.data ?? [];
+    const meta = list.data?.meta;
 
-    // Pages are counted from the newest, so one arriving between two page
-    // loads shifts the next page by a row — drop the repeat.
-    const items = useMemo(() => {
-        const seen = new Set<string>();
-        return (list.data?.pages.flatMap((page) => page.data) ?? []).filter((item) => !seen.has(item.id) && seen.add(item.id));
-    }, [list.data]);
+    // Deleting or clearing can leave the page past the end — step back to the last one there is.
+    const lastPage = meta ? Math.max(1, meta.totalPages) : null;
+    useEffect(() => {
+        if (lastPage !== null && page > lastPage) setPage(lastPage);
+    }, [page, lastPage]);
+
+    const changePage = (next: number) => {
+        setPage(next);
+        // Back to the top of the list when it's scrolled out of view.
+        const top = listRef.current?.getBoundingClientRect().top ?? 0;
+        if (top < 0) listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const changeFilter = (value: string) => {
+        setFilterValue(value);
+        setPage(1);
+    };
 
     // The open one, kept even after it leaves the list (read, under "Unread").
     const current = selected ? (items.find((item) => item.id === selected.id) ?? selected) : null;
@@ -139,16 +161,8 @@ export default function Inbox({ config }: { config: InboxConfig }) {
     /** Shows the change straight away, ahead of the refetch. */
     const showRead = (ids: string[] | "all", isRead: boolean) => {
         const touched = items.filter((item) => (ids === "all" || ids.includes(item.id)) && item.isRead !== isRead);
-        queryClient.setQueriesData<InfiniteData<Page>>({ queryKey: ["notifications", "inbox"] }, (data) =>
-            data
-                ? {
-                    ...data,
-                    pages: data.pages.map((page) => ({
-                        ...page,
-                        data: page.data.map((item) => (ids === "all" || ids.includes(item.id) ? { ...item, isRead } : item)),
-                    })),
-                }
-                : data,
+        queryClient.setQueriesData<Page>({ queryKey: ["notifications", "inbox"] }, (data) =>
+            data ? { ...data, data: data.data.map((item) => (ids === "all" || ids.includes(item.id) ? { ...item, isRead } : item)) } : data,
         );
         queryClient.setQueryData<UnreadCount>(["notifications", "unread-count"], (count) => {
             if (!count) return count;
@@ -310,7 +324,7 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                             key={option.value || "all"}
                             type="button"
                             aria-pressed={active}
-                            onClick={() => setFilterValue(option.value)}
+                            onClick={() => changeFilter(option.value)}
                             className={cn(
                                 "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                                 active ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
@@ -334,7 +348,7 @@ export default function Inbox({ config }: { config: InboxConfig }) {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
-                <div className="overflow-hidden rounded-card border border-border bg-card shadow-card">
+                <div ref={listRef} className="scroll-mt-24 overflow-hidden rounded-card border border-border bg-card shadow-card">
                     {list.isLoading ? (
                         <div className="space-y-px p-2">
                             {Array.from({ length: 6 }).map((_, index) => (
@@ -359,7 +373,12 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                         </div>
                     ) : (
                         <>
-                            <ul aria-label={config.title} onKeyDown={onListKeyDown}>
+                            <ul
+                                aria-label={config.title}
+                                aria-busy={list.isPlaceholderData || undefined}
+                                onKeyDown={onListKeyDown}
+                                className={cn("transition-opacity", list.isPlaceholderData && "opacity-60")}
+                            >
                                 {rows.map(({ item, day }) => (
                                     <li key={item.id}>
                                         {day && (
@@ -374,22 +393,68 @@ export default function Inbox({ config }: { config: InboxConfig }) {
                                     </li>
                                 ))}
                             </ul>
-                            {list.hasNextPage && (
-                                <div className="border-t border-border p-2">
-                                    <Button variant="ghost" className="w-full" onClick={() => list.fetchNextPage()} isLoading={list.isFetchingNextPage}>
-                                        Load older
-                                    </Button>
-                                </div>
-                            )}
+                            {meta && meta.totalPages > 1 && <InboxPages meta={meta} busy={list.isPlaceholderData} onPage={changePage} />}
                         </>
                     )}
                 </div>
 
                 <aside aria-label="Reading pane" className="hidden min-h-96 rounded-card border border-border bg-card shadow-card lg:sticky lg:top-8 lg:block">
-                    {current ? pane(current) : <IdlePane unreadCount={unreadCount} items={items} typeOf={typeOf} />}
+                    {current ? pane(current) : <IdlePane unreadCount={unreadCount} byType={unread.data?.byType ?? {}} metaOf={metaOf} />}
                 </aside>
             </div>
         </div>
+    );
+}
+
+/** The list's foot: which ones are showing, and the pages — ‹ 1 … 4 5 6 … 12 ›. */
+function InboxPages({ meta, busy, onPage }: { meta: ApiMeta; busy: boolean; onPage: (page: number) => void }) {
+    const { page, totalPages, limit, total } = meta;
+    const square =
+        "grid size-8 place-items-center rounded-md border font-mono text-xs tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    const idle = "border-border bg-card hover:border-primary/40 hover:bg-secondary disabled:pointer-events-none disabled:opacity-40";
+
+    return (
+        <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2.5">
+            <p className="font-mono text-xs tabular-nums text-muted-foreground">
+                <span className="text-foreground">
+                    {(page - 1) * limit + 1}–{Math.min(page * limit, total)}
+                </span>{" "}
+                of {total}
+            </p>
+            <div className="flex items-center gap-1">
+                <button type="button" className={cn(square, idle)} disabled={page <= 1 || busy} onClick={() => onPage(page - 1)} aria-label="Newer">
+                    <ChevronLeft className="size-4" aria-hidden />
+                </button>
+                {paginationRange(page, totalPages).map((entry, index) =>
+                    entry === "…" ? (
+                        <span key={`gap-${index}`} className="grid size-8 place-items-center text-xs text-muted-foreground">
+                            …
+                        </span>
+                    ) : (
+                        <button
+                            key={entry}
+                            type="button"
+                            aria-current={entry === page ? "page" : undefined}
+                            aria-label={`Page ${entry}`}
+                            disabled={busy && entry !== page}
+                            onClick={() => entry !== page && onPage(entry)}
+                            className={cn(square, entry === page ? "border-primary bg-primary font-semibold text-primary-foreground" : idle)}
+                        >
+                            {entry}
+                        </button>
+                    ),
+                )}
+                <button
+                    type="button"
+                    className={cn(square, idle)}
+                    disabled={page >= totalPages || busy}
+                    onClick={() => onPage(page + 1)}
+                    aria-label="Older"
+                >
+                    <ChevronRight className="size-4" aria-hidden />
+                </button>
+            </div>
+        </nav>
     );
 }
 
@@ -556,20 +621,21 @@ function ReadingPane({
 /** With nothing open: where things stand, in a sentence, and how to move around. */
 function IdlePane({
     unreadCount,
-    items,
-    typeOf,
+    byType,
+    metaOf,
 }: {
     unreadCount: number;
-    items: AppNotification[];
-    typeOf: (notification: AppNotification) => TypeMeta;
+    /** Unread, by type — every page, not just the one showing. */
+    byType: Partial<Record<string, number>>;
+    metaOf: (type: string) => TypeMeta;
 }) {
-    const unreadByType = items
-        .filter((item) => !item.isRead)
-        .reduce<Record<string, number>>((counts, item) => {
-            const noun = typeOf(item).noun;
-            counts[noun] = (counts[noun] ?? 0) + 1;
-            return counts;
-        }, {});
+    const unreadByType = Object.entries(byType).reduce<Record<string, number>>((counts, [type, count]) => {
+        if (count && count > 0) {
+            const noun = metaOf(type).noun;
+            counts[noun] = (counts[noun] ?? 0) + count;
+        }
+        return counts;
+    }, {});
     const parts = Object.entries(unreadByType).map(([noun, count]) => `${count} ${noun}${count === 1 ? "" : "s"}`);
 
     return (

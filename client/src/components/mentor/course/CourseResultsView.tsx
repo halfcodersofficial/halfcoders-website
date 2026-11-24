@@ -87,7 +87,7 @@ function Results({ data, term, setTerm }: { data: CourseResults; term: string; s
                 <div className="min-w-0">
                     <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Results</h2>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                        Marks for every assignment and quiz. Students appear by name, on their own work, and nowhere else.
+                        Marks for every assignment and quiz. For everything one student has done, open them from the Students tab.
                     </p>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
