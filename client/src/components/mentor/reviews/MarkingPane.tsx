@@ -38,7 +38,7 @@ import { numericField, optionalTextField } from "@/lib/validation";
 import { assignmentService } from "@/services";
 import type { SubmissionStatus } from "@/types/api.types";
 import type { ReviewQueueItem } from "@/types/mentor.types";
-import { eventTitle, historyEvents, type HistoryEvent } from "./handInHistory";
+import { eventState, eventTitle, historyEvents, STATE_META, type HistoryEvent } from "./handInHistory";
 import RecheckPanel from "./RecheckPanel";
 import SentWork from "./SentWork";
 
@@ -210,6 +210,8 @@ export default function MarkingPane({
         if (ok) publish.mutate();
     };
     const final = submission.score === null ? null : Math.max(0, submission.score + submission.markAdjustment);
+    // Its last marking is of the version on screen — not one the student has since sent again.
+    const reviewOfThisVersion = Boolean(submission.reviewedAt && new Date(submission.reviewedAt) >= new Date(submission.submittedAt));
 
     // The rubric's lines, scored one by one — the mark is their sum (scaled to a late window's marks).
     const rubric = assignment.rubric ?? [];
@@ -390,8 +392,9 @@ export default function MarkingPane({
                     <SentWork content={submission.content} submissionUrl={submission.submissionUrl} fileUrls={submission.fileUrls} />
                 </Step>
 
-                {/* The latest marking, with the mark as it stands now — after every penalty and refund, as the student sees it. */}
-                {!pending && submission.reviewedAt ? (
+                {/* The marking of the work above, with the mark as it stands now — after every penalty and
+                    refund, as the student sees it. A marking of an earlier version is resolved: it's in the history. */}
+                {!pending && submission.reviewedAt && reviewOfThisVersion ? (
                     <section aria-label="The latest review" className="rounded-card border border-dashed border-border px-4 py-3 text-sm">
                         <p className="text-xs text-muted-foreground">
                             Latest review · {formatDateTime(submission.reviewedAt)} —{" "}
@@ -417,6 +420,7 @@ export default function MarkingPane({
                         {submission.feedback && <p className="mt-1.5 whitespace-pre-line text-muted-foreground">“{submission.feedback}”</p>}
                     </section>
                 ) : (
+                    pending &&
                     (submission.markAdjustment !== 0 || submission.xpDeducted > 0) && (
                         <p className="rounded-card bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground">
                             Taken so far for resubmitting:{" "}
@@ -690,6 +694,7 @@ function HistoryList({ submission }: { submission: ReviewQueueItem }) {
                 <ol className="divide-y divide-border overflow-hidden rounded-card border border-border">
                     {shown.map((event) => {
                         const Icon = HISTORY_ICON[event.kind];
+                        const state = data ? eventState(event, data) : null;
                         return (
                             <li key={event.id}>
                                 <Link
@@ -698,6 +703,11 @@ function HistoryList({ submission }: { submission: ReviewQueueItem }) {
                                 >
                                     <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                                     <span className="min-w-0 flex-1 truncate">{eventTitle(event, submission.assignment.totalMarks)}</span>
+                                    {state && (
+                                        <span className={cn("shrink-0 rounded-sm px-1.5 py-px text-[0.6875rem] font-semibold", STATE_META[state].tone)}>
+                                            {STATE_META[state].label}
+                                        </span>
+                                    )}
                                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDateTime(event.at)}</span>
                                     <ChevronRight
                                         className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"

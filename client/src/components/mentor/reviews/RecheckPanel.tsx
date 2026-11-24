@@ -109,21 +109,20 @@ export default function RecheckPanel({
                 decide.mutate();
             }}
         >
-            <section aria-label="The recheck request" className="rounded-card border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
-                <p className="flex items-center gap-2 font-semibold">
-                    <Scale className="size-4 text-amber-600" aria-hidden /> Recheck requested
-                    <span className="font-normal text-muted-foreground">· {formatDateTime(recheck.createdAt)}</span>
-                </p>
-                <p className="mt-2 whitespace-pre-line">“{recheck.reason}”</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                    Your mark: <span className="font-semibold text-foreground">{before}</span> / {total}. The {fee}-mark fee is already taken.
-                </p>
-                {new Date(submission.submittedAt) > new Date(recheck.createdAt) && (
-                    <p className="mt-2 text-xs font-medium text-foreground">
-                        The student sent their work again for this recheck ({formatDateTime(submission.submittedAt)}) — the hand-in above is that new version.
+            {/* Once they've sent their work again for it, the new version above is what's checked — the
+                request and the old mark are in the history. Until then, the request is what there is to go on. */}
+            {new Date(submission.submittedAt) <= new Date(recheck.createdAt) && (
+                <section aria-label="The recheck request" className="rounded-card border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+                    <p className="flex items-center gap-2 font-semibold">
+                        <Scale className="size-4 text-amber-600" aria-hidden /> Recheck requested
+                        <span className="font-normal text-muted-foreground">· {formatDateTime(recheck.createdAt)}</span>
                     </p>
-                )}
-            </section>
+                    <p className="mt-2 whitespace-pre-line">“{recheck.reason}”</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        Your mark: <span className="font-semibold text-foreground">{before}</span> / {total}. The {fee}-mark fee is already taken.
+                    </p>
+                </section>
+            )}
 
             <fieldset>
                 <legend className="text-sm font-medium">
