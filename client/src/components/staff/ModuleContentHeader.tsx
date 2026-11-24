@@ -1,11 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
+import { CalendarClock } from "lucide-react";
 import type { ReactNode } from "react";
+import WeekItemPager from "@/components/staff/WeekItemPager";
 import { BackButton } from "@/components/ui/back-button";
-import { Button } from "@/components/ui/button";
 import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn, formatDateTime } from "@/lib/utils";
 import { curriculumAuthoring } from "@/services/curriculum";
@@ -16,9 +15,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * The head of a module's content pages — which module this is and where it
  * sits in the course. Its quiz is added and opened from the lesson page's
  * "Add a lesson" tiles and lesson list, so the quiz page leads back there.
- * Previous / next walk the course's modules' lessons in order, so a mentor
- * filling a whole course never has to go back to the Module Manager between
- * modules.
+ * Previous / next walk everything in the course in order — modules, and the
+ * assignments and practice days between them (`WeekItemPager`).
  *
  * Reads the same curriculum query the Module Manager does, so arriving from
  * there costs no extra request.
@@ -49,17 +47,12 @@ export default function ModuleContentHeader({
         queryFn: () => curriculumAuthoring.listMilestones(courseId),
     });
 
-    const flat = (milestones ?? []).flatMap((milestone) =>
-        milestone.modules.map((courseModule) => ({ milestone, courseModule })),
-    );
-    const index = flat.findIndex(({ courseModule }) => courseModule.id === moduleId);
-    const current = flat[index];
-    const previous = index > 0 ? flat[index - 1] : undefined;
-    const next = index >= 0 && index < flat.length - 1 ? flat[index + 1] : undefined;
+    const current = (milestones ?? [])
+        .flatMap((milestone) => milestone.modules.map((courseModule) => ({ milestone, courseModule })))
+        .find(({ courseModule }) => courseModule.id === moduleId);
 
     const milestoneLabel = course?.milestoneLabel ?? "Milestone";
     const moduleLabel = course?.moduleLabel ?? "Module";
-    const targetFor = (id: string) => routes.module(id);
     const onQuiz = active === "quiz";
 
     return (
@@ -100,59 +93,10 @@ export default function ModuleContentHeader({
                     )}
                 </div>
 
-                {(previous || next) && (
-                    <nav aria-label={`${moduleLabel}s`} className="flex flex-wrap items-center gap-2">
-                        {previous && (
-                            <PagerLink
-                                href={targetFor(previous.courseModule.id)}
-                                direction="previous"
-                                label={`Previous ${moduleLabel.toLowerCase()}`}
-                                title={previous.courseModule.title}
-                            />
-                        )}
-                        {next && (
-                            <PagerLink
-                                href={targetFor(next.courseModule.id)}
-                                direction="next"
-                                label={`Next ${moduleLabel.toLowerCase()}`}
-                                title={next.courseModule.title}
-                            />
-                        )}
-                    </nav>
-                )}
+                <WeekItemPager courseId={courseId} area={area} kind="MODULE" id={moduleId} />
 
                 {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
             </div>
         </header>
-    );
-}
-
-/**
- * Names the module it leads to, so a mentor stepping through the course can
- * see where they're going before they click.
- */
-function PagerLink({
-    href,
-    direction,
-    label,
-    title,
-}: {
-    href: string;
-    direction: "previous" | "next";
-    label: string;
-    title: string;
-}) {
-    const isNext = direction === "next";
-    return (
-        <Button asChild variant="outline" className="h-auto max-w-60 bg-card py-2 shadow-card">
-            <Link href={href} aria-label={`${label}: ${title}`} title={title}>
-                {!isNext && <ChevronLeft />}
-                <span className={cn("min-w-0", isNext ? "text-right" : "text-left")}>
-                    <span className="block text-xs font-normal text-muted-foreground">{label}</span>
-                    <span className="block truncate">{title}</span>
-                </span>
-                {isNext && <ChevronRight />}
-            </Link>
-        </Button>
     );
 }

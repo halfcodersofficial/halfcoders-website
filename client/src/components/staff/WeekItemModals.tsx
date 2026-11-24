@@ -37,7 +37,6 @@ const assignmentSchema = z
     .object({
         title: textField({ label: "Title", min: 3, max: 200 }),
         description: textField({ label: "What the student has to do", min: 10, max: 5000 }),
-        instructions: optionalTextField({ label: "Instructions", max: 5000 }),
         totalMarks: numericField({ label: "Total marks", min: 1, max: 1000 }),
         deadline: optionalDateTimeField,
         lateTiers: z.array(lateTierRow).max(10, "Add at most 10 late windows"),
@@ -90,11 +89,12 @@ const practiceSchema = z.object({
     description: optionalTextField({ label: "Description", max: 2000 }),
 });
 
+// No separate instructions either, like a practice day: the steps go in the
+// assignment's own lessons (a text lesson), which students open one by one.
 interface AssignmentFormValues {
     [key: string]: unknown;
     title: string;
     description: string;
-    instructions: string;
     totalMarks: string;
     deadline: string;
     lateTiers: LateTierValues[];
@@ -103,7 +103,6 @@ interface AssignmentFormValues {
 const EMPTY_ASSIGNMENT: AssignmentFormValues = {
     title: "",
     description: "",
-    instructions: "",
     totalMarks: "100",
     deadline: "",
     lateTiers: [],
@@ -122,7 +121,6 @@ const assignmentValues = (assignment: Assignment | null): AssignmentFormValues =
         ? {
             title: assignment.title,
             description: assignment.description,
-            instructions: assignment.instructions ?? "",
             totalMarks: String(assignment.totalMarks),
             deadline: assignment.deadline ? toLocalDateTimeValue(new Date(assignment.deadline)) : "",
             lateTiers: assignment.lateTiers.map((tier) => ({
@@ -165,7 +163,7 @@ export function AssignmentModal({
             closeOnOutsideClick={false}
             size="lg"
             title={assignment ? "Edit assignment" : `New assignment — ${weekName}`}
-            description="Students see the brief and instructions with the assignment's lessons, above their submission box."
+            description="Students see the brief with the assignment's lessons, then hand in their work."
         >
             {milestone && (
                 <AssignmentEditor
@@ -205,7 +203,6 @@ function AssignmentEditor({
             if (assignment) {
                 await curriculumAuthoring.updateAssignment(assignment.id, {
                     ...fields,
-                    instructions: values.instructions || null,
                     deadline: values.deadline ? localDateTimeToISO(values.deadline) : null,
                 });
                 return null;
@@ -213,7 +210,6 @@ function AssignmentEditor({
             return curriculumAuthoring.createAssignment({
                 ...fields,
                 milestoneId,
-                instructions: values.instructions || undefined,
                 deadline: values.deadline ? localDateTimeToISO(values.deadline) : undefined,
             });
         },
@@ -253,16 +249,6 @@ function AssignmentEditor({
                 >
                     <Textarea rows={3} />
                 </FormField>
-                <FormField
-                    form={form}
-                    name="instructions"
-                    label="Instructions"
-                    optional
-                    counterMax={5000}
-                    hint={markdownHint}
-                >
-                    <Textarea rows={5} placeholder="Step-by-step guidance, submission format, resources…" />
-                </FormField>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <FormField form={form} name="totalMarks" label="Total marks" required>
                         <Input type="number" inputMode="numeric" min={1} max={1000} />
@@ -291,15 +277,6 @@ function AssignmentEditor({
         </form>
     );
 }
-
-/** The formatting students' pages render in instructions. */
-const markdownHint = (
-    <>
-        Step by step. Supports <span className="font-mono"># Heading</span>,{" "}
-        <span className="font-mono">**bold**</span>, <span className="font-mono">`code`</span>,{" "}
-        <span className="font-mono">[link](https://…)</span> and <span className="font-mono">- bullet</span> lines.
-    </>
-);
 
 /**
  * Add or edit one practice day of a week — its title and a short summary. Its

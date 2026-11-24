@@ -6,8 +6,9 @@ import { SubmissionStatus } from "../../generated/prisma/enums";
  * what a student is shown and what is taken can never disagree.
  *
  * Before an assignment's results are published, a student may resubmit as
- * often as they like; every resubmission after the first hand-in costs
- * `resubmitMarks` off their final mark and `resubmitXp` off their course XP.
+ * often as they like; every resubmission after the first hand-in costs either
+ * `resubmitMarks` off their final mark or `resubmitXp` off their course XP —
+ * the student picks which, each time.
  * A resubmission the mentor asked for ("Needs revision", or a rejection) is
  * free. After publication resubmitting closes; a recheck costs
  * `recheckFeeMarks` at once — refunded if the mark is raised, followed by a

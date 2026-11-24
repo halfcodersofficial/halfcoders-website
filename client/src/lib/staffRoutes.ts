@@ -39,6 +39,8 @@ export const staffCourseRoutes = (area: StaffArea, courseId: string) => {
         quiz: (moduleId: string) => `${base}/modules/${moduleId}/quiz`,
         /** One assignment's brief and its lessons. */
         assignment: (assignmentId: string) => `${base}/assignments/${assignmentId}`,
+        /** An assignment's quiz — taken after its lessons. */
+        assignmentQuiz: (assignmentId: string) => `${base}/assignments/${assignmentId}/quiz`,
         /** One practice day's instructions and its lessons. */
         practice: (practiceDayId: string) => `${base}/practice/${practiceDayId}`,
         /** Where "back" goes: the course list for admins, the mentor's home. */

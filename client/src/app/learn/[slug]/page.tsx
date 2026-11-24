@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    AlertTriangle,
     Award,
     Bold,
     Bookmark,
@@ -13,7 +12,6 @@ import {
     ChevronLeft,
     ChevronRight,
     ClipboardCheck,
-    Clock,
     Code,
     Copyright,
     Dumbbell,
@@ -30,7 +28,6 @@ import {
     Megaphone,
     NotebookPen,
     PlayCircle,
-    RotateCcw,
     Search,
     Send,
     ThumbsDown,
@@ -44,36 +41,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
-import AssignmentResult from "@/components/learn/AssignmentResult";
+import AssignmentPane from "@/components/learn/AssignmentPane";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
-import MaterialList from "@/components/learn/MaterialList";
 import ModuleComplete from "@/components/learn/ModuleComplete";
 import PracticePane from "@/components/learn/PracticePane";
 import RateCourse from "@/components/learn/RateCourse";
 import ReadingLesson from "@/components/learn/ReadingLesson";
-import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import QuizPane from "@/components/shared/QuizPane";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { confirmAction, infoAlert } from "@/lib/confirm";
+import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { linkify } from "@/lib/linkify";
 import { useSession } from "@/hooks/useSession";
 import { measureYouTubeDurations } from "@/lib/youtube";
 import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
-import {
-    assignmentService,
-    leaderboardService,
-    learningService,
-    lessonService,
-    practiceService,
-    progressService,
-} from "@/services";
+import { leaderboardService, learningService, lessonService, practiceService, progressService } from "@/services";
 import type {
     BookmarkedLesson,
     CourseLearning,
@@ -83,19 +71,7 @@ import type {
     LearningVideo,
     LessonState,
 } from "@/types/domain.types";
-import type { SubmissionStatus } from "@/types/api.types";
 import type { LessonMaterial } from "@/types/learning.types";
-
-const SUBMISSION_STATUS_META: Record<
-    SubmissionStatus,
-    { label: string; variant: "default" | "secondary" | "success" | "warning" | "destructive" }
-> = {
-    SUBMITTED: { label: "Submitted — awaiting review", variant: "secondary" },
-    UNDER_REVIEW: { label: "Under review", variant: "warning" },
-    ACCEPTED: { label: "Accepted", variant: "success" },
-    NEEDS_REVISION: { label: "Changes requested", variant: "warning" },
-    REJECTED: { label: "Not accepted", variant: "destructive" },
-};
 
 const COPYRIGHT_TEXT = [
     "এই কোর্সের প্রতিটি ভিডিও, টেক্সট, অ্যাসাইনমেন্ট ও ডাউনলোডযোগ্য ফাইল Half Coders এবং সংশ্লিষ্ট মেন্টরের কপিরাইটকৃত সম্পত্তি। ভর্তি হওয়ার মানে শুধু নিজে দেখা ও শেখার অনুমতি — এই কনটেন্ট কপি, পুনরায় আপলোড, বিক্রি, অন্য কারও সাথে আর্থিক বিনিময়ে বা বিনামূল্যে শেয়ার করা, কিংবা নিজের অ্যাকাউন্টের পাসওয়ার্ড কারও সাথে শেয়ার করা — কোনোটাই অনুমোদিত নয়।",
@@ -137,9 +113,18 @@ const weekRows = (milestone: LearningMilestone, withAssignmentsAndPractice: bool
             : []),
     ].sort((a, b) => a.entry.position - b.entry.position || a.rank - b.rank || a.entry.order - b.entry.order);
 
-/** Every lesson of the module done — worked out here, so a "Next" shows at once, before the server answers. */
+/** The module's quiz is taken, or it has none. */
+const quizDone = (courseModule: LearningModule) => !courseModule.quiz || courseModule.quiz.isCompleted;
+
+/**
+ * Every lesson of the module done and its quiz taken — worked out here, so a
+ * "Next" shows at once, before the server answers.
+ */
 const isModuleDone = (courseModule: LearningModule) =>
-    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted);
+    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted) && quizDone(courseModule);
+
+/** "Quiz: Loop" — without doubling a title staff already started with "Quiz". */
+const quizLabel = (title: string) => (/^quiz\b/i.test(title.trim()) ? title : `Quiz: ${title}`);
 
 type AssignmentRow = LearningMilestone["assignments"][number];
 type PracticeRow = LearningMilestone["practiceDays"][number];
@@ -181,10 +166,21 @@ const moduleSteps = (courseModule: LearningModule): ModuleStep[] => {
     return steps;
 };
 
-/** One place the player can open, in the order a student meets them. */
+/**
+ * One place the player can open, in the order a student meets them. A quiz
+ * belongs to a module (`courseModule`) or to an assignment (`group`, with
+ * `courseModule` null) — only a module's holds back the lessons after it.
+ */
 type CourseStop =
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule; milestone: LearningMilestone }
-    | { kind: "QUIZ"; key: string; quiz: LearningQuiz; courseModule: LearningModule; milestone: LearningMilestone }
+    | {
+        kind: "QUIZ";
+        key: string;
+        quiz: LearningQuiz;
+        courseModule: LearningModule | null;
+        group: WeekGroup | null;
+        milestone: LearningMilestone;
+    }
     | { kind: "FINISH"; key: string; courseModule: LearningModule; milestone: LearningMilestone }
     | { kind: "MATERIAL"; key: string; group: WeekGroup; material: LessonMaterial; index: number; milestone: LearningMilestone }
     | { kind: "GROUP"; key: string; group: WeekGroup; milestone: LearningMilestone };
@@ -223,7 +219,7 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
                     stops.push(
                         step.kind === "VIDEO"
                             ? { kind: "VIDEO", key: stopKey.video(step.video.id), video: step.video, courseModule, milestone }
-                            : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, milestone },
+                            : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, group: null, milestone },
                     );
                 }
                 finishing = courseModule;
@@ -233,11 +229,51 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
             group.entry.materials.forEach((material, index) =>
                 stops.push({ kind: "MATERIAL", key: stopKey.material(group.entry.id, material.id), group, material, index, milestone }),
             );
+            // An assignment's quiz: after its lessons, before its brief & submission.
+            if (group.kind === "ASSIGNMENT" && group.entry.quiz) {
+                const quiz = group.entry.quiz;
+                stops.push({ kind: "QUIZ", key: stopKey.quiz(quiz.id), quiz, courseModule: null, group, milestone });
+            }
             if (hasGroupPage(group)) stops.push({ kind: "GROUP", key: stopKey.group(group.entry.id), group, milestone });
         }
         closeModule();
     }
     return stops;
+};
+
+/** A module's quiz — the kind that holds back the lessons after it, on the server too. */
+const isModuleQuiz = (stop: CourseStop) => stop.kind === "QUIZ" && stop.courseModule !== null;
+
+/**
+ * A stop nothing after it gets past until it's done: a lesson not finished,
+ * or a module's quiz not taken. A locked module's lessons aren't counted —
+ * they can't be done yet.
+ */
+const isOpenGate = (stop: CourseStop) =>
+    (stop.kind === "VIDEO" && !stop.video.isCompleted && !stop.courseModule.isLocked) ||
+    (stop.kind === "QUIZ" && isModuleQuiz(stop) && !stop.quiz.isCompleted);
+
+/**
+ * Where a returning student picks up: the first lesson or quiz they haven't
+ * done — unless a practice day or assignment (or an assignment's quiz)
+ * between it and the last one they did is still to do (one just released,
+ * say), which comes first. With everything done, the last module's
+ * "complete" screen.
+ */
+const resumeStop = (stops: CourseStop[]): CourseStop | null => {
+    const gateAt = stops.findIndex(isOpenGate);
+    const end = gateAt < 0 ? stops.length : gateAt;
+    const lastDoneAt = stops.slice(0, end).findLastIndex((stop) => stop.kind === "VIDEO" || isModuleQuiz(stop));
+    const pending = stops
+        .slice(lastDoneAt + 1, end)
+        .find(
+            (stop) =>
+                ((stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupDone(stop.group)) ||
+                (stop.kind === "QUIZ" && !stop.courseModule && !stop.quiz.isCompleted),
+        );
+    if (pending) return pending;
+    if (gateAt >= 0) return stops[gateAt];
+    return stops.findLast((stop) => stop.kind === "FINISH") ?? null;
 };
 
 /**
@@ -252,6 +288,8 @@ const quizOpensFor = (data: CourseLearning, stops: CourseStop[], quizId: string)
     const stop = stops[at];
     if (stop?.kind !== "QUIZ") return false;
     if (stop.quiz.isCompleted) return true;
+    // An assignment's quiz opens with its assignment, like its lessons.
+    if (!stop.courseModule) return true;
     if (stop.courseModule.isLocked) return false;
     return stops.slice(0, at).every((earlier) => earlier.kind !== "VIDEO" || earlier.video.isCompleted);
 };
@@ -345,27 +383,39 @@ export default function LearnPage() {
         [data],
     );
 
+    // Every stop in order — lessons, quizzes, practice days, assignments and
+    // "complete" screens — for Previous / Next.
+    const stops = useMemo(() => (data ? courseStops(data) : []), [data]);
+
     // Lessons open one at a time: every finished lesson, plus the first
     // unfinished one — where the student is in the course. Everything after
-    // it stays shut until they get there with "Next". Staff previewing the
-    // course can open anything.
+    // it stays shut until they get there with "Next"; so does everything
+    // after a quiz they haven't taken. Staff previewing the course can open
+    // anything.
     const reachableIds = useMemo(() => {
         if (!data || data.isPreview) return null;
         const ids = new Set<string>();
         let reachedCurrent = false;
-        for (const video of allVideos) {
-            if (!reachedCurrent || video.isCompleted) ids.add(video.id);
-            if (!video.isCompleted) reachedCurrent = true;
+        for (const stop of stops) {
+            if (stop.kind === "VIDEO") {
+                if (!reachedCurrent || stop.video.isCompleted) ids.add(stop.video.id);
+                if (!stop.video.isCompleted) reachedCurrent = true;
+            } else if (isModuleQuiz(stop) && stop.kind === "QUIZ" && !stop.quiz.isCompleted) {
+                reachedCurrent = true;
+            }
         }
         return ids;
-    }, [data, allVideos]);
+    }, [data, stops]);
     const canOpen = (videoId: string) => !reachableIds || reachableIds.has(videoId);
-    /** The first unfinished lesson — the furthest a student can open. */
-    const currentLesson = allVideos.find((video) => !video.isCompleted && !video.isLocked) ?? null;
-
-    // Every stop in order — lessons, quizzes, practice days, assignments and
-    // "complete" screens — for Previous / Next.
-    const stops = useMemo(() => (data ? courseStops(data) : []), [data]);
+    /** The first unfinished lesson or untaken quiz — the furthest a student can go. */
+    const currentGate = data && !data.isPreview ? (stops.find(isOpenGate) ?? null) : null;
+    /** What to do before going further, for a toast or a tooltip. */
+    const finishFirstNote = (fallback: string) =>
+        currentGate?.kind === "QUIZ"
+            ? `Take "${quizLabel(currentGate.quiz.title)}" first — what comes after it opens once it's done.`
+            : currentGate?.kind === "VIDEO"
+                ? `Finish "${currentGate.video.title}" first — lessons open one at a time.`
+                : fallback;
 
     // A lesson, assignment, practice day or quiz reached via the Course
     // Outline page or a notification link ("?video=<id>" / "?assignment=<id>"
@@ -382,6 +432,10 @@ export default function LearnPage() {
             : null;
         if (requestedAssignment && owningAssignmentMilestone) {
             setActiveAssignmentId(requestedAssignment);
+            // Not handed in yet: start at its first lesson, the way Next would
+            // reach it. Handed in: its own page, where the mark and feedback are.
+            const assignment = owningAssignmentMilestone.assignments.find((a) => a.id === requestedAssignment);
+            setActiveMaterialId(assignment && !assignment.isSubmitted ? (assignment.materials[0]?.id ?? null) : null);
             setOpenMilestones(new Set([owningAssignmentMilestone.id]));
             return;
         }
@@ -401,7 +455,9 @@ export default function LearnPage() {
 
         const requestedQuiz = searchParams.get("quiz");
         const owningQuizMilestone = requestedQuiz
-            ? data.curriculum.find((m) => m.modules.some((mod) => mod.quiz?.id === requestedQuiz))
+            ? data.curriculum.find(
+                (m) => m.modules.some((mod) => mod.quiz?.id === requestedQuiz) || m.assignments.some((a) => a.quiz?.id === requestedQuiz),
+            )
             : null;
         // A link to a quiz whose lessons aren't all done yet (the "new quiz"
         // notification goes to everyone) lands on the current lesson instead.
@@ -432,11 +488,11 @@ export default function LearnPage() {
         }
     }, [data, initialisedFromQuery, searchParams, allVideos, reachableIds, stops]);
 
-    // Open the student's current milestone and start on the first unwatched
-    // lesson, so returning to the page resumes rather than restarts. With
-    // every open lesson done, it lands on the last finished module's
-    // "complete" screen — the end of the road so far — not back on lesson 1;
-    // or, when a practice day after that module is still to do, on that.
+    // Open the student's current milestone and pick up where they are, so
+    // returning to the page resumes rather than restarts: the first lesson
+    // or quiz still to do — or a practice day or assignment before it that's
+    // still to do (one released since). With everything done, the last
+    // module's "complete" screen — the end of the road so far — not lesson 1.
     useEffect(() => {
         if (
             !data ||
@@ -450,33 +506,22 @@ export default function LearnPage() {
             return;
         }
 
-        const firstUnwatched = allVideos.find((video) => !video.isCompleted && !video.isLocked);
-        const lastDone = firstUnwatched || data.isPreview ? null : allVideos.findLast((video) => video.isCompleted);
-        const finished = lastDone
-            ? data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === lastDone.id))
-            : null;
-        if (lastDone && finished && isModuleDone(finished)) {
-            setActiveVideoId(lastDone.id);
-            const from = stops.findIndex((stop) => stop.key === stopKey.video(lastDone.id));
-            const to = stops.findIndex((stop) => stop.key === stopKey.finish(finished.id));
-            // A practice day's first stop: its first lesson, or its page when it has none.
-            const practiceLeft = stops
-                .slice(from + 1, to)
-                .find(
-                    (stop) =>
-                        (stop.kind === "MATERIAL" || stop.kind === "GROUP") &&
-                        stop.group.kind === "PRACTICE" &&
-                        !stop.group.entry.isCompleted,
-                );
-            if (practiceLeft?.kind === "MATERIAL" || practiceLeft?.kind === "GROUP") {
-                setActivePracticeId(practiceLeft.group.entry.id);
-                setActiveMaterialId(practiceLeft.kind === "MATERIAL" ? practiceLeft.material.id : null);
-            } else {
-                setActiveCompleteModuleId(finished.id);
-            }
-        } else {
-            const target = firstUnwatched ?? allVideos[0];
-            if (target) setActiveVideoId(target.id);
+        const target = data.isPreview ? null : resumeStop(stops);
+        // Anything else keeps the last lesson before it behind it, as a quiz or "complete" screen does.
+        const lessonBehind = target ? stops.slice(0, stops.indexOf(target)).findLast((stop) => stop.kind === "VIDEO") : undefined;
+        if (target?.kind !== "VIDEO" && lessonBehind?.kind === "VIDEO") setActiveVideoId(lessonBehind.video.id);
+        if (target?.kind === "VIDEO") {
+            setActiveVideoId(target.video.id);
+        } else if (target?.kind === "QUIZ") {
+            setActiveQuizId(target.quiz.id);
+        } else if (target?.kind === "FINISH") {
+            setActiveCompleteModuleId(target.courseModule.id);
+        } else if (target?.kind === "MATERIAL" || target?.kind === "GROUP") {
+            if (target.group.kind === "PRACTICE") setActivePracticeId(target.group.entry.id);
+            else setActiveAssignmentId(target.group.entry.id);
+            setActiveMaterialId(target.kind === "MATERIAL" ? target.material.id : null);
+        } else if (allVideos[0]) {
+            setActiveVideoId(allVideos[0].id);
         }
 
         const currentMilestone =
@@ -519,6 +564,13 @@ export default function LearnPage() {
             const found = findGroup(data, groupId);
             return found ? { moduleId: groupId, milestoneId: found.milestone.id } : null;
         }
+        // An assignment's quiz opens its assignment in the list.
+        if (activeQuizId && !activeCompleteModuleId) {
+            for (const milestone of data.curriculum) {
+                const assignment = milestone.assignments.find((a) => a.quiz?.id === activeQuizId);
+                if (assignment) return { moduleId: assignment.id, milestoneId: milestone.id };
+            }
+        }
         for (const milestone of data.curriculum) {
             for (const courseModule of milestone.modules) {
                 const holdsIt = activeCompleteModuleId
@@ -549,12 +601,11 @@ export default function LearnPage() {
 
     const completedCount = allVideos.filter((video) => video.isCompleted).length;
 
-    // Lessons are completed in course order — every earlier one first. This
-    // is the earliest unfinished lesson before the open one, if any (the
-    // server enforces the same rule).
-    const activeCourseIndex = allVideos.findIndex((video) => video.id === activeVideoId);
-    const blockingLesson =
-        activeCourseIndex > 0 ? allVideos.slice(0, activeCourseIndex).find((video) => !video.isCompleted) ?? null : null;
+    // Lessons are completed in course order — every earlier one first, and
+    // every quiz before it taken. This is the earliest unfinished lesson or
+    // untaken quiz before the open one, if any (the server enforces the same rule).
+    const activeLessonStopIndex = activeVideoId ? stops.findIndex((stop) => stop.key === stopKey.video(activeVideoId)) : -1;
+    const blockingStop = activeLessonStopIndex > 0 ? (stops.slice(0, activeLessonStopIndex).find(isOpenGate) ?? null) : null;
 
     /** Shows a lesson, no questions asked — callers have checked it may open. */
     const openLesson = (videoId: string) => {
@@ -573,11 +624,7 @@ export default function LearnPage() {
     /** Opens a lesson the student has reached; for a later one, says what to finish first. */
     const goTo = (videoId: string) => {
         if (!canOpen(videoId)) {
-            toast.info(
-                currentLesson
-                    ? `Finish "${currentLesson.title}" first — lessons open one at a time.`
-                    : "This lesson isn't open yet.",
-            );
+            toast.info(finishFirstNote("This lesson isn't open yet."));
             return;
         }
         openLesson(videoId);
@@ -585,14 +632,15 @@ export default function LearnPage() {
 
     // Should the open lesson ever be one the student hasn't reached — a
     // "Next" whose save the server turned down — take them back to their
-    // current lesson. Not while saves are still on their way: the page
-    // already counts those lessons as done.
+    // current lesson, or the quiz they still have to take. Not while saves
+    // are still on their way: the page already counts those lessons as done.
     useEffect(() => {
         if (!activeVideoId || !reachableIds || reachableIds.has(activeVideoId)) return;
         if (pendingCompletionsRef.current > 0) return;
-        const current = allVideos.find((video) => !video.isCompleted && !video.isLocked);
-        if (current && current.id !== activeVideoId) setActiveVideoId(current.id);
-    }, [activeVideoId, reachableIds, allVideos]);
+        const current = stops.find(isOpenGate);
+        if (current?.kind === "QUIZ") setActiveQuizId(current.quiz.id);
+        else if (current?.kind === "VIDEO" && current.video.id !== activeVideoId) setActiveVideoId(current.video.id);
+    }, [activeVideoId, reachableIds, stops]);
 
     /** An assignment's page (brief and submission), or one of its lessons. */
     const goToAssignment = (assignmentId: string, materialId: string | null = null) => {
@@ -635,8 +683,8 @@ export default function LearnPage() {
     const goToQuiz = (quizId: string) => {
         if (data && !quizOpensFor(data, stops, quizId)) {
             toast.info(
-                currentLesson
-                    ? `Finish "${currentLesson.title}" and the lessons up to the quiz first.`
+                currentGate?.kind === "VIDEO"
+                    ? `Finish "${currentGate.video.title}" and the lessons up to the quiz first.`
                     : "This quiz isn't open yet.",
             );
             return;
@@ -1085,15 +1133,20 @@ export default function LearnPage() {
     // A lesson counts as done when the student moves on from it with "Next"
     // (or "Finish" on the last one) — there's no separate complete button.
     const canComplete = Boolean(
-        showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingLesson,
+        showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingStop,
     );
 
     // A module's "complete" screen opens once every lesson of it is done —
-    // counting the one "Next" is about to complete.
+    // counting the one "Next" is about to complete — and its quiz is taken.
     const finishOpens = (courseModule: LearningModule) =>
         !data.isPreview &&
         courseModule.videos.length > 0 &&
-        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete));
+        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete)) &&
+        quizDone(courseModule);
+
+    // The open quiz, while the student hasn't taken it: there's no going on
+    // past it until they do.
+    const quizToTake = !data.isPreview && activeStop?.kind === "QUIZ" && !activeStop.quiz.isCompleted ? activeStop.quiz : null;
 
     /* Prev/next walk the stops a student can step onto: a locked module's
        lessons are skipped — landing on the padlock screen with no way forward
@@ -1126,9 +1179,11 @@ export default function LearnPage() {
         stop.kind === "VIDEO" ? canOpen(stop.video.id) : stop.kind === "QUIZ" ? quizOpensFor(data, stops, stop.quiz.id) : true;
     // Finishing this lesson is what opens the next one (a lesson, or a quiz
     // right after it), so "Next" works from the current lesson as well as
-    // from any finished one.
-    const nextOpens = Boolean(nextStop && (stopOpens(nextStop) || canComplete));
+    // from any finished one. From a quiz, only once it's taken.
+    const nextOpens = Boolean(nextStop && !quizToTake && (stopOpens(nextStop) || canComplete));
     const prevOpens = Boolean(prevStop && stopOpens(prevStop));
+    /** Why "Next" is shut, for its tooltip. */
+    const nextShutNote = quizToTake ? "Submit this quiz to go on" : finishFirstNote("Finish the lessons before it first");
 
     // The practice day whose last stop is open and isn't done yet: "Next"
     // from here marks it done, like the last lesson of a module.
@@ -1146,7 +1201,7 @@ export default function LearnPage() {
             case "VIDEO":
                 return stop.video.title;
             case "QUIZ":
-                return `Quiz: ${stop.quiz.title}`;
+                return quizLabel(stop.quiz.title);
             case "FINISH":
                 return `${moduleLabel} complete`;
             case "MATERIAL":
@@ -1189,14 +1244,6 @@ export default function LearnPage() {
                                 : undefined,
             }
             : null;
-    const lessonAfterComplete = (() => {
-        const last = completePlace?.courseModule.videos.at(-1);
-        if (!last) return null;
-        const after = allVideos[allVideos.findIndex((video) => video.id === last.id) + 1];
-        if (!after || after.isLocked || !canOpen(after.id)) return null;
-        const owner = data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === after.id));
-        return { video: after, moduleTitle: owner?.title ?? after.title };
-    })();
 
     const openNotes = () => {
         setLessonPanel("notes");
@@ -1358,24 +1405,16 @@ export default function LearnPage() {
                             watermark={user?.email}
                         />
                     ) : activeGroup?.kind === "ASSIGNMENT" ? (
-                        <AssignmentPane
-                            slug={slug}
-                            assignmentId={activeGroup.entry.id}
-                            onOpenMaterial={(materialId) => goToAssignment(activeGroup.entry.id, materialId)}
-                        />
+                        <AssignmentPane slug={slug} assignmentId={activeGroup.entry.id} />
                     ) : activeGroup?.kind === "PRACTICE" ? (
                         // Only a practice day with no lessons shows its own page.
                         <PracticePane key={activeGroup.entry.id} practice={activeGroup.entry} isPreview={data.isPreview} />
                     ) : completePlace ? (
                         <ModuleComplete
                             key={completePlace.courseModule.id}
-                            data={data}
-                            slug={slug}
+                            course={data.course}
                             milestone={completePlace.milestone}
                             courseModule={completePlace.courseModule}
-                            nextLesson={lessonAfterComplete}
-                            onOpenLesson={goTo}
-                            onOpenQuiz={goToQuiz}
                         />
                     ) : activeQuizId ? (
                         <QuizPane key={activeQuizId} quizId={activeQuizId} />
@@ -1440,10 +1479,16 @@ export default function LearnPage() {
                     )}
 
                     {/* A quiz, or an assignment's or practice day's lesson or page:
-                        where it sits, and Previous / Next along the course. */}
-                    {(activeStop?.kind === "QUIZ" || activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP") && (
+                        where it sits, and Previous / Next along the course. A
+                        module's "complete" screen gets just the buttons — it says
+                        where it is itself. */}
+                    {(activeStop?.kind === "QUIZ" ||
+                        activeStop?.kind === "MATERIAL" ||
+                        activeStop?.kind === "GROUP" ||
+                        (activeStop?.kind === "FINISH" && (prevStop || nextStop))) && (
                         <div className="space-y-3">
                             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-1">
+                                {activeStop.kind !== "FINISH" && (
                                 <div className="min-w-0">
                                     <p className="flex flex-wrap items-center gap-x-2 text-xs font-medium text-muted-foreground">
                                         <span className="font-semibold uppercase tracking-wider text-primary">
@@ -1452,7 +1497,7 @@ export default function LearnPage() {
                                         <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
                                         <span className="truncate">
                                             {activeStop.kind === "QUIZ"
-                                                ? activeStop.courseModule.title
+                                                ? (activeStop.courseModule?.title ?? `${GROUP_LABEL.ASSIGNMENT}: ${activeStop.group?.entry.title ?? ""}`)
                                                 : `${GROUP_LABEL[activeStop.group.kind]}: ${activeStop.group.entry.title}`}
                                         </span>
                                         <span aria-hidden className="size-1 rounded-full bg-muted-foreground/40" />
@@ -1470,8 +1515,9 @@ export default function LearnPage() {
                                         </h2>
                                     )}
                                 </div>
+                                )}
 
-                                <div className="flex w-full items-center gap-2 sm:w-auto *:flex-1 sm:*:flex-none">
+                                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto *:flex-1 sm:*:flex-none">
                                     {prevStop && (
                                         <Button
                                             variant="outline"
@@ -1491,7 +1537,7 @@ export default function LearnPage() {
                                                     ? `Next: ${stopTitle(nextStop)}`
                                                     : practiceToFinish
                                                         ? "Marks this practice day done"
-                                                        : "Finish the lessons before it first"
+                                                        : nextShutNote
                                             }
                                             // On a practice day's last stop it still marks the day done.
                                             disabled={!nextOpens && !practiceToFinish}
@@ -1509,6 +1555,14 @@ export default function LearnPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Why "Next" is shut here, in words — a tooltip never shows on a phone. */}
+                            {quizToTake && (
+                                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Lock className="size-4 shrink-0 text-primary" aria-hidden />
+                                    Submit this quiz to go on — what comes after it opens once it&apos;s done.
+                                </p>
+                            )}
 
                             {activeStop.kind === "MATERIAL" && activeStop.material.description && (
                                 <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground wrap-break-word">
@@ -1579,7 +1633,7 @@ export default function LearnPage() {
                                     ) : nextStop ? (
                                         <Button
                                             className="rounded-full pl-5 pr-4"
-                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : "Finish the lessons before this one first"}
+                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : nextShutNote}
                                             disabled={!nextOpens}
                                             onClick={advance}
                                         >
@@ -1603,20 +1657,33 @@ export default function LearnPage() {
                             </div>
 
                             {/* Why moving on won't count this lesson as done yet, and the way to fix it. */}
-                            {!data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && blockingLesson && (
+                            {!data.isPreview &&
+                                !activeVideo.isLocked &&
+                                !activeVideo.isCompleted &&
+                                (blockingStop?.kind === "VIDEO" || blockingStop?.kind === "QUIZ") && (
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
                                     <Lock className="size-4 shrink-0 text-warning-ink" aria-hidden />
-                                    <p className="min-w-0 flex-1 text-foreground">
-                                        This lesson will only count as complete after you finish the lessons before it.
-                                        Start with <span className="font-semibold">&ldquo;{blockingLesson.title}&rdquo;</span>.
-                                    </p>
+                                    {blockingStop.kind === "QUIZ" ? (
+                                        <p className="min-w-0 flex-1 text-foreground">
+                                            This lesson will only count as complete after you take the quiz before it:{" "}
+                                            <span className="font-semibold">&ldquo;{quizLabel(blockingStop.quiz.title)}&rdquo;</span>.
+                                        </p>
+                                    ) : (
+                                        <p className="min-w-0 flex-1 text-foreground">
+                                            This lesson will only count as complete after you finish the lessons before it.
+                                            Start with <span className="font-semibold">&ldquo;{blockingStop.video.title}&rdquo;</span>.
+                                        </p>
+                                    )}
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="rounded-full"
-                                        onClick={() => goTo(blockingLesson.id)}
+                                        onClick={() =>
+                                            blockingStop.kind === "QUIZ" ? goToQuiz(blockingStop.quiz.id) : goTo(blockingStop.video.id)
+                                        }
                                     >
-                                        Go to that lesson <ChevronRight className="size-4" />
+                                        {blockingStop.kind === "QUIZ" ? "Take the quiz" : "Go to that lesson"}{" "}
+                                        <ChevronRight className="size-4" />
                                     </Button>
                                 </div>
                             )}
@@ -2336,7 +2403,7 @@ type RouteItem =
 const isDone = (item: RouteItem) => {
     switch (item.kind) {
         case "MODULE":
-            return item.courseModule.isCompleted;
+            return item.courseModule.isCompleted && quizDone(item.courseModule);
         case "FINISH":
             return isModuleDone(item.courseModule);
         case "VIDEO":
@@ -2447,6 +2514,10 @@ function WeekRoute({
         for (const material of group.entry.materials) {
             items.push({ kind: "MATERIAL", key: `MATERIAL:${group.entry.id}:${material.id}`, group, material });
         }
+        // An assignment's quiz: after its lessons, before its brief & submission.
+        if (group.kind === "ASSIGNMENT" && group.entry.quiz) {
+            items.push({ kind: "QUIZ", key: `QUIZ:${group.entry.quiz.id}`, quiz: group.entry.quiz });
+        }
         if (hasGroupPage(group)) items.push({ kind: "GROUP_PAGE", key: `GROUP_PAGE:${group.entry.id}`, group });
     }
     closeModule();
@@ -2513,14 +2584,14 @@ function WeekRoute({
                                 <span
                                     className={cn(
                                         "relative z-10 grid size-6 shrink-0 place-items-center rounded-md text-[0.625rem] font-bold tabular-nums",
-                                        item.courseModule.isCompleted
+                                        isDone(item)
                                             ? "bg-primary text-primary-foreground"
                                             : item.courseModule.isLocked
                                                 ? "bg-secondary text-muted-foreground"
                                                 : "border border-primary/40 bg-card text-primary",
                                     )}
                                 >
-                                    {item.courseModule.isCompleted ? (
+                                    {isDone(item) ? (
                                         <Check className="size-3.5" strokeWidth={3} />
                                     ) : item.courseModule.isLocked ? (
                                         <Lock className="size-3" />
@@ -2631,7 +2702,13 @@ function WeekRoute({
                             const isActive = activeCompleteModuleId === item.courseModule.id;
                             return (
                                 // On the wrapper, not the disabled button — a disabled button shows no tooltip.
-                                <div title={done ? undefined : `Opens once you finish every lesson in this ${moduleLabel.toLowerCase()}`}>
+                                <div
+                                    title={
+                                        done
+                                            ? undefined
+                                            : `Opens once you finish every lesson${item.courseModule.quiz ? " and the quiz" : ""} in this ${moduleLabel.toLowerCase()}`
+                                    }
+                                >
                                     <button
                                         type="button"
                                         disabled={!done}
@@ -2695,7 +2772,7 @@ function WeekRoute({
                                                 quiz.isCompleted && !isActive && "text-muted-foreground",
                                             )}
                                         >
-                                            Quiz: {quiz.title}
+                                            {quizLabel(quiz.title)}
                                         </span>
                                     </button>
                                 </div>
@@ -2734,7 +2811,10 @@ function WeekRoute({
                                         title={item.isOpen ? "Hide its lessons" : "Show its lessons"}
                                         className={cn(
                                             "relative flex w-full items-center gap-3 rounded-xl border bg-secondary py-2 pl-1.75 pr-2 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default",
-                                            isActiveGroup(group) ? "border-primary/40" : "border-border",
+                                            // Also while its quiz is open.
+                                            isActiveGroup(group) || (group.kind === "ASSIGNMENT" && activeQuizId !== null && group.entry.quiz?.id === activeQuizId)
+                                                ? "border-primary/40"
+                                                : "border-border",
                                         )}
                                     >
                                         <span
@@ -2834,414 +2914,5 @@ function WeekRoute({
                 </li>
             ))}
         </ul>
-    );
-}
-
-/**
- * The assignment brief and its submission box, swapped into the player pane
- * in place of the video — an assignment is just another piece of lesson
- * content, not a separate destination, so opening one never navigates away
- * from the course shell (header, sidebar, everything stays put).
- */
-function AssignmentPane({
-    slug,
-    assignmentId,
-    onOpenMaterial,
-}: {
-    slug: string;
-    assignmentId: string;
-    /** Opens one of its lessons in the player. */
-    onOpenMaterial: (materialId: string) => void;
-}) {
-    const queryClient = useQueryClient();
-    const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-    const [draft, setDraft] = useState("");
-    const [files, setFiles] = useState<AttachedFile[]>([]);
-    // A resubmission that costs marks opens only when asked for — never by accident.
-    const [editing, setEditing] = useState(false);
-    useEffect(() => setEditing(false), [assignmentId]);
-
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ["assignment", assignmentId],
-        queryFn: () => assignmentService.get(assignmentId),
-    });
-
-    const submission = data?.submission ?? null;
-
-    // One box in, one box out: the link and the notes are pre-joined here the
-    // same way they're split apart on submit, so editing an existing attempt
-    // doesn't drop either half of it.
-    useEffect(() => {
-        setDraft([submission?.submissionUrl, submission?.content].filter(Boolean).join("\n\n"));
-        setDescriptionExpanded(false);
-    }, [assignmentId, submission?.id, submission?.content, submission?.submissionUrl]);
-
-    // A resubmission starts from the files already handed in; any can be taken off.
-    const submittedFiles = submission?.fileUrls.join("\n") ?? "";
-    useEffect(() => {
-        setFiles(submittedFiles ? submittedFiles.split("\n").map(attachedFrom) : []);
-    }, [assignmentId, submittedFiles]);
-
-    const refresh = () => {
-        void queryClient.invalidateQueries({ queryKey: ["assignment", assignmentId] });
-        void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
-    };
-
-    const submit = useMutation({
-        mutationFn: ({ content, acceptPenalty }: { content: string; acceptPenalty: boolean }) => {
-            const urlMatch = content.match(/https?:\/\/\S+/);
-            const submissionUrl = urlMatch ? urlMatch[0].replace(/[.,;:!?)\]]+$/, "") : undefined;
-            return assignmentService.submit(assignmentId, {
-                content: content || undefined,
-                submissionUrl,
-                fileUrls: files.map((file) => file.url),
-                acceptPenalty: acceptPenalty || undefined,
-            });
-        },
-        onSuccess: (result) => {
-            toast.success(
-                result?.penalty
-                    ? `Resubmitted — ${result.penalty.marks} marks${result.penalty.xp ? ` and ${result.penalty.xp} XP` : ""} were taken.`
-                    : "Submitted — your mentor will review it shortly.",
-            );
-            setEditing(false);
-            refresh();
-            void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
-        },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't submit your work.")),
-    });
-
-    if (isLoading) {
-        return (
-            <div className="space-y-4">
-                <Skeleton className="h-40" />
-                <Skeleton className="h-64" />
-            </div>
-        );
-    }
-
-    if (isError || !data) {
-        return (
-            <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-10 text-center">
-                <AlertTriangle className="mx-auto mb-3 size-8 text-muted-foreground" />
-                <p className="font-medium">Can&apos;t open this assignment</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    {getApiErrorMessage(error, "It may not be published yet.")}
-                </p>
-            </div>
-        );
-    }
-
-    // Waiting, before the results: it may well be marked already — the mark just isn't out yet.
-    const statusMeta = submission
-        ? submission.status === "SUBMITTED" && !data.resultsPublished
-            ? { label: "Marks & feedback in progress", variant: "secondary" as const }
-            : SUBMISSION_STATUS_META[submission.status]
-        : null;
-    // A resubmission that costs marks and XP, before the results are out.
-    const paid = data.resubmitCost;
-    const showForm = data.canSubmit && (!paid || editing);
-    const resubmissions = submission?.adjustments.filter((entry) => entry.kind === "RESUBMIT_PENALTY").length ?? 0;
-    const description = data.description ?? "";
-    const isLongDescription = description.length > 420;
-    const shownDescription =
-        !descriptionExpanded && isLongDescription ? `${description.slice(0, 420)}…` : description;
-
-    return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge>{data.totalMarks} marks</Badge>
-                {/* Only while there's no submission yet — after that, what counts
-                    is the mark the first submission fixed, shown below. */}
-                {data.deadline && !submission && (
-                    <Badge
-                        variant={
-                            data.window.status === "CLOSED"
-                                ? "destructive"
-                                : data.window.status === "LATE"
-                                    ? "warning"
-                                    : "secondary"
-                        }
-                    >
-                        <Clock className="size-3" />
-                        {data.window.status === "CLOSED"
-                            ? "Submissions closed"
-                            : data.window.status === "LATE"
-                                ? `Late — out of ${data.window.maxScore} until ${formatDateTime(data.window.until!)}`
-                                : `Due ${formatDateTime(data.deadline)}`}
-                    </Badge>
-                )}
-                {statusMeta && <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>}
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h2 className="mb-3 text-xl font-bold">{data.title}</h2>
-                <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">{linkify(shownDescription)}</p>
-                {isLongDescription && (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 rounded-full"
-                        onClick={() => setDescriptionExpanded((v) => !v)}
-                    >
-                        {descriptionExpanded ? "See less" : "See more"}
-                    </Button>
-                )}
-
-                {data.deadline && data.lateTiers.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Marking schedule</h3>
-                        <ol className="space-y-1.5 text-sm">
-                            {[
-                                { key: "deadline", until: data.deadline, marks: data.totalMarks, current: data.window.status === "ON_TIME" },
-                                ...data.lateTiers.map((tier) => ({
-                                    key: tier.until,
-                                    until: tier.until,
-                                    marks: tier.maxMarks,
-                                    current: data.window.status === "LATE" && data.window.until === tier.until,
-                                })),
-                            ].map((step) => (
-                                <li
-                                    key={step.key}
-                                    aria-current={!submission && step.current ? "true" : undefined}
-                                    className={cn(
-                                        "flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2",
-                                        !submission && step.current
-                                            ? "bg-primary/10 font-medium text-primary"
-                                            : "bg-secondary/40 text-muted-foreground",
-                                    )}
-                                >
-                                    <span>Submitted by {formatDateTime(step.until)}</span>
-                                    <span>
-                                        out of {step.marks}
-                                        {!submission && step.current ? " · now" : ""}
-                                    </span>
-                                </li>
-                            ))}
-                            <li className="px-3 text-xs text-muted-foreground">
-                                After {formatDateTime(data.lateTiers[data.lateTiers.length - 1].until)}, submissions close.
-                            </li>
-                        </ol>
-                    </div>
-                )}
-
-                {data.instructions && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Instructions</h3>
-                        <div
-                            className="text-sm leading-relaxed text-muted-foreground"
-                            // Escaped and link-restricted by renderLightMarkdown.
-                            dangerouslySetInnerHTML={{ __html: renderLightMarkdown(data.instructions) }}
-                        />
-                    </div>
-                )}
-
-                {data.rubric?.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">How it&apos;s marked</h3>
-                        <ul className="divide-y divide-border rounded-lg border border-border text-sm">
-                            {data.rubric.map((line) => (
-                                <li key={line.id} className="flex items-start justify-between gap-4 px-3 py-2">
-                                    <span className="min-w-0">
-                                        <span className="block font-medium">{line.title}</span>
-                                        {line.description && <span className="block text-xs text-muted-foreground">{line.description}</span>}
-                                    </span>
-                                    <span className="shrink-0 tabular-nums text-muted-foreground">{line.maxPoints} marks</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {data.attachments.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Attachments</h3>
-                        <ul className="space-y-1.5">
-                            {data.attachments.map((url, index) => (
-                                <li key={url}>
-                                    <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                                    >
-                                        <FileText className="size-4" />
-                                        Attachment {index + 1}
-                                        <ExternalLink className="size-3" />
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </div>
-
-            {/* The assignment's own lessons — what to watch, read or open before
-                submitting. Each opens in the player, like a module's lesson. */}
-            <MaterialList materials={data.materials} onOpen={onOpenMaterial} intro="Watch, read or open these before you submit." />
-
-            {/* The verdict, whenever the student may see one: the final mark with
-                how it was reached and the rechecks, or the feedback on work sent
-                back. A mark waiting for the results shows nothing here. */}
-            {submission?.reviewedAt && <AssignmentResult assignment={data} submission={submission} onChanged={refresh} />}
-
-            {/* Submission — a single box, the same way the reference platform
-                takes a link and a description as one free-text paste rather
-                than two separate form fields. */}
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h2 className="mb-4 font-semibold">
-                    {submission ? "Your submission" : "Submit your work"}
-                </h2>
-
-                {showForm ? (
-                    <form
-                        className="space-y-4"
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            if (!draft.trim() && files.length === 0) {
-                                toast.error(
-                                    "Add your work before submitting: paste a link, write an answer, or attach a file.",
-                                );
-                                return;
-                            }
-                            // What it costs, asked once more right before it's taken.
-                            if (
-                                paid &&
-                                !(await confirmAction({
-                                    title: `Resubmit for ${paid.marks} marks and ${paid.xp} XP?`,
-                                    text: `${paid.marks} marks come off your final mark and ${paid.xp} XP off your course XP. Your new work replaces the old one and goes back to your mentor.`,
-                                    confirmText: "Resubmit",
-                                    tone: "default",
-                                }))
-                            ) {
-                                return;
-                            }
-                            submit.mutate({ content: draft.trim(), acceptPenalty: Boolean(paid) });
-                        }}
-                    >
-                        <textarea
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            placeholder="Paste your GitHub repo link, live demo link, and any notes for your mentor…"
-                            rows={7}
-                            maxLength={20_000}
-                            className="w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary"
-                        />
-
-                        <SubmissionFiles assignmentId={assignmentId} files={files} onChange={setFiles} disabled={submit.isPending} />
-
-                        {submission?.status === "NEEDS_REVISION" && (
-                            <p className="flex items-start gap-2 rounded-lg bg-accent/10 p-3 text-sm">
-                                <RotateCcw className="mt-0.5 size-4 shrink-0" />
-                                Resubmitting replaces your previous attempt and sends it back for review.
-                                {submission.maxScore !== null
-                                    ? ` It stays marked out of ${submission.maxScore}, as when you first submitted.`
-                                    : " It's still marked out of the full total — a requested revision is never late."}
-                            </p>
-                        )}
-
-                        {!submission && data.window.status === "LATE" && (
-                            <p className="flex items-start gap-2 rounded-lg bg-accent/10 p-3 text-sm">
-                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                                The deadline has passed. Submit before {formatDateTime(data.window.until!)} and this
-                                is marked out of {data.window.maxScore} instead of {data.totalMarks}.
-                            </p>
-                        )}
-
-                        {paid && (
-                            <p className="flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning-ink">
-                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                                Resubmitting now costs {paid.marks} marks off your final mark and {paid.xp} XP. Your new work
-                                replaces the old one and goes back to your mentor.
-                            </p>
-                        )}
-
-                        <div className="flex flex-wrap gap-2">
-                            <Button type="submit" size="lg" isLoading={submit.isPending}>
-                                {!submission ? "Submit assignment" : paid ? `Resubmit · −${paid.marks} marks, −${paid.xp} XP` : "Resubmit"}
-                            </Button>
-                            {paid && (
-                                <Button type="button" size="lg" variant="outline" onClick={() => setEditing(false)} disabled={submit.isPending}>
-                                    Cancel
-                                </Button>
-                            )}
-                        </div>
-                    </form>
-                ) : (
-                    <div className="space-y-4">
-                        {submission?.status === "ACCEPTED" && (
-                            <p className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success">
-                                <CheckCircle2 className="size-4" />
-                                {data.canRecheck
-                                    ? "Your result is in. Think the mark is wrong? Ask for a recheck above."
-                                    : "Your result is in — nothing more to do."}
-                            </p>
-                        )}
-
-                        {submission?.status === "SUBMITTED" && !data.resultsPublished && (
-                            <div className="space-y-3 rounded-lg bg-secondary p-3 text-sm">
-                                <p className="text-muted-foreground">
-                                    Your mentor will mark it. Marks and feedback show here once the results are published —
-                                    you&apos;ll be notified.
-                                </p>
-                                {/* Before the results: resubmitting is open, at a cost. */}
-                                {paid && (
-                                    <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-3">
-                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
-                                            <RotateCcw className="size-3.5" /> Resubmit
-                                        </Button>
-                                        <span className="text-xs text-muted-foreground">
-                                            Costs {paid.marks} marks and {paid.xp} XP each time, until the results are published.
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {submission?.status === "SUBMITTED" && data.resultsPublished && (
-                            <p className="rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
-                                The results are out, but yours hasn&apos;t been marked yet. It shows here as soon as it is.
-                            </p>
-                        )}
-
-                        {submission?.status === "UNDER_REVIEW" && (
-                            <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
-                                Your mentor has started reviewing this. You&apos;ll be notified when there&apos;s feedback.
-                            </p>
-                        )}
-
-                        {submission?.content && (
-                            <p className="whitespace-pre-line text-sm">{submission.content}</p>
-                        )}
-
-                        {submission && submission.fileUrls.length > 0 && (
-                            <SubmissionFiles assignmentId={assignmentId} files={submission.fileUrls.map(attachedFrom)} onChange={() => {}} disabled />
-                        )}
-
-                        {submission && (
-                            <p className="text-xs text-muted-foreground">
-                                Submitted {formatDateTime(submission.submittedAt)}
-                                {submission.maxScore !== null &&
-                                    ` · late, so marked out of ${submission.maxScore} of ${data.totalMarks}`}
-                                {/* What resubmitting has cost so far. */}
-                                {resubmissions > 0 &&
-                                    ` · resubmitted ${resubmissions} ${resubmissions === 1 ? "time" : "times"}: −${resubmissions * data.penalties.resubmitMarks} marks${submission.xpDeducted ? `, −${submission.xpDeducted} XP` : ""}`}
-                            </p>
-                        )}
-
-                        {!submission && data.window.status === "CLOSED" && (
-                            <p className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                                <AlertTriangle className="size-4" />
-                                {data.lateTiers.length > 0
-                                    ? "Submissions have closed — the last late window has passed."
-                                    : "The deadline passed before you submitted."}{" "}
-                                Talk to your mentor in a support session.
-                            </p>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
     );
 }

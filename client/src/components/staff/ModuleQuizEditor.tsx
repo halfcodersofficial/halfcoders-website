@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import RowActions from "@/components/admin/RowActions";
 import ModuleContentHeader from "@/components/staff/ModuleContentHeader";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import { Input, Textarea } from "@/components/ui/input";
@@ -346,22 +347,35 @@ const toOptionRows = (question: AdminQuizQuestion): OptionRow[] =>
 const toOptionInputs = (options: OptionRow[]): QuizOptionInput[] =>
     options.map((o) => ({ id: o.id, text: o.text, isCorrect: o.isCorrect }));
 
+/** What the quiz belongs to — a module, or an assignment. */
+type QuizOwner = { moduleId: string; assignmentId?: undefined } | { assignmentId: string; moduleId?: undefined };
+
+/** The cache key of a module's quiz (shared with its lesson page) or an assignment's. */
+export const quizQueryKey = (owner: QuizOwner) => (owner.moduleId ? ["quiz", owner.moduleId] : ["quiz", "assignment", owner.assignmentId]);
+
 /**
- * The quiz for one module — mounted by both consoles, same as
- * `ModuleLessonsEditor`. A module has at most one quiz (see the `Quiz` model),
- * so this is "create the quiz" or "edit the quiz", never a list.
+ * The quiz for one module, or for one assignment — mounted by both consoles,
+ * same as `ModuleLessonsEditor`. Each has at most one quiz (see the `Quiz`
+ * model), so this is "create the quiz" or "edit the quiz", never a list. An
+ * assignment's is taken after its lessons, before its brief & submission.
  */
 export default function ModuleQuizEditor({
     courseId,
-    moduleId,
     area,
+    moduleId,
+    assignmentId,
 }: {
     courseId: string;
-    moduleId: string;
     area: StaffArea;
+    /** The module it's for — or, left out, `assignmentId`. */
+    moduleId?: string;
+    assignmentId?: string;
 }) {
     const routes = staffCourseRoutes(area, courseId);
     const queryClient = useQueryClient();
+    const owner: QuizOwner = moduleId ? { moduleId } : { assignmentId: assignmentId as string };
+    const quizKey = quizQueryKey(owner);
+    const ownerWord = moduleId ? "module" : "assignment";
 
     const [creatingQuiz, setCreatingQuiz] = useState(false);
     const [editingMeta, setEditingMeta] = useState(false);
@@ -369,19 +383,21 @@ export default function ModuleQuizEditor({
     const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
 
     const { data: quiz, isLoading, isError, error } = useQuery({
-        queryKey: ["quiz", moduleId],
-        queryFn: () => curriculumAuthoring.getModuleQuiz(moduleId),
+        queryKey: quizKey,
+        queryFn: () => (moduleId ? curriculumAuthoring.getModuleQuiz(moduleId) : curriculumAuthoring.getAssignmentQuiz(assignmentId as string)),
     });
 
-    // The quiz goes live with its module — the header's query, already cached.
+    // The quiz goes live with its module or assignment — the header's query, already cached.
     const { data: milestones } = useQuery({
         queryKey: ["curriculum", courseId],
         queryFn: () => curriculumAuthoring.listMilestones(courseId),
     });
-    const courseModule = milestones?.flatMap((milestone) => milestone.modules).find((m) => m.id === moduleId);
+    const ownerRow = owner.moduleId
+        ? milestones?.flatMap((milestone) => milestone.modules).find((m) => m.id === owner.moduleId)
+        : milestones?.flatMap((milestone) => milestone.assignments).find((a) => a.id === owner.assignmentId);
 
     const refresh = () => {
-        void queryClient.invalidateQueries({ queryKey: ["quiz", moduleId] });
+        void queryClient.invalidateQueries({ queryKey: quizKey });
         void queryClient.invalidateQueries({ queryKey: ["curriculum", courseId] });
     };
 
@@ -401,7 +417,7 @@ export default function ModuleQuizEditor({
 
     const createQuiz = useMutation({
         mutationFn: (values: { title: string; description?: string }) =>
-            curriculumAuthoring.createQuiz({ moduleId, ...values }),
+            curriculumAuthoring.createQuiz(moduleId ? { moduleId, ...values } : { assignmentId: assignmentId as string, ...values }),
         onSuccess: () => {
             toast.success("Quiz created. Add its first question below.");
             setCreatingQuiz(false);
@@ -426,8 +442,8 @@ export default function ModuleQuizEditor({
         if (quiz) resetMetaForm({ title: quiz.title, description: quiz.description ?? "" });
     }, [quiz, resetMetaForm]);
 
-    // Only for a quiz written after its module went live — otherwise it goes
-    // live with the module, by itself.
+    // Only for a quiz written after its module (or assignment) went live —
+    // otherwise it goes live with it, by itself.
     const makeLive = useMutation({
         mutationFn: () => curriculumAuthoring.updateQuiz(quiz!.id, { isPublished: true }),
         onSuccess: () => {
@@ -502,11 +518,11 @@ export default function ModuleQuizEditor({
         mutationFn: ({ orderedIds }: { orderedIds: string[]; movedId: string }) =>
             curriculumAuthoring.reorderQuestions(quiz!.id, orderedIds),
         onMutate: async ({ orderedIds }) => {
-            await queryClient.cancelQueries({ queryKey: ["quiz", moduleId] });
-            const previous = queryClient.getQueryData<AdminQuiz | null>(["quiz", moduleId]);
+            await queryClient.cancelQueries({ queryKey: quizKey });
+            const previous = queryClient.getQueryData<AdminQuiz | null>(quizKey);
             if (previous) {
                 const byId = new Map(previous.questions.map((question) => [question.id, question]));
-                queryClient.setQueryData<AdminQuiz>(["quiz", moduleId], {
+                queryClient.setQueryData<AdminQuiz>(quizKey, {
                     ...previous,
                     questions: orderedIds.map((id, index) => ({ ...byId.get(id)!, order: index + 1 })),
                 });
@@ -514,11 +530,11 @@ export default function ModuleQuizEditor({
             return { previous };
         },
         onError: (err, _variables, context) => {
-            if (context?.previous) queryClient.setQueryData(["quiz", moduleId], context.previous);
+            if (context?.previous) queryClient.setQueryData(quizKey, context.previous);
             toast.error(getApiErrorMessage(err, "Couldn't reorder the questions."));
         },
         onSuccess: () => toast.success("Reordered."),
-        onSettled: () => queryClient.invalidateQueries({ queryKey: ["quiz", moduleId] }),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: quizKey }),
     });
 
     if (isLoading) {
@@ -548,12 +564,16 @@ export default function ModuleQuizEditor({
 
     const PANEL = "rounded-card border border-border bg-card shadow-card";
     const hasQuestions = Boolean(quiz && quiz.questions.length > 0);
-    // A draft quiz in a module that's already live waits on staff; any other draft waits on the module.
-    const waitsOnStaff = Boolean(quiz && !quiz.isPublished && courseModule?.isPublished);
+    // A draft quiz whose module (or assignment) is already live waits on staff; any other draft waits on that.
+    const waitsOnStaff = Boolean(quiz && !quiz.isPublished && ownerRow?.isPublished);
 
     return (
         <div className="w-full space-y-6">
-            <ModuleContentHeader courseId={courseId} moduleId={moduleId} area={area} active="quiz" />
+            {moduleId ? (
+                <ModuleContentHeader courseId={courseId} moduleId={moduleId} area={area} active="quiz" />
+            ) : (
+                <AssignmentQuizHeader courseId={courseId} assignmentId={assignmentId as string} area={area} />
+            )}
 
             {quiz && (
                 <section aria-label="The quiz" className={cn(PANEL, "px-5 py-4 sm:px-6")}>
@@ -592,32 +612,39 @@ export default function ModuleQuizEditor({
                                     {quiz.questions.length} question{quiz.questions.length === 1 ? "" : "s"} · students answer them all and submit once, then see
                                     their score and the right answers.
                                 </p>
-                                <p className="mt-0.5 text-sm text-muted-foreground">
-                                    Students take it{" "}
-                                    <span className="font-medium text-foreground">
-                                        {quiz.position === null
-                                            ? "after the last lesson"
-                                            : quiz.position === 0
-                                                ? "before the first lesson"
-                                                : `after lesson ${String(quiz.position).padStart(2, "0")}`}
-                                    </span>{" "}
-                                    —{" "}
-                                    <Link href={routes.module(moduleId)} className="font-medium text-primary hover:underline">
-                                        drag it in the lesson list to move it
-                                    </Link>
-                                    .
-                                </p>
+                                {moduleId ? (
+                                    <p className="mt-0.5 text-sm text-muted-foreground">
+                                        Students take it{" "}
+                                        <span className="font-medium text-foreground">
+                                            {quiz.position === null
+                                                ? "after the last lesson"
+                                                : quiz.position === 0
+                                                    ? "before the first lesson"
+                                                    : `after lesson ${String(quiz.position).padStart(2, "0")}`}
+                                        </span>{" "}
+                                        —{" "}
+                                        <Link href={routes.module(moduleId)} className="font-medium text-primary hover:underline">
+                                            drag it in the lesson list to move it
+                                        </Link>
+                                        .
+                                    </p>
+                                ) : (
+                                    <p className="mt-0.5 text-sm text-muted-foreground">
+                                        Students take it <span className="font-medium text-foreground">after the assignment&apos;s lessons</span>, before
+                                        they hand in their work — and can&apos;t go on until they&apos;ve submitted it.
+                                    </p>
+                                )}
                                 {quiz.description && <p className="mt-2 text-sm">{quiz.description}</p>}
-                                {/* When students get it: with the module, never on its own — and no separate notification. */}
-                                {!quiz.isPublished && courseModule && (
+                                {/* When students get it: with its module or assignment, never on its own — and no separate notification. */}
+                                {!quiz.isPublished && ownerRow && (
                                     <p className="mt-2 text-sm text-muted-foreground">
                                         {waitsOnStaff
                                             ? hasQuestions
-                                                ? "The module is already live — make the quiz live when its questions are ready."
-                                                : "The module is already live — add the questions, then make the quiz live."
-                                            : courseModule.releaseAt
-                                              ? `Goes live together with the module, ${formatDateTime(courseModule.releaseAt)}.`
-                                              : "Goes live together with the module — nothing to publish here."}
+                                                ? `The ${ownerWord} is already live — make the quiz live when its questions are ready.`
+                                                : `The ${ownerWord} is already live — add the questions, then make the quiz live.`
+                                            : ownerRow.releaseAt
+                                              ? `Goes live together with the ${ownerWord}, ${formatDateTime(ownerRow.releaseAt)}.`
+                                              : `Goes live together with the ${ownerWord} — nothing to publish here.`}
                                         {!waitsOnStaff && !hasQuestions && " Add at least one question by then, or it stays a draft."}
                                     </p>
                                 )}
@@ -668,10 +695,10 @@ export default function ModuleQuizEditor({
                     <section aria-label="New quiz" className={cn(PANEL, "border-primary/30 p-5 sm:p-6")}>
                         <form className="space-y-4" noValidate onSubmit={createQuizForm.handleSubmit}>
                             <FormField form={createQuizForm} name="title" label="Quiz title" required counterMax={200}>
-                                <Input placeholder="Module 03 Quiz" autoFocus />
+                                <Input placeholder={moduleId ? "Module 03 Quiz" : "Assignment 01 Quiz"} autoFocus />
                             </FormField>
                             <FormField form={createQuizForm} name="description" label="Description" optional counterMax={2000}>
-                                <Textarea rows={2} placeholder="Check your understanding of this module." />
+                                <Textarea rows={2} placeholder={`Check your understanding of this ${ownerWord}.`} />
                             </FormField>
                             <div className="flex gap-2">
                                 <Button type="submit" size="sm" isLoading={createQuiz.isPending}>
@@ -822,5 +849,37 @@ export default function ModuleQuizEditor({
                 </SortableList>
             )}
         </div>
+    );
+}
+
+/**
+ * The head of an assignment's quiz page: which assignment it belongs to, and
+ * the way back to that assignment's page — where its "Quiz" tile leads here.
+ */
+function AssignmentQuizHeader({ courseId, assignmentId, area }: { courseId: string; assignmentId: string; area: StaffArea }) {
+    const routes = staffCourseRoutes(area, courseId);
+    const { data: course } = useQuery({
+        queryKey: ["staff", "course", courseId],
+        queryFn: () => curriculumAuthoring.getCourse(courseId),
+    });
+    const { data: milestones } = useQuery({
+        queryKey: ["curriculum", courseId],
+        queryFn: () => curriculumAuthoring.listMilestones(courseId),
+    });
+    const milestone = milestones?.find((m) => m.assignments.some((a) => a.id === assignmentId));
+    const assignment = milestone?.assignments.find((a) => a.id === assignmentId);
+
+    return (
+        <header className="space-y-4">
+            <BackButton href={routes.assignment(assignmentId)} label="Assignment" />
+            <div className="min-w-0">
+                {milestone && (
+                    <p className="text-xs font-semibold font-mono uppercase tracking-wider text-primary">
+                        {course?.milestoneLabel ?? "Milestone"} {String(milestone.order).padStart(2, "0")} · Assignment · Quiz
+                    </p>
+                )}
+                <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">{assignment?.title ?? "Assignment"}</h1>
+            </div>
+        </header>
     );
 }

@@ -80,6 +80,16 @@ const getQuizForModule = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const getQuizForAssignment = catchAsync(async (req: Request, res: Response) => {
+    const result = await QuizService.getQuizForAssignment(req.user, req.params.assignmentId as string);
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Quiz fetched successfully",
+        data: result,
+    });
+});
+
 const createQuestion = catchAsync(async (req: Request, res: Response) => {
     const result = await QuizService.createQuestion(req.user, req.params.quizId as string, req.body);
     sendResponse(res, {
@@ -175,6 +185,7 @@ export const QuizController = {
     updateQuiz,
     deleteQuiz,
     getQuizForModule,
+    getQuizForAssignment,
     createQuestion,
     updateQuestion,
     deleteQuestion,

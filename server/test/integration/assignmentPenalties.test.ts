@@ -6,7 +6,8 @@ import { assignMentor, createAssignment, createCourse, createMilestone, enrol, n
 /**
  * Results, resubmission penalties and rechecks (utils/assignmentPenalties.ts):
  * the first hand-in is free; resubmitting before the results costs 3 marks
- * and 5 XP each time, and only when confirmed; a mark stays hidden until the
+ * or 5 XP each time — the student's pick — and only when confirmed; XP the
+ * student doesn't have can't pay for it; a mark stays hidden until the
  * results are published, which closes resubmitting; a recheck costs 2 marks
  * at once — refunded when the mark goes up, followed by 3 more when it stands.
  * Every step is checked against the ledger as well as the student's view.
@@ -65,33 +66,59 @@ describe("assignment results, penalties and rechecks", () => {
 
         const data = await view();
         expect(data.canSubmit).toBe(true);
-        expect(data.resubmitCost).toEqual({ marks: 3, xp: 5 });
+        expect(data.resubmitCost).toEqual({ marks: 3, xp: 5, xpAvailable: await xpOf() });
         expect(await adjustments()).toEqual([]);
     });
 
-    it("refuses a resubmission whose cost wasn't confirmed, taking nothing", async () => {
+    it("refuses a resubmission whose cost wasn't confirmed and paid for, taking nothing", async () => {
         const before = await xpOf();
         const res = await submit(student, { content: "Second go" });
         expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/costs 3 marks and 5 XP/);
+        expect(res.body.message).toMatch(/costs 3 marks or 5 XP/);
+        // Confirmed, but without saying how to pay.
+        expect((await submit(student, { content: "Second go", acceptPenalty: true })).status).toBe(400);
         expect(await xpOf()).toBe(before);
         expect(await adjustments()).toEqual([]);
     });
 
-    it("charges a confirmed resubmission once: 3 marks and 5 XP", async () => {
+    const resubmitLedger = async () =>
+        (
+            await owner.query(`SELECT points FROM learning.xp_transaction WHERE "studentId" = $1 AND source = 'ASSIGNMENT_RESUBMIT_PENALTY'`, [
+                student.id,
+            ])
+        ).rows;
+
+    it("charges a resubmission paid with marks once: 3 marks, no XP", async () => {
         const before = await xpOf();
-        const res = await submit(student, { content: "Second go", acceptPenalty: true });
+        const res = await submit(student, { content: "Second go", acceptPenalty: true, payWith: "MARKS" });
         expect(res.status).toBe(201);
-        expect(res.body.data.penalty).toEqual({ marks: 3, xp: 5 });
+        expect(res.body.data.penalty).toEqual({ marks: 3, xp: 0 });
+        expect(await xpOf()).toBe(before);
+        expect(await adjustments()).toEqual([{ kind: "RESUBMIT_PENALTY", marks: -3 }]);
+        expect(await resubmitLedger()).toEqual([]);
+        expect((await view()).submission).toMatchObject({ attempts: 2, markAdjustment: -3, xpDeducted: 0 });
+    });
+
+    it("charges a resubmission paid with XP once: 5 XP, no marks", async () => {
+        const before = await xpOf();
+        const res = await submit(student, { content: "Third go", acceptPenalty: true, payWith: "XP" });
+        expect(res.status).toBe(201);
+        expect(res.body.data.penalty).toEqual({ marks: 0, xp: 5 });
         expect(await xpOf()).toBe(before - 5);
         expect(await adjustments()).toEqual([{ kind: "RESUBMIT_PENALTY", marks: -3 }]);
+        expect(await resubmitLedger()).toEqual([{ points: -5 }]);
+        expect((await view()).submission).toMatchObject({ attempts: 3, markAdjustment: -3, xpDeducted: 5 });
+    });
 
-        const ledger = await owner.query(
-            `SELECT points FROM learning.xp_transaction WHERE "studentId" = $1 AND source = 'ASSIGNMENT_RESUBMIT_PENALTY'`,
-            [student.id],
-        );
-        expect(ledger.rows).toEqual([{ points: -5 }]);
-        expect((await view()).submission).toMatchObject({ attempts: 2, markAdjustment: -3, xpDeducted: 5 });
+    it("refuses XP the student doesn't have, taking nothing", async () => {
+        await owner.query(`UPDATE learning.course_xp SET "totalXp" = 2 WHERE "studentId" = $1 AND "courseId" = $2`, [student.id, courseId]);
+        expect((await view()).resubmitCost).toMatchObject({ xpAvailable: 2 });
+
+        const res = await submit(student, { content: "Fourth go", acceptPenalty: true, payWith: "XP" });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/need 5 XP/);
+        expect(await xpOf()).toBe(2);
+        expect((await view()).submission).toMatchObject({ attempts: 3, content: "Third go" });
     });
 
     it("keeps a mark from the student until the results are published", async () => {
@@ -112,7 +139,7 @@ describe("assignment results, penalties and rechecks", () => {
         const data = await view();
         expect(data.submission).toMatchObject({ status: "ACCEPTED", score: 80, finalScore: 77, resultHidden: false });
         expect(data).toMatchObject({ canSubmit: false, canRecheck: true, resultsPublished: true });
-        expect((await submit(student, { content: "Third go", acceptPenalty: true })).status).toBe(409);
+        expect((await submit(student, { content: "Fifth go", acceptPenalty: true, payWith: "MARKS" })).status).toBe(409);
         expect((await notificationsOf(student.id)).some((n: { title: string }) => n.title.startsWith("Results are out"))).toBe(true);
     });
 

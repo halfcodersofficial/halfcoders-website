@@ -286,7 +286,8 @@ const getStudentOverview = async (userId: string) => {
             select: { id: true, courseId: true, deadline: true, lateTiers: true },
         }),
         prisma.quiz.findMany({
-            where: { ...inTheirCourses, isPublished: true, module: publishedWeek },
+            // A module's quiz or an assignment's, out in a published week.
+            where: { ...inTheirCourses, isPublished: true, OR: [{ module: publishedWeek }, { assignment: publishedWeek }] },
             select: { id: true, courseId: true },
         }),
         prisma.practiceDay.groupBy({ by: ["courseId"], where: { ...inTheirCourses, ...publishedWeek }, _count: { _all: true } }),
@@ -306,6 +307,8 @@ const getStudentOverview = async (userId: string) => {
                     select: {
                         id: true, title: true,
                         module: { select: { title: true, order: true, milestone: { select: { title: true, order: true } } } },
+                        // Or the assignment it belongs to.
+                        assignment: { select: { title: true, milestone: { select: { title: true, order: true } } } },
                         course: { select: { id: true, title: true, milestoneLabel: true, moduleLabel: true } },
                     },
                 },

@@ -384,10 +384,13 @@ export const assignmentService = {
     get: (assignmentId: string) =>
         httpClient.get<ApiResponse<StudentAssignment>>(`/assignments/${assignmentId}`).then(unwrap),
 
-    /** `acceptPenalty`: the student confirmed what resubmitting costs — required whenever it costs anything. */
+    /**
+     * `acceptPenalty` and `payWith`: the student confirmed what resubmitting
+     * costs and chose to pay it in marks or XP — required whenever it costs anything.
+     */
     submit: (
         assignmentId: string,
-        payload: { content?: string; submissionUrl?: string; fileUrls?: string[]; acceptPenalty?: boolean },
+        payload: { content?: string; submissionUrl?: string; fileUrls?: string[]; acceptPenalty?: boolean; payWith?: "MARKS" | "XP" },
     ) =>
         httpClient
             .post<ApiResponse<{ penalty: { marks: number; xp: number } | null }>>(`/assignments/${assignmentId}/submit`, payload)

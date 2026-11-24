@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import LessonMaterialsEditor, { type MaterialsApi } from "@/components/staff/LessonMaterialsEditor";
+import WeekItemPager from "@/components/staff/WeekItemPager";
 import { PracticeDayModal } from "@/components/staff/WeekItemModals";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,7 @@ export default function PracticeContentPage({
                         <span>Students mark it done themselves — nothing to hand in</span>
                     </p>
                 </div>
+                <WeekItemPager courseId={courseId} area={area} kind="PRACTICE" id={practiceDayId} />
                 <div className="flex flex-wrap gap-2">
                     <Button variant="brand-outline" onClick={() => setDetailsOpen(true)}>
                         <Pencil /> Edit details

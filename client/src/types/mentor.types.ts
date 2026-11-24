@@ -357,7 +357,9 @@ export interface CourseResults {
         id: string;
         title: string;
         isPublished: boolean;
-        module: { id: string; title: string; order: number; milestone: { order: number } };
+        /** A module's quiz — or null for an assignment's, with `assignment` set. */
+        module: { id: string; title: string; order: number; milestone: { order: number } } | null;
+        assignment: { id: string; title: string; milestone: { order: number } } | null;
         _count: { questions: number };
         takers: number;
         attempts: number;
@@ -369,7 +371,14 @@ export interface CourseResults {
 
 /** One quiz in depth: every finished attempt (students by name only) and how each question went. */
 export interface QuizResultsDetail {
-    quiz: { id: string; title: string; isPublished: boolean; module: { id: string; title: string; order: number } };
+    quiz: {
+        id: string;
+        title: string;
+        isPublished: boolean;
+        /** A module's quiz — or null for an assignment's, with `assignment` set. */
+        module: { id: string; title: string; order: number } | null;
+        assignment: { id: string; title: string } | null;
+    };
     /** Newest first. */
     attempts: { id: string; percentage: number; correctCount: number; totalQuestions: number; completedAt: string | null; student: StudentName }[];
     questions: {

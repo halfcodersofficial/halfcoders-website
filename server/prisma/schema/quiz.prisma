@@ -3,9 +3,14 @@
 /// lessons. Kept 1:1 with `CourseModule` (not a list) because that's the
 /// actual product shape here; nothing in the spec calls for more than one quiz
 /// per module, and a list would just be an empty array everywhere but index 0.
+///
+/// An assignment can have one too, the same way: taken after the assignment's
+/// lessons, before its brief & submission. A quiz belongs to exactly one of
+/// the two — `moduleId` or `assignmentId` (a CHECK in the migration).
 model Quiz {
-  id          String    @id @default(uuid(7))
-  moduleId    String    @unique
+  id           String    @id @default(uuid(7))
+  moduleId     String?   @unique
+  assignmentId String?   @unique
   /// Denormalised from the parent module, same rationale as
   /// `CourseModule.courseId` — course-wide queries (the outline, the review
   /// queue) avoid a join.
@@ -28,8 +33,9 @@ model Quiz {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  module    CourseModule   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module     CourseModule? @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  assignment Assignment?   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   createdBy User?          @relation("QuizCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy User?          @relation("QuizUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   questions QuizQuestion[]

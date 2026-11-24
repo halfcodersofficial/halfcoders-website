@@ -387,6 +387,8 @@ export interface LearningMilestone {
         isAccepted: boolean;
         /** Its own lessons, in order — opened one at a time in the player. */
         materials: LessonMaterial[];
+        /** Taken after its lessons, before its brief & submission. Null when it has none. */
+        quiz: LearningQuiz | null;
     }[];
     practiceDays: {
         id: string;

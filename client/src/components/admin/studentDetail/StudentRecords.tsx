@@ -34,8 +34,9 @@ export function StudentQuizzes({ attempts }: { attempts: StudentQuizAttempt[] })
                 <div className="min-w-0">
                     <p className="truncate font-medium">{attempt.quiz.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                        {weekLabel(attempt.quiz.course.milestoneLabel, attempt.quiz.module.milestone.order)} ·{" "}
-                        {attempt.quiz.course.moduleLabel} {attempt.quiz.module.order} · {attempt.quiz.course.title}
+                        {weekLabel(attempt.quiz.course.milestoneLabel, (attempt.quiz.module ?? attempt.quiz.assignment)?.milestone.order ?? 0)} ·{" "}
+                        {attempt.quiz.module ? `${attempt.quiz.course.moduleLabel} ${attempt.quiz.module.order}` : "Assignment"} ·{" "}
+                        {attempt.quiz.course.title}
                     </p>
                 </div>
             ),

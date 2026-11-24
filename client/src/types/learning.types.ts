@@ -133,8 +133,12 @@ export interface StudentAssignment {
     resultsPublished: boolean;
     resultsPublishedAt: string | null;
     penalties: AssignmentPenalties;
-    /** What the next hand-in costs; null when it's free (the first, or one the mentor asked for). */
-    resubmitCost: { marks: number; xp: number } | null;
+    /**
+     * What the next hand-in costs — `marks` or `xp`, the student's pick — and
+     * the course XP they have to pay with. Null when it's free (the first, or
+     * one the mentor asked for).
+     */
+    resubmitCost: { marks: number; xp: number; xpAvailable: number } | null;
     /** A published mark with no recheck already waiting. */
     canRecheck: boolean;
 }

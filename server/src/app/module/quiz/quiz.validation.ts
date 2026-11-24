@@ -21,11 +21,18 @@ const optionsArray = z
         { message: "Mark exactly one option as correct" },
     );
 
-export const createQuizZodSchema = z.object({
-    moduleId: z.string().trim().min(1, "Module is required"),
-    title: z.string().trim().min(3, "Title must be at least 3 characters").max(200),
-    description: z.string().trim().max(2000).optional(),
-});
+/** A quiz for a module or for an assignment — exactly one of the two. */
+export const createQuizZodSchema = z
+    .object({
+        moduleId: z.string().trim().min(1).optional(),
+        assignmentId: z.string().trim().min(1).optional(),
+        title: z.string().trim().min(3, "Title must be at least 3 characters").max(200),
+        description: z.string().trim().max(2000).optional(),
+    })
+    .refine((data) => Boolean(data.moduleId) !== Boolean(data.assignmentId), {
+        message: "Say which module or assignment the quiz is for",
+        path: ["moduleId"],
+    });
 
 export const updateQuizZodSchema = z.object({
     title: z.string().trim().min(3).max(200).optional(),

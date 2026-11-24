@@ -280,7 +280,9 @@ export interface StudentQuizAttempt {
     quiz: {
         id: string;
         title: string;
-        module: { title: string; order: number; milestone: { title: string; order: number } };
+        /** A module's quiz — or null for an assignment's, with `assignment` set. */
+        module: { title: string; order: number; milestone: { title: string; order: number } } | null;
+        assignment: { title: string; milestone: { title: string; order: number } } | null;
         course: { id: string; title: string; milestoneLabel: string; moduleLabel: string };
     };
 }

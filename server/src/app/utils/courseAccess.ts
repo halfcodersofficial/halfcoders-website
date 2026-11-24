@@ -1,6 +1,6 @@
 import status from "http-status";
 import { Prisma } from "../../generated/prisma/client";
-import { EnrollmentStatus } from "../../generated/prisma/enums";
+import { EnrollmentStatus, QuizAttemptStatus } from "../../generated/prisma/enums";
 import { Role } from "../lib/roles";
 import AppError from "../errorHelpers/AppError";
 import { IRequestUser } from "../interfaces/requestUser.interface";
@@ -134,8 +134,10 @@ export const assertModuleUnlocked = async (enrollmentId: string | null, moduleId
  * lesson — the same order the learning page numbers them in. Every earlier
  * published lesson has to be complete first, not just the one right before,
  * so un-marking an early lesson (or progress recorded before this rule)
- * can't leave a gap the student skips over. Applies whether or not
- * sequential learning is on: that setting decides what can be *opened*,
+ * can't leave a gap the student skips over. Every quiz before the lesson
+ * has to be taken too — a module's quiz is a step of the course, not an
+ * extra, so nothing after it can be finished without it. Applies whether or
+ * not sequential learning is on: that setting decides what can be *opened*,
  * this decides what can be *finished*.
  */
 export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId: string) => {
@@ -152,6 +154,51 @@ export const assertEarlierLessonsComplete = async (enrollmentId: string, videoId
             `Complete the lessons before this one first — start with "${firstUnfinished.title}".`,
         );
     }
+
+    const untakenQuiz = await firstUntakenQuizBefore(enrollmentId, target.moduleId, target.order);
+    if (untakenQuiz) {
+        throw new AppError(status.FORBIDDEN, `Take the quiz "${untakenQuiz.title}" first — the lessons after it open once it's done.`);
+    }
+};
+
+/**
+ * The earliest published quiz before a lesson that the student hasn't
+ * finished an attempt at: every quiz of earlier milestones and earlier
+ * modules, plus the lesson's own module's quiz when staff placed it above
+ * the lesson (one at the end of the module, `position` null, isn't).
+ */
+const firstUntakenQuizBefore = async (enrollmentId: string, moduleId: string, lessonOrder: number) => {
+    const target = await prisma.courseModule.findUnique({
+        where: { id: moduleId },
+        select: { courseId: true, milestoneId: true, order: true, milestone: { select: { order: true } } },
+    });
+    if (!target) return null;
+
+    const untaken = await prisma.quiz.findMany({
+        where: {
+            courseId: target.courseId,
+            isPublished: true,
+            module: { isPublished: true, milestone: { isPublished: true } },
+            OR: [
+                { module: { milestone: { order: { lt: target.milestone.order } } } },
+                { module: { milestoneId: target.milestoneId, order: { lt: target.order } } },
+                { moduleId, position: { lt: lessonOrder } },
+            ],
+            attempts: { none: { enrollmentId, status: QuizAttemptStatus.COMPLETED } },
+        },
+        select: { title: true, module: { select: { order: true, milestone: { select: { order: true } } } } },
+    });
+
+    // The earliest one, so the student is told where to go. Every one has a
+    // module (the filters above) — an assignment's quiz never holds lessons back.
+    const placeOf = (quiz: (typeof untaken)[number]) => [quiz.module?.milestone.order ?? 0, quiz.module?.order ?? 0];
+    return (
+        untaken.sort((a, b) => {
+            const [aWeek, aModule] = placeOf(a);
+            const [bWeek, bModule] = placeOf(b);
+            return aWeek - bWeek || aModule - bModule;
+        })[0] ?? null
+    );
 };
 
 /**

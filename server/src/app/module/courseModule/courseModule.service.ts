@@ -1,5 +1,4 @@
 import status from "http-status";
-import { Prisma } from "../../../generated/prisma/client";
 import { CourseMode, NotificationType } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
@@ -9,6 +8,7 @@ import { assertCanMarkMode } from "../../utils/courseMode";
 import { assertCurriculumOpen } from "../../utils/coursePhase";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
+import { setQuizzesLive } from "../../utils/quizLive";
 import { assertCanSchedule, nextWeekPosition, SCHEDULED_COURSE_FILTER } from "../../utils/weekItems";
 import { createNotification } from "../notification/notification.service";
 import { scheduleCourseRecalculation } from "../progress/progress.service";
@@ -100,23 +100,6 @@ const createModule = async (user: IRequestUser, payload: CreatePayload) => {
 };
 
 /**
- * A module's quiz goes live with the module and comes down with it — it has
- * no release and no announcement of its own; "New module available" covers
- * it. A quiz with no questions yet stays a draft (there's nothing to take);
- * staff make it live from its page once it's written, the module being live.
- */
-const setQuizzesLive = async (tx: Prisma.TransactionClient, moduleIds: string[], live: boolean) => {
-    if (!live) {
-        await tx.quiz.updateMany({ where: { moduleId: { in: moduleIds }, isPublished: true }, data: { isPublished: false } });
-        return;
-    }
-    const ready = { moduleId: { in: moduleIds }, isPublished: false, questions: { some: {} } };
-    // Stamped once, like the module's own `publishedAt`.
-    await tx.quiz.updateMany({ where: { ...ready, publishedAt: null }, data: { publishedAt: new Date() } });
-    await tx.quiz.updateMany({ where: ready, data: { isPublished: true } });
-};
-
-/**
  * Tells everyone enrolled that a module just opened up (plan §17-ish). Links
  * straight to the module's first published video when it has one — the same
  * `?video=` deep link the player already resolves on load (`learn/[slug]/page.tsx`)
@@ -196,7 +179,8 @@ const updateModule = async (
     const comesDown = payload.isPublished === false && courseModule.isPublished;
     const updated = await prisma.$transaction(async (tx) => {
         const row = await tx.courseModule.update({ where: { id: moduleId }, data: payload });
-        if (goesLive || comesDown) await setQuizzesLive(tx, [moduleId], goesLive);
+        // A module's quiz goes live with it and comes down with it ("New module available" covers it).
+        if (goesLive || comesDown) await setQuizzesLive(tx, { moduleId: { in: [moduleId] } }, goesLive);
         return row;
     });
 
@@ -232,7 +216,7 @@ const publishDueModules = async () => {
             where: { id: { in: due.map((m) => m.id) } },
             data: { isPublished: true, publishedAt: now },
         });
-        await setQuizzesLive(tx, due.map((m) => m.id), true);
+        await setQuizzesLive(tx, { moduleId: { in: due.map((m) => m.id) } }, true);
     });
 
     logger.create("Auto-published scheduled modules", { count: due.length });

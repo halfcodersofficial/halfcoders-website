@@ -46,6 +46,7 @@ import { type StaffArea, staffCourseRoutes } from "@/lib/staffRoutes";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { optionalTextField, textField } from "@/lib/validation";
 import { curriculumAuthoring, type WeekItemKind } from "@/services/curriculum";
+import { weekItems } from "@/lib/weekItems";
 import type { MentorMilestone } from "@/types/mentor.types";
 
 const groupSchema = z.object({
@@ -215,34 +216,6 @@ function Figure({ label, value, hint }: { label: string; value: number | string;
 /** What's being scheduled in the page's one release dialog. */
 type Scheduling = { kind: WeekItemKind; id: string; title: string; releaseAt: string | null };
 
-type WeekModule = MentorMilestone["modules"][number];
-type WeekAssignment = MentorMilestone["assignments"][number];
-type WeekPractice = MentorMilestone["practiceDays"][number];
-
-/** One row of a week's single list — `key` is its sortable id, `${kind}:${id}`. */
-type WeekItem =
-    | { kind: "MODULE"; key: string; entry: WeekModule }
-    | { kind: "ASSIGNMENT"; key: string; entry: WeekAssignment }
-    | { kind: "PRACTICE"; key: string; entry: WeekPractice };
-
-const KIND_RANK: Record<WeekItemKind, number> = { MODULE: 0, ASSIGNMENT: 1, PRACTICE: 2 };
-
-/**
- * A week's modules, assignments and practice days as the one list students
- * see, in its saved order. Ties (rows that predate `position`) fall back to
- * modules first, then each kind's own order.
- */
-const weekItems = (milestone: MentorMilestone): WeekItem[] =>
-    [
-        ...milestone.modules.map((entry) => ({ kind: "MODULE" as const, key: `MODULE:${entry.id}`, entry })),
-        ...milestone.assignments.map((entry) => ({ kind: "ASSIGNMENT" as const, key: `ASSIGNMENT:${entry.id}`, entry })),
-        ...milestone.practiceDays.map((entry) => ({ kind: "PRACTICE" as const, key: `PRACTICE:${entry.id}`, entry })),
-    ].sort(
-        (a, b) =>
-            a.entry.position - b.entry.position ||
-            KIND_RANK[a.kind] - KIND_RANK[b.kind] ||
-            a.entry.order - b.entry.order,
-    );
 
 /**
  * A week after a drop — positions follow the new list, and each kind's own
@@ -263,6 +236,8 @@ const applyWeekOrder = (milestone: MentorMilestone, orderedKeys: string[]): Ment
         practiceDays: renumber("PRACTICE", milestone.practiceDays),
     };
 };
+
+type WeekModule = MentorMilestone["modules"][number];
 
 type MilestoneFormState = { mode: "add" } | { mode: "edit"; milestone: MentorMilestone } | null;
 type ModuleFormState =

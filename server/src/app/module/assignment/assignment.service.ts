@@ -18,6 +18,7 @@ import { assertCanManageCourse, requireEnrollment } from "../../utils/courseAcce
 import { type LateTier, normaliseLateTiers, parseLateTiers, submissionWindow } from "../../utils/lateWindows";
 import { logger } from "../../utils/logger";
 import { applyOrdering, assertCompleteOrdering } from "../../utils/ordering";
+import { setQuizzesLive } from "../../utils/quizLive";
 import { applyReleaseRules, assertCanSchedule, nextWeekPosition, SCHEDULED_COURSE_FILTER } from "../../utils/weekItems";
 import { getXpRules } from "../../utils/platformSettings";
 import { QueryBuilder } from "../../utils/QueryBuilder";
@@ -211,7 +212,13 @@ const updateAssignment = async (
             : [];
     }
 
-    const updated = await prisma.assignment.update({ where: { id: assignmentId }, data });
+    // Its quiz goes live with it and comes down with it ("New assignment available" covers it).
+    const comesDown = data.isPublished === false && assignment.isPublished;
+    const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.assignment.update({ where: { id: assignmentId }, data });
+        if (isNewlyPublished || comesDown) await setQuizzesLive(tx, { assignmentId: { in: [assignmentId] } }, isNewlyPublished);
+        return row;
+    });
 
     if (isNewlyPublished) {
         void notifyCohort(assignment.courseId, updated.title, updated.id);
@@ -233,9 +240,10 @@ const publishDueAssignments = async () => {
     });
     if (due.length === 0) return;
 
-    await prisma.assignment.updateMany({
-        where: { id: { in: due.map((a) => a.id) } },
-        data: { isPublished: true, publishedAt: new Date() },
+    const ids = due.map((a) => a.id);
+    await prisma.$transaction(async (tx) => {
+        await tx.assignment.updateMany({ where: { id: { in: ids } }, data: { isPublished: true, publishedAt: new Date() } });
+        await setQuizzesLive(tx, { assignmentId: { in: ids } }, true);
     });
     logger.create("Auto-published scheduled assignments", { count: due.length });
 
@@ -354,6 +362,16 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
     const window = submissionWindow(assignment, now);
     const published = Boolean(assignment.resultsPublishedAt);
     const next = nextHandIn(submission, assignment.resultsPublishedAt);
+    // What the student could pay a resubmission with in XP — only asked when one would cost anything.
+    const xpAvailable =
+        next === "voluntary"
+            ? ((
+                await prisma.courseXp.findUnique({
+                    where: { studentId_courseId: { studentId: user.userId, courseId: assignment.courseId } },
+                    select: { totalXp: true },
+                })
+            )?.totalXp ?? 0)
+            : 0;
 
     return {
         ...assignment,
@@ -376,9 +394,12 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
         // are out a student may resubmit at a cost; in review, or once the
         // results are out, not at all.
         canSubmit: next === "first" ? window.status !== "CLOSED" : next !== null,
-        // What the next hand-in costs: null when it's free.
+        // What the next hand-in costs — the marks *or* the XP, the student's
+        // choice — and the XP they have to pay with. Null when it's free.
         resubmitCost:
-            next === "voluntary" ? { marks: ASSIGNMENT_PENALTIES.resubmitMarks, xp: ASSIGNMENT_PENALTIES.resubmitXp } : null,
+            next === "voluntary"
+                ? { marks: ASSIGNMENT_PENALTIES.resubmitMarks, xp: ASSIGNMENT_PENALTIES.resubmitXp, xpAvailable }
+                : null,
         // A published, marked result with no recheck already waiting.
         canRecheck: Boolean(
             published && submission?.status === SubmissionStatus.ACCEPTED && submission.score !== null && !submission.recheckOpen,
@@ -452,17 +473,24 @@ const notifyMentorsOfHandIn = async (
  * queue never fills with duplicates.
  *
  * Resubmitting before the results are published — of the student's own
- * choosing, not because the mentor sent it back — costs marks and XP
- * (`ASSIGNMENT_PENALTIES`), and only goes ahead with `acceptPenalty`, so a
- * page that didn't show the cost can never charge it. The resubmission, the
- * mark penalty and the XP penalty are one transaction, guarded on the attempt
- * number read here: two tabs or a double click can't both go through, or both
- * be charged.
+ * choosing, not because the mentor sent it back — costs marks *or* XP
+ * (`ASSIGNMENT_PENALTIES`), whichever the student picks (`payWith`), and only
+ * goes ahead with `acceptPenalty`, so a page that didn't show the cost can
+ * never charge it. Paying with XP needs the whole amount — never part of it.
+ * The resubmission and its penalty are one transaction, guarded on the
+ * attempt number read here: two tabs or a double click can't both go
+ * through, or both be charged.
  */
 const submitAssignment = async (
     user: IRequestUser,
     assignmentId: string,
-    payload: { content?: string; submissionUrl?: string; fileUrls?: string[]; acceptPenalty?: boolean },
+    payload: {
+        content?: string;
+        submissionUrl?: string;
+        fileUrls?: string[];
+        acceptPenalty?: boolean;
+        payWith?: "MARKS" | "XP";
+    },
 ) => {
     const assignment = await prisma.assignment.findFirst({
         where: { id: assignmentId, isPublished: true },
@@ -502,11 +530,24 @@ const submitAssignment = async (
     }
     const { resubmitMarks, resubmitXp } = ASSIGNMENT_PENALTIES;
     const penalised = kind === "voluntary";
-    if (penalised && !payload.acceptPenalty) {
+    if (penalised && (!payload.acceptPenalty || !payload.payWith)) {
         throw new AppError(
             status.BAD_REQUEST,
-            `Resubmitting now costs ${resubmitMarks} marks and ${resubmitXp} XP. Confirm that to go ahead.`,
+            `Resubmitting now costs ${resubmitMarks} marks or ${resubmitXp} XP. Choose one to go ahead.`,
         );
+    }
+    const payWithXp = penalised && payload.payWith === "XP";
+    if (payWithXp) {
+        const xp = await prisma.courseXp.findUnique({
+            where: { studentId_courseId: { studentId: user.userId, courseId: assignment.courseId } },
+            select: { totalXp: true },
+        });
+        if ((xp?.totalXp ?? 0) < resubmitXp) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                `You need ${resubmitXp} XP to pay with XP — you have ${xp?.totalXp ?? 0}. Pay with ${resubmitMarks} marks instead.`,
+            );
+        }
     }
 
     // The deadline and late windows apply only to a *first* submission, which
@@ -564,7 +605,7 @@ const submitAssignment = async (
                     reviewedById: null,
                     reviewedAt: null,
                     attempts: attempt,
-                    ...(penalised ? { markAdjustment: { decrement: resubmitMarks } } : {}),
+                    ...(penalised && !payWithXp ? { markAdjustment: { decrement: resubmitMarks } } : {}),
                 },
             });
             if (moved.count === 0) {
@@ -572,7 +613,7 @@ const submitAssignment = async (
             }
             await tx.rubricScore.deleteMany({ where: { submissionId: existing.id } });
 
-            if (penalised) {
+            if (penalised && !payWithXp) {
                 await tx.submissionMarkAdjustment.create({
                     data: {
                         submissionId: existing.id,
@@ -582,6 +623,8 @@ const submitAssignment = async (
                         note: `Resubmission ${attempt - 1}`,
                     },
                 });
+            }
+            if (payWithXp) {
                 xpDeducted = await deductXp(tx, {
                     studentId: user.userId,
                     courseId: assignment.courseId,
@@ -590,12 +633,17 @@ const submitAssignment = async (
                     points: resubmitXp,
                     note: `Resubmitted “${assignment.title}”`,
                 });
-                if (xpDeducted > 0) {
-                    await tx.assignmentSubmission.update({
-                        where: { id: existing.id },
-                        data: { xpDeducted: { increment: xpDeducted } },
-                    });
+                // Spent elsewhere since it was checked: the whole amount or nothing — this rolls the resubmission back.
+                if (xpDeducted < resubmitXp) {
+                    throw new AppError(
+                        status.CONFLICT,
+                        `You no longer have ${resubmitXp} XP to pay with. Pay with ${resubmitMarks} marks instead.`,
+                    );
                 }
+                await tx.assignmentSubmission.update({
+                    where: { id: existing.id },
+                    data: { xpDeducted: { increment: xpDeducted } },
+                });
             }
 
             return tx.assignmentSubmission.findUniqueOrThrow({ where: { id: existing.id } });
@@ -627,8 +675,8 @@ const submitAssignment = async (
 
     return {
         ...forStudent(submission, assignment.resultsPublishedAt),
-        // What this hand-in cost, for the confirmation the student sees.
-        penalty: penalised ? { marks: resubmitMarks, xp: xpDeducted } : null,
+        // What this hand-in cost, for the confirmation the student sees — the one they chose.
+        penalty: penalised ? { marks: payWithXp ? 0 : resubmitMarks, xp: xpDeducted } : null,
     };
 };
 
