@@ -137,9 +137,18 @@ const weekRows = (milestone: LearningMilestone, withAssignmentsAndPractice: bool
             : []),
     ].sort((a, b) => a.entry.position - b.entry.position || a.rank - b.rank || a.entry.order - b.entry.order);
 
-/** Every lesson of the module done — worked out here, so a "Next" shows at once, before the server answers. */
+/** The module's quiz is taken, or it has none. */
+const quizDone = (courseModule: LearningModule) => !courseModule.quiz || courseModule.quiz.isCompleted;
+
+/**
+ * Every lesson of the module done and its quiz taken — worked out here, so a
+ * "Next" shows at once, before the server answers.
+ */
 const isModuleDone = (courseModule: LearningModule) =>
-    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted);
+    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted) && quizDone(courseModule);
+
+/** "Quiz: Loop" — without doubling a title staff already started with "Quiz". */
+const quizLabel = (title: string) => (/^quiz\b/i.test(title.trim()) ? title : `Quiz: ${title}`);
 
 type AssignmentRow = LearningMilestone["assignments"][number];
 type PracticeRow = LearningMilestone["practiceDays"][number];
@@ -238,6 +247,33 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
         closeModule();
     }
     return stops;
+};
+
+/**
+ * A stop nothing after it gets past until it's done: a lesson not finished,
+ * or a quiz not taken. A locked module's lessons aren't counted — they can't
+ * be done yet.
+ */
+const isOpenGate = (stop: CourseStop) =>
+    (stop.kind === "VIDEO" && !stop.video.isCompleted && !stop.courseModule.isLocked) ||
+    (stop.kind === "QUIZ" && !stop.quiz.isCompleted);
+
+/**
+ * Where a returning student picks up: the first lesson or quiz they haven't
+ * done — unless a practice day or assignment between it and the last one they
+ * did is still to do (one just released, say), which comes first. With
+ * everything done, the last module's "complete" screen.
+ */
+const resumeStop = (stops: CourseStop[]): CourseStop | null => {
+    const gateAt = stops.findIndex(isOpenGate);
+    const end = gateAt < 0 ? stops.length : gateAt;
+    const lastDoneAt = stops.slice(0, end).findLastIndex((stop) => stop.kind === "VIDEO" || stop.kind === "QUIZ");
+    const pending = stops
+        .slice(lastDoneAt + 1, end)
+        .find((stop) => (stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupDone(stop.group));
+    if (pending) return pending;
+    if (gateAt >= 0) return stops[gateAt];
+    return stops.findLast((stop) => stop.kind === "FINISH") ?? null;
 };
 
 /**
@@ -345,27 +381,39 @@ export default function LearnPage() {
         [data],
     );
 
+    // Every stop in order — lessons, quizzes, practice days, assignments and
+    // "complete" screens — for Previous / Next.
+    const stops = useMemo(() => (data ? courseStops(data) : []), [data]);
+
     // Lessons open one at a time: every finished lesson, plus the first
     // unfinished one — where the student is in the course. Everything after
-    // it stays shut until they get there with "Next". Staff previewing the
-    // course can open anything.
+    // it stays shut until they get there with "Next"; so does everything
+    // after a quiz they haven't taken. Staff previewing the course can open
+    // anything.
     const reachableIds = useMemo(() => {
         if (!data || data.isPreview) return null;
         const ids = new Set<string>();
         let reachedCurrent = false;
-        for (const video of allVideos) {
-            if (!reachedCurrent || video.isCompleted) ids.add(video.id);
-            if (!video.isCompleted) reachedCurrent = true;
+        for (const stop of stops) {
+            if (stop.kind === "VIDEO") {
+                if (!reachedCurrent || stop.video.isCompleted) ids.add(stop.video.id);
+                if (!stop.video.isCompleted) reachedCurrent = true;
+            } else if (stop.kind === "QUIZ" && !stop.quiz.isCompleted) {
+                reachedCurrent = true;
+            }
         }
         return ids;
-    }, [data, allVideos]);
+    }, [data, stops]);
     const canOpen = (videoId: string) => !reachableIds || reachableIds.has(videoId);
-    /** The first unfinished lesson — the furthest a student can open. */
-    const currentLesson = allVideos.find((video) => !video.isCompleted && !video.isLocked) ?? null;
-
-    // Every stop in order — lessons, quizzes, practice days, assignments and
-    // "complete" screens — for Previous / Next.
-    const stops = useMemo(() => (data ? courseStops(data) : []), [data]);
+    /** The first unfinished lesson or untaken quiz — the furthest a student can go. */
+    const currentGate = data && !data.isPreview ? (stops.find(isOpenGate) ?? null) : null;
+    /** What to do before going further, for a toast or a tooltip. */
+    const finishFirstNote = (fallback: string) =>
+        currentGate?.kind === "QUIZ"
+            ? `Take "${quizLabel(currentGate.quiz.title)}" first — what comes after it opens once it's done.`
+            : currentGate?.kind === "VIDEO"
+                ? `Finish "${currentGate.video.title}" first — lessons open one at a time.`
+                : fallback;
 
     // A lesson, assignment, practice day or quiz reached via the Course
     // Outline page or a notification link ("?video=<id>" / "?assignment=<id>"
@@ -382,6 +430,10 @@ export default function LearnPage() {
             : null;
         if (requestedAssignment && owningAssignmentMilestone) {
             setActiveAssignmentId(requestedAssignment);
+            // Not handed in yet: start at its first lesson, the way Next would
+            // reach it. Handed in: its own page, where the mark and feedback are.
+            const assignment = owningAssignmentMilestone.assignments.find((a) => a.id === requestedAssignment);
+            setActiveMaterialId(assignment && !assignment.isSubmitted ? (assignment.materials[0]?.id ?? null) : null);
             setOpenMilestones(new Set([owningAssignmentMilestone.id]));
             return;
         }
@@ -432,11 +484,11 @@ export default function LearnPage() {
         }
     }, [data, initialisedFromQuery, searchParams, allVideos, reachableIds, stops]);
 
-    // Open the student's current milestone and start on the first unwatched
-    // lesson, so returning to the page resumes rather than restarts. With
-    // every open lesson done, it lands on the last finished module's
-    // "complete" screen — the end of the road so far — not back on lesson 1;
-    // or, when a practice day after that module is still to do, on that.
+    // Open the student's current milestone and pick up where they are, so
+    // returning to the page resumes rather than restarts: the first lesson
+    // or quiz still to do — or a practice day or assignment before it that's
+    // still to do (one released since). With everything done, the last
+    // module's "complete" screen — the end of the road so far — not lesson 1.
     useEffect(() => {
         if (
             !data ||
@@ -450,33 +502,22 @@ export default function LearnPage() {
             return;
         }
 
-        const firstUnwatched = allVideos.find((video) => !video.isCompleted && !video.isLocked);
-        const lastDone = firstUnwatched || data.isPreview ? null : allVideos.findLast((video) => video.isCompleted);
-        const finished = lastDone
-            ? data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === lastDone.id))
-            : null;
-        if (lastDone && finished && isModuleDone(finished)) {
-            setActiveVideoId(lastDone.id);
-            const from = stops.findIndex((stop) => stop.key === stopKey.video(lastDone.id));
-            const to = stops.findIndex((stop) => stop.key === stopKey.finish(finished.id));
-            // A practice day's first stop: its first lesson, or its page when it has none.
-            const practiceLeft = stops
-                .slice(from + 1, to)
-                .find(
-                    (stop) =>
-                        (stop.kind === "MATERIAL" || stop.kind === "GROUP") &&
-                        stop.group.kind === "PRACTICE" &&
-                        !stop.group.entry.isCompleted,
-                );
-            if (practiceLeft?.kind === "MATERIAL" || practiceLeft?.kind === "GROUP") {
-                setActivePracticeId(practiceLeft.group.entry.id);
-                setActiveMaterialId(practiceLeft.kind === "MATERIAL" ? practiceLeft.material.id : null);
-            } else {
-                setActiveCompleteModuleId(finished.id);
-            }
-        } else {
-            const target = firstUnwatched ?? allVideos[0];
-            if (target) setActiveVideoId(target.id);
+        const target = data.isPreview ? null : resumeStop(stops);
+        // Anything else keeps the last lesson before it behind it, as a quiz or "complete" screen does.
+        const lessonBehind = target ? stops.slice(0, stops.indexOf(target)).findLast((stop) => stop.kind === "VIDEO") : undefined;
+        if (target?.kind !== "VIDEO" && lessonBehind?.kind === "VIDEO") setActiveVideoId(lessonBehind.video.id);
+        if (target?.kind === "VIDEO") {
+            setActiveVideoId(target.video.id);
+        } else if (target?.kind === "QUIZ") {
+            setActiveQuizId(target.quiz.id);
+        } else if (target?.kind === "FINISH") {
+            setActiveCompleteModuleId(target.courseModule.id);
+        } else if (target?.kind === "MATERIAL" || target?.kind === "GROUP") {
+            if (target.group.kind === "PRACTICE") setActivePracticeId(target.group.entry.id);
+            else setActiveAssignmentId(target.group.entry.id);
+            setActiveMaterialId(target.kind === "MATERIAL" ? target.material.id : null);
+        } else if (allVideos[0]) {
+            setActiveVideoId(allVideos[0].id);
         }
 
         const currentMilestone =
@@ -549,12 +590,11 @@ export default function LearnPage() {
 
     const completedCount = allVideos.filter((video) => video.isCompleted).length;
 
-    // Lessons are completed in course order — every earlier one first. This
-    // is the earliest unfinished lesson before the open one, if any (the
-    // server enforces the same rule).
-    const activeCourseIndex = allVideos.findIndex((video) => video.id === activeVideoId);
-    const blockingLesson =
-        activeCourseIndex > 0 ? allVideos.slice(0, activeCourseIndex).find((video) => !video.isCompleted) ?? null : null;
+    // Lessons are completed in course order — every earlier one first, and
+    // every quiz before it taken. This is the earliest unfinished lesson or
+    // untaken quiz before the open one, if any (the server enforces the same rule).
+    const activeLessonStopIndex = activeVideoId ? stops.findIndex((stop) => stop.key === stopKey.video(activeVideoId)) : -1;
+    const blockingStop = activeLessonStopIndex > 0 ? (stops.slice(0, activeLessonStopIndex).find(isOpenGate) ?? null) : null;
 
     /** Shows a lesson, no questions asked — callers have checked it may open. */
     const openLesson = (videoId: string) => {
@@ -573,11 +613,7 @@ export default function LearnPage() {
     /** Opens a lesson the student has reached; for a later one, says what to finish first. */
     const goTo = (videoId: string) => {
         if (!canOpen(videoId)) {
-            toast.info(
-                currentLesson
-                    ? `Finish "${currentLesson.title}" first — lessons open one at a time.`
-                    : "This lesson isn't open yet.",
-            );
+            toast.info(finishFirstNote("This lesson isn't open yet."));
             return;
         }
         openLesson(videoId);
@@ -585,14 +621,15 @@ export default function LearnPage() {
 
     // Should the open lesson ever be one the student hasn't reached — a
     // "Next" whose save the server turned down — take them back to their
-    // current lesson. Not while saves are still on their way: the page
-    // already counts those lessons as done.
+    // current lesson, or the quiz they still have to take. Not while saves
+    // are still on their way: the page already counts those lessons as done.
     useEffect(() => {
         if (!activeVideoId || !reachableIds || reachableIds.has(activeVideoId)) return;
         if (pendingCompletionsRef.current > 0) return;
-        const current = allVideos.find((video) => !video.isCompleted && !video.isLocked);
-        if (current && current.id !== activeVideoId) setActiveVideoId(current.id);
-    }, [activeVideoId, reachableIds, allVideos]);
+        const current = stops.find(isOpenGate);
+        if (current?.kind === "QUIZ") setActiveQuizId(current.quiz.id);
+        else if (current?.kind === "VIDEO" && current.video.id !== activeVideoId) setActiveVideoId(current.video.id);
+    }, [activeVideoId, reachableIds, stops]);
 
     /** An assignment's page (brief and submission), or one of its lessons. */
     const goToAssignment = (assignmentId: string, materialId: string | null = null) => {
@@ -635,8 +672,8 @@ export default function LearnPage() {
     const goToQuiz = (quizId: string) => {
         if (data && !quizOpensFor(data, stops, quizId)) {
             toast.info(
-                currentLesson
-                    ? `Finish "${currentLesson.title}" and the lessons up to the quiz first.`
+                currentGate?.kind === "VIDEO"
+                    ? `Finish "${currentGate.video.title}" and the lessons up to the quiz first.`
                     : "This quiz isn't open yet.",
             );
             return;
@@ -1085,15 +1122,20 @@ export default function LearnPage() {
     // A lesson counts as done when the student moves on from it with "Next"
     // (or "Finish" on the last one) — there's no separate complete button.
     const canComplete = Boolean(
-        showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingLesson,
+        showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingStop,
     );
 
     // A module's "complete" screen opens once every lesson of it is done —
-    // counting the one "Next" is about to complete.
+    // counting the one "Next" is about to complete — and its quiz is taken.
     const finishOpens = (courseModule: LearningModule) =>
         !data.isPreview &&
         courseModule.videos.length > 0 &&
-        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete));
+        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete)) &&
+        quizDone(courseModule);
+
+    // The open quiz, while the student hasn't taken it: there's no going on
+    // past it until they do.
+    const quizToTake = !data.isPreview && activeStop?.kind === "QUIZ" && !activeStop.quiz.isCompleted ? activeStop.quiz : null;
 
     /* Prev/next walk the stops a student can step onto: a locked module's
        lessons are skipped — landing on the padlock screen with no way forward
@@ -1126,9 +1168,11 @@ export default function LearnPage() {
         stop.kind === "VIDEO" ? canOpen(stop.video.id) : stop.kind === "QUIZ" ? quizOpensFor(data, stops, stop.quiz.id) : true;
     // Finishing this lesson is what opens the next one (a lesson, or a quiz
     // right after it), so "Next" works from the current lesson as well as
-    // from any finished one.
-    const nextOpens = Boolean(nextStop && (stopOpens(nextStop) || canComplete));
+    // from any finished one. From a quiz, only once it's taken.
+    const nextOpens = Boolean(nextStop && !quizToTake && (stopOpens(nextStop) || canComplete));
     const prevOpens = Boolean(prevStop && stopOpens(prevStop));
+    /** Why "Next" is shut, for its tooltip. */
+    const nextShutNote = quizToTake ? "Submit this quiz to go on" : finishFirstNote("Finish the lessons before it first");
 
     // The practice day whose last stop is open and isn't done yet: "Next"
     // from here marks it done, like the last lesson of a module.
@@ -1146,7 +1190,7 @@ export default function LearnPage() {
             case "VIDEO":
                 return stop.video.title;
             case "QUIZ":
-                return `Quiz: ${stop.quiz.title}`;
+                return quizLabel(stop.quiz.title);
             case "FINISH":
                 return `${moduleLabel} complete`;
             case "MATERIAL":
@@ -1189,14 +1233,6 @@ export default function LearnPage() {
                                 : undefined,
             }
             : null;
-    const lessonAfterComplete = (() => {
-        const last = completePlace?.courseModule.videos.at(-1);
-        if (!last) return null;
-        const after = allVideos[allVideos.findIndex((video) => video.id === last.id) + 1];
-        if (!after || after.isLocked || !canOpen(after.id)) return null;
-        const owner = data.curriculum.flatMap((m) => m.modules).find((m) => m.videos.some((video) => video.id === after.id));
-        return { video: after, moduleTitle: owner?.title ?? after.title };
-    })();
 
     const openNotes = () => {
         setLessonPanel("notes");
@@ -1369,13 +1405,9 @@ export default function LearnPage() {
                     ) : completePlace ? (
                         <ModuleComplete
                             key={completePlace.courseModule.id}
-                            data={data}
-                            slug={slug}
+                            course={data.course}
                             milestone={completePlace.milestone}
                             courseModule={completePlace.courseModule}
-                            nextLesson={lessonAfterComplete}
-                            onOpenLesson={goTo}
-                            onOpenQuiz={goToQuiz}
                         />
                     ) : activeQuizId ? (
                         <QuizPane key={activeQuizId} quizId={activeQuizId} />
@@ -1440,10 +1472,16 @@ export default function LearnPage() {
                     )}
 
                     {/* A quiz, or an assignment's or practice day's lesson or page:
-                        where it sits, and Previous / Next along the course. */}
-                    {(activeStop?.kind === "QUIZ" || activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP") && (
+                        where it sits, and Previous / Next along the course. A
+                        module's "complete" screen gets just the buttons — it says
+                        where it is itself. */}
+                    {(activeStop?.kind === "QUIZ" ||
+                        activeStop?.kind === "MATERIAL" ||
+                        activeStop?.kind === "GROUP" ||
+                        (activeStop?.kind === "FINISH" && (prevStop || nextStop))) && (
                         <div className="space-y-3">
                             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-1">
+                                {activeStop.kind !== "FINISH" && (
                                 <div className="min-w-0">
                                     <p className="flex flex-wrap items-center gap-x-2 text-xs font-medium text-muted-foreground">
                                         <span className="font-semibold uppercase tracking-wider text-primary">
@@ -1470,8 +1508,9 @@ export default function LearnPage() {
                                         </h2>
                                     )}
                                 </div>
+                                )}
 
-                                <div className="flex w-full items-center gap-2 sm:w-auto *:flex-1 sm:*:flex-none">
+                                <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto *:flex-1 sm:*:flex-none">
                                     {prevStop && (
                                         <Button
                                             variant="outline"
@@ -1491,7 +1530,7 @@ export default function LearnPage() {
                                                     ? `Next: ${stopTitle(nextStop)}`
                                                     : practiceToFinish
                                                         ? "Marks this practice day done"
-                                                        : "Finish the lessons before it first"
+                                                        : nextShutNote
                                             }
                                             // On a practice day's last stop it still marks the day done.
                                             disabled={!nextOpens && !practiceToFinish}
@@ -1509,6 +1548,14 @@ export default function LearnPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Why "Next" is shut here, in words — a tooltip never shows on a phone. */}
+                            {quizToTake && (
+                                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Lock className="size-4 shrink-0 text-primary" aria-hidden />
+                                    Submit this quiz to go on — what comes after it opens once it&apos;s done.
+                                </p>
+                            )}
 
                             {activeStop.kind === "MATERIAL" && activeStop.material.description && (
                                 <p className="max-w-3xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground wrap-break-word">
@@ -1579,7 +1626,7 @@ export default function LearnPage() {
                                     ) : nextStop ? (
                                         <Button
                                             className="rounded-full pl-5 pr-4"
-                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : "Finish the lessons before this one first"}
+                                            title={nextOpens ? `Next: ${stopTitle(nextStop)}` : nextShutNote}
                                             disabled={!nextOpens}
                                             onClick={advance}
                                         >
@@ -1603,20 +1650,33 @@ export default function LearnPage() {
                             </div>
 
                             {/* Why moving on won't count this lesson as done yet, and the way to fix it. */}
-                            {!data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && blockingLesson && (
+                            {!data.isPreview &&
+                                !activeVideo.isLocked &&
+                                !activeVideo.isCompleted &&
+                                (blockingStop?.kind === "VIDEO" || blockingStop?.kind === "QUIZ") && (
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
                                     <Lock className="size-4 shrink-0 text-warning-ink" aria-hidden />
-                                    <p className="min-w-0 flex-1 text-foreground">
-                                        This lesson will only count as complete after you finish the lessons before it.
-                                        Start with <span className="font-semibold">&ldquo;{blockingLesson.title}&rdquo;</span>.
-                                    </p>
+                                    {blockingStop.kind === "QUIZ" ? (
+                                        <p className="min-w-0 flex-1 text-foreground">
+                                            This lesson will only count as complete after you take the quiz before it:{" "}
+                                            <span className="font-semibold">&ldquo;{quizLabel(blockingStop.quiz.title)}&rdquo;</span>.
+                                        </p>
+                                    ) : (
+                                        <p className="min-w-0 flex-1 text-foreground">
+                                            This lesson will only count as complete after you finish the lessons before it.
+                                            Start with <span className="font-semibold">&ldquo;{blockingStop.video.title}&rdquo;</span>.
+                                        </p>
+                                    )}
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="rounded-full"
-                                        onClick={() => goTo(blockingLesson.id)}
+                                        onClick={() =>
+                                            blockingStop.kind === "QUIZ" ? goToQuiz(blockingStop.quiz.id) : goTo(blockingStop.video.id)
+                                        }
                                     >
-                                        Go to that lesson <ChevronRight className="size-4" />
+                                        {blockingStop.kind === "QUIZ" ? "Take the quiz" : "Go to that lesson"}{" "}
+                                        <ChevronRight className="size-4" />
                                     </Button>
                                 </div>
                             )}
@@ -2336,7 +2396,7 @@ type RouteItem =
 const isDone = (item: RouteItem) => {
     switch (item.kind) {
         case "MODULE":
-            return item.courseModule.isCompleted;
+            return item.courseModule.isCompleted && quizDone(item.courseModule);
         case "FINISH":
             return isModuleDone(item.courseModule);
         case "VIDEO":
@@ -2513,14 +2573,14 @@ function WeekRoute({
                                 <span
                                     className={cn(
                                         "relative z-10 grid size-6 shrink-0 place-items-center rounded-md text-[0.625rem] font-bold tabular-nums",
-                                        item.courseModule.isCompleted
+                                        isDone(item)
                                             ? "bg-primary text-primary-foreground"
                                             : item.courseModule.isLocked
                                                 ? "bg-secondary text-muted-foreground"
                                                 : "border border-primary/40 bg-card text-primary",
                                     )}
                                 >
-                                    {item.courseModule.isCompleted ? (
+                                    {isDone(item) ? (
                                         <Check className="size-3.5" strokeWidth={3} />
                                     ) : item.courseModule.isLocked ? (
                                         <Lock className="size-3" />
@@ -2631,7 +2691,13 @@ function WeekRoute({
                             const isActive = activeCompleteModuleId === item.courseModule.id;
                             return (
                                 // On the wrapper, not the disabled button — a disabled button shows no tooltip.
-                                <div title={done ? undefined : `Opens once you finish every lesson in this ${moduleLabel.toLowerCase()}`}>
+                                <div
+                                    title={
+                                        done
+                                            ? undefined
+                                            : `Opens once you finish every lesson${item.courseModule.quiz ? " and the quiz" : ""} in this ${moduleLabel.toLowerCase()}`
+                                    }
+                                >
                                     <button
                                         type="button"
                                         disabled={!done}
@@ -2695,7 +2761,7 @@ function WeekRoute({
                                                 quiz.isCompleted && !isActive && "text-muted-foreground",
                                             )}
                                         >
-                                            Quiz: {quiz.title}
+                                            {quizLabel(quiz.title)}
                                         </span>
                                     </button>
                                 </div>
