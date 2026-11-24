@@ -1,13 +1,13 @@
 "use client";
 
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, ClipboardCheck, Search, X } from "lucide-react";
+import { ArrowUpDown, ClipboardCheck, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { elapsed } from "@/components/mentor/dashboard/time";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import ConsoleEyebrow from "@/components/shared/ConsoleEyebrow";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -26,7 +26,7 @@ const STATUSES: SubmissionStatus[] = ["SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "
 
 /* "Rechecks" isn't a state: it's marked hand-ins with a recheck waiting (`?recheck=open`). */
 const TABS: { value: ReviewTab; label: string; statuses: SubmissionStatus[]; empty: string }[] = [
-    { value: "WAITING", label: "Waiting", statuses: ["SUBMITTED", "UNDER_REVIEW"], empty: "You're all caught up — new hand-ins land here, oldest first." },
+    { value: "WAITING", label: "To mark", statuses: ["SUBMITTED", "UNDER_REVIEW"], empty: "You're all caught up — new hand-ins land here, oldest first." },
     { value: "RECHECK", label: "Rechecks", statuses: [], empty: "No recheck requests waiting." },
     { value: "NEEDS_REVISION", label: "Changes asked", statuses: ["NEEDS_REVISION"], empty: "Nothing sent back for changes." },
     { value: "ACCEPTED", label: "Accepted", statuses: ["ACCEPTED"], empty: "Nothing accepted yet." },
@@ -156,7 +156,8 @@ export default function ReviewDesk({
             if (!wide) setSelectedId(null);
             return;
         }
-        if (dirty.current && !(await confirmAction({ title: "Leave this review?", text: "What you've written so far isn't saved.", confirmText: "Leave it" }))) return;
+        if (dirty.current && !(await confirmAction({ title: "Leave this review?", text: "What you've written so far isn't saved.", confirmText: "Leave it" })))
+            return;
         dirty.current = false;
         setSelectedId(id);
     };
@@ -198,45 +199,34 @@ export default function ReviewDesk({
 
     const assignmentTitle = items.find((item) => item.assignment.id === assignmentId)?.assignment.title;
     const activeTab = TABS.find((entry) => entry.value === tab) ?? TABS[0];
+    const toMark = countOf("WAITING") ?? 0;
+    const rechecks = countOf("RECHECK") ?? 0;
+    // Courses with work waiting first, so the one to pick is at the top of the list.
+    const courseOptions = [...courses].sort((a, b) => b.stats.toReview - a.stats.toReview || a.title.localeCompare(b.title));
 
     return (
         <div className="w-full space-y-5">
-            <header className="flex flex-wrap items-end justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
-                <div className="min-w-0">
-                    <ConsoleEyebrow />
-                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Review queue</h1>
-                    <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-                        {countOf("WAITING") ? (
-                            <>
-                                <span className="font-medium text-foreground">{countOf("WAITING")} waiting</span> · hand-ins from your courses, students by name only.
-                            </>
-                        ) : (
-                            "Hand-ins from your courses, students by name only."
-                        )}
-                    </p>
-                </div>
-                <div role="group" aria-label="Order" className="flex items-center gap-0.5 rounded-md bg-secondary/60 p-1">
-                    {(
-                        [
-                            { value: "asc", label: "Oldest first", icon: ArrowUpNarrowWide },
-                            { value: "desc", label: "Newest first", icon: ArrowDownWideNarrow },
-                        ] as const
-                    ).map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            aria-pressed={sortOrder === option.value}
-                            onClick={() => resetTo(() => setSortOrder(option.value))}
-                            className={cn(
-                                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                                sortOrder === option.value ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
-                            )}
-                        >
-                            <option.icon className="size-4" aria-hidden />
-                            {option.label}
-                        </button>
-                    ))}
-                </div>
+            <header className="animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-both motion-reduce:animate-none">
+                <ConsoleEyebrow />
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Review queue</h1>
+                <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+                    {counts.data && toMark + rechecks === 0 ? (
+                        "All caught up — new hand-ins from your courses land here."
+                    ) : (
+                        <>
+                            <span className="font-medium text-foreground">{toMark} to mark</span>
+                            {rechecks > 0 && (
+                                <>
+                                    {" · "}
+                                    <span className="font-medium text-foreground">
+                                        {rechecks} {rechecks === 1 ? "recheck" : "rechecks"} waiting
+                                    </span>
+                                </>
+                            )}{" "}
+                            · pick one on the left, mark it on the right.
+                        </>
+                    )}
+                </p>
             </header>
 
             <div className="space-y-3">
@@ -273,41 +263,50 @@ export default function ReviewDesk({
                             );
                         })}
                     </div>
-                    <div className="relative min-w-0 flex-1 sm:max-w-xs">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                        <Input
-                            type="search"
-                            value={searchInput}
-                            onChange={(event) => {
-                                setSearchInput(event.target.value);
-                                setSelectedId(null);
-                            }}
-                            placeholder="Find a student or assignment"
-                            aria-label="Find a student or assignment"
-                            className="pl-9"
-                        />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
+                        {/* One dropdown, not a chip per course — those with work waiting first, with how much. */}
+                        {courses.length > 1 && (
+                            <div className="w-full min-w-0 sm:w-64">
+                                <Select
+                                    value={courseId}
+                                    onChange={(event) =>
+                                        resetTo(() => {
+                                            setCourseId(event.target.value);
+                                            setAssignmentId("");
+                                        })
+                                    }
+                                    aria-label="Course"
+                                    className="truncate"
+                                >
+                                    <option value="">All courses</option>
+                                    {courseOptions.map((course) => (
+                                        <option key={course.id} value={course.id}>
+                                            {course.stats.toReview > 0 ? `(${course.stats.toReview} to mark) ` : ""}
+                                            {course.title}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </div>
+                        )}
+                        <div className="relative w-full min-w-0 sm:w-64">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                            <Input
+                                type="search"
+                                value={searchInput}
+                                onChange={(event) => {
+                                    setSearchInput(event.target.value);
+                                    setSelectedId(null);
+                                }}
+                                placeholder="Find a student or assignment"
+                                aria-label="Find a student or assignment"
+                                className="pl-9"
+                            />
+                        </div>
                     </div>
                 </div>
 
-                {(courses.length > 1 || assignmentId) && (
+                {assignmentId && (
                     <div className="flex flex-wrap items-center gap-2">
-                        {courses.length > 1 && (
-                            <>
-                                <Chip active={!courseId} onClick={() => resetTo(() => { setCourseId(""); setAssignmentId(""); })}>
-                                    All courses
-                                </Chip>
-                                {courses.map((course) => (
-                                    <Chip
-                                        key={course.id}
-                                        active={courseId === course.id}
-                                        onClick={() => resetTo(() => { setCourseId(course.id); setAssignmentId(""); })}
-                                        badge={course.stats.toReview || undefined}
-                                    >
-                                        {course.title}
-                                    </Chip>
-                                ))}
-                            </>
-                        )}
                         {assignmentId && (
                             <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 py-1 pl-3 pr-1 text-sm text-primary">
                                 <span className="truncate">
@@ -347,14 +346,29 @@ export default function ReviewDesk({
                             <span className="mx-auto grid size-12 place-items-center rounded-md border border-border bg-primary/10 text-primary">
                                 <ClipboardCheck className="size-5" aria-hidden />
                             </span>
-                            <p className="mt-4 font-medium">{searchTerm ? `Nothing matches “${searchTerm}”.` : tab === "WAITING" ? "All caught up" : "Nothing here"}</p>
-                            <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">{searchTerm ? "Try a name or an assignment title." : activeTab.empty}</p>
+                            <p className="mt-4 font-medium">
+                                {searchTerm ? `Nothing matches “${searchTerm}”.` : tab === "WAITING" ? "All caught up" : "Nothing here"}
+                            </p>
+                            <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                                {searchTerm ? "Try a name or an assignment title." : activeTab.empty}
+                            </p>
                         </div>
                     ) : (
                         <>
-                            <p className="border-b border-border bg-secondary/30 px-4 py-1.5 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
-                                {total} {total === 1 ? "hand-in" : "hand-ins"} · {sortOrder === "asc" ? "oldest first" : "newest first"}
-                            </p>
+                            <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-4 py-1.5">
+                                <p className="text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground">
+                                    {total} {total === 1 ? "hand-in" : "hand-ins"}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => resetTo(() => setSortOrder(sortOrder === "asc" ? "desc" : "asc"))}
+                                    title="Change the order"
+                                    className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                >
+                                    <ArrowUpDown className="size-3.5" aria-hidden />
+                                    {sortOrder === "asc" ? "Oldest first" : "Newest first"}
+                                </button>
+                            </div>
                             <ul aria-label="Hand-ins" onKeyDown={onListKeyDown}>
                                 {items.map((item) => {
                                     const active = current?.id === item.id;
@@ -385,24 +399,38 @@ export default function ReviewDesk({
                                                             <span
                                                                 className={cn(
                                                                     "shrink-0 text-xs tabular-nums",
-                                                                    wait.days >= 2 ? "font-semibold text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+                                                                    wait.days >= 2
+                                                                        ? "font-semibold text-amber-700 dark:text-amber-400"
+                                                                        : "text-muted-foreground",
                                                                 )}
                                                             >
                                                                 {wait.text}
                                                             </span>
                                                         ) : (
-                                                            <span className={cn("shrink-0 rounded-sm px-2 py-px text-[0.6875rem] font-semibold", STATUS_META[item.status].tone)}>
-                                                                {item.status === "ACCEPTED" && item.score !== null ? `${item.score}/${item.assignment.totalMarks}` : STATUS_META[item.status].label}
+                                                            <span
+                                                                className={cn(
+                                                                    "shrink-0 rounded-sm px-2 py-px text-[0.6875rem] font-semibold",
+                                                                    STATUS_META[item.status].tone,
+                                                                )}
+                                                            >
+                                                                {item.status === "ACCEPTED" && item.score !== null
+                                                                    ? `${item.score}/${item.assignment.totalMarks}`
+                                                                    : STATUS_META[item.status].label}
                                                             </span>
                                                         )}
                                                     </span>
                                                     <span className="mt-0.5 block truncate text-sm text-muted-foreground">{item.assignment.title}</span>
                                                     <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                                                         <span className="truncate">{item.assignment.course.title}</span>
-                                                        {item.maxScore !== null && <span className="shrink-0 font-medium text-amber-700 dark:text-amber-400">· Late</span>}
+                                                        {item.maxScore !== null && (
+                                                            <span className="shrink-0 font-medium text-amber-700 dark:text-amber-400">· Late</span>
+                                                        )}
                                                         {item.status === "UNDER_REVIEW" && item.reviewedBy && (
                                                             <span className="shrink-0 font-medium text-foreground/80">
-                                                                · {item.reviewedBy.id === user?.id ? "You're reviewing" : `${item.reviewedBy.name.split(" ")[0]} reviewing`}
+                                                                ·{" "}
+                                                                {item.reviewedBy.id === user?.id
+                                                                    ? "You're reviewing"
+                                                                    : `${item.reviewedBy.name.split(" ")[0]} reviewing`}
                                                             </span>
                                                         )}
                                                     </span>
@@ -410,7 +438,14 @@ export default function ReviewDesk({
                                             </button>
                                             {!wide && active && current && (
                                                 <div className="border-b border-border bg-primary/3 px-4 py-4">
-                                                    <MarkingPane key={current.id} submission={current} onSaved={onSaved} onClaimChange={onClaimChange} onDirtyChange={onDirtyChange} compact />
+                                                    <MarkingPane
+                                                        key={current.id}
+                                                        submission={current}
+                                                        onSaved={onSaved}
+                                                        onClaimChange={onClaimChange}
+                                                        onDirtyChange={onDirtyChange}
+                                                        compact
+                                                    />
                                                 </div>
                                             )}
                                         </li>
@@ -453,22 +488,5 @@ export default function ReviewDesk({
                 )}
             </div>
         </div>
-    );
-}
-
-function Chip({ active, onClick, badge, children }: { active: boolean; onClick: () => void; badge?: number; children: React.ReactNode }) {
-    return (
-        <button
-            type="button"
-            aria-pressed={active}
-            onClick={onClick}
-            className={cn(
-                "inline-flex max-w-64 items-center gap-1.5 rounded-sm border px-3 py-1 text-sm transition-colors",
-                active ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
-            )}
-        >
-            <span className="truncate">{children}</span>
-            {badge !== undefined && <span className="shrink-0 rounded-sm bg-primary px-1.5 text-[0.6875rem] font-semibold tabular-nums text-primary-foreground">{badge}</span>}
-        </button>
     );
 }
