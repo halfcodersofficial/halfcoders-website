@@ -9,6 +9,7 @@ import { EnrollmentController } from "./enrollment.controller";
 const router = Router();
 
 const ADMINS = [Role.ADMIN, Role.SUPER_ADMIN] as const;
+const STAFF = [Role.MENTOR, ...ADMINS] as const;
 
 const manualEnrollZodSchema = z.object({
     studentId: z.string().trim().min(1, "Student is required"),
@@ -41,14 +42,18 @@ router.patch(
     EnrollmentController.reactivateEnrollment,
 );
 
-// Admins: the students on one course, with their contact details and
-// progress. Not mentors — they see how many are enrolled (the course and
-// dashboard counts) and a student's name only where they mark their work
-// (lib/studentPrivacy).
+// A course's staff: the students on it with their progress, and one
+// student's whole record there. Admins see contact details; a mentor on the
+// course sees names and photos only (lib/studentPrivacy).
 router.get(
     "/course/:courseId",
-    checkAuth(...ADMINS),
+    checkAuth(...STAFF),
     EnrollmentController.getCourseStudents,
+);
+router.get(
+    "/course/:courseId/students/:studentId",
+    checkAuth(...STAFF),
+    EnrollmentController.getCourseStudent,
 );
 
 // Students: their own enrolments. Staff hold none by definition, and the

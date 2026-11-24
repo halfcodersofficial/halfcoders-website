@@ -660,6 +660,11 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                     select: {
                         id: true, title: true, totalMarks: true, deadline: true, lateTiers: true, position: true,
                         publishedAt: true,
+                        // Taken after its lessons, before the brief & submission.
+                        quizzes: {
+                            where: { isPublished: true },
+                            select: { id: true, title: true, _count: { select: { questions: true } } },
+                        },
                     },
                 },
                 practiceDays: {
@@ -703,6 +708,20 @@ const getStudentCourse = async (userId: string, courseId: string) => {
     const submissionBy = new Map(submissionRows.map((row) => [row.assignment.id, toSubmission(row, history)]));
     const completionBy = new Map(completions.map((row) => [row.practiceDayId, row]));
 
+    /** A module's or assignment's quiz with every attempt at it and the best score. */
+    const quizResult = (quiz: { id: string; title: string; _count: { questions: number } } | undefined) => {
+        if (!quiz) return null;
+        const quizAttempts = attempts.filter((attempt) => attempt.quizId === quiz.id);
+        const scores = quizAttempts.filter((attempt) => attempt.status === QuizAttemptStatus.COMPLETED).map((attempt) => attempt.percentage);
+        return {
+            id: quiz.id,
+            title: quiz.title,
+            questions: quiz._count.questions,
+            attempts: quizAttempts,
+            bestPercent: scores.length ? Math.max(...scores) : null,
+        };
+    };
+
     return {
         enrollment,
         weeks: weeks.map((week) => {
@@ -717,12 +736,6 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                         lastWatchedAt: progress?.updatedAt ?? null,
                     };
                 });
-                const quiz = courseModule.quizzes[0];
-                const quizAttempts = quiz ? attempts.filter((attempt) => attempt.quizId === quiz.id) : [];
-                const scores = quizAttempts
-                    .filter((attempt) => attempt.status === QuizAttemptStatus.COMPLETED)
-                    .map((attempt) => attempt.percentage);
-
                 return {
                     kind: "module" as const,
                     id: courseModule.id,
@@ -735,24 +748,17 @@ const getStudentCourse = async (userId: string, courseId: string) => {
                     completedLessons: lessons.filter((lesson) => lesson.completed).length,
                     progress: moduleBy.get(courseModule.id)?.progress ?? 0,
                     completedAt: moduleBy.get(courseModule.id)?.completedAt ?? null,
-                    quiz: quiz
-                        ? {
-                            id: quiz.id,
-                            title: quiz.title,
-                            questions: quiz._count.questions,
-                            attempts: quizAttempts,
-                            bestPercent: scores.length ? Math.max(...scores) : null,
-                        }
-                        : null,
+                    quiz: quizResult(courseModule.quizzes[0]),
                 };
             });
 
-            const assignments = week.assignments.map(({ lateTiers, ...assignment }) => {
+            const assignments = week.assignments.map(({ lateTiers, quizzes, ...assignment }) => {
                 const closes = closesAt(assignment.deadline, lateTiers);
                 const submission = submissionBy.get(assignment.id) ?? null;
                 return {
                     kind: "assignment" as const,
                     ...assignment,
+                    quiz: quizResult(quizzes[0]),
                     closesAt: closes,
                     /** Closed without anything handed in. */
                     missed: !submission && closes !== null && closes < now,

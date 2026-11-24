@@ -11,7 +11,7 @@ import {
     Layers,
     LayoutDashboard,
     Megaphone,
-    PenLine,
+    Users,
     type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -43,7 +43,7 @@ interface Tab {
 /**
  * Everything a mentor does on one course, under one roof: the course named
  * once at the top, and a tab for each job — the course at a glance, its
- * content, its schedule, the recorded classes, the marks, the public page and
+ * content, its schedule, the recorded classes, the marks, its students and
  * the pre-enrolment roadmap. Mounted by `app/mentor/courses/[courseId]/layout`;
  * the shared editors underneath drop their own "back" links in this console.
  */
@@ -77,7 +77,7 @@ export default function CourseWorkspace({ courseId, children }: { courseId: stri
         { href: routes.conceptual, label: "Conceptual", icon: Clapperboard },
         { href: routes.announcements, label: "Announcements", icon: Megaphone },
         { href: routes.results, label: "Results", icon: Gauge, badge: mine?.stats.toReview },
-        { href: routes.coursePage, label: "Course page", icon: PenLine },
+        { href: routes.students, label: "Students", icon: Users },
         { href: routes.preEnrollment, label: "Pre-enrolment", icon: FileText },
     ];
     const isActive = (tab: Tab) =>

@@ -7,6 +7,7 @@ import type {
 } from "@/types/mentor.types";
 import type {
     CourseStudent,
+    CourseStudentRecord,
     MentorDashboard,
     MentorMilestone,
     MentorPastSession,
@@ -230,11 +231,17 @@ export const enrollmentService = {
     forCourse: (courseId: string) =>
         httpClient.get<ApiResponse<Enrollment>>(`/enrollments/my/${courseId}`).then(unwrap),
 
-    /** Mentor/admin: everyone on one course, with progress (plan §21). */
+    /** Mentor/admin: everyone on one course, with progress (plan §21). A mentor gets names and photos, no contacts. */
     courseStudents: (courseId: string, params?: Record<string, string | number | undefined>) =>
         httpClient
             .get<ApiResponse<CourseStudent[]>>(`/enrollments/course/${courseId}`, { params })
             .then(unwrapList),
+
+    /** Mentor/admin: one student's whole record on a course, week by week. */
+    courseStudent: (courseId: string, studentId: string) =>
+        httpClient
+            .get<ApiResponse<CourseStudentRecord>>(`/enrollments/course/${courseId}/students/${studentId}`)
+            .then(unwrap),
 };
 
 export const orderService = {

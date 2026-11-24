@@ -22,8 +22,10 @@ export const staffCourseRoutes = (area: StaffArea, courseId: string) => {
          * outline; each keeps its own dates.
          */
         modules: `${base}/modules`,
-        /** The roster — admin only; a mentor's link lands back on the course. */
+        /** The roster: everyone on the course and how far they've got (a mentor sees no contact details). */
         students: `${base}/students`,
+        /** One student's whole record on the course. */
+        student: (studentId: string) => `${base}/students/${studentId}`,
         /** Assignment and quiz marks, students by name only. */
         results: `${base}/results`,
         /** The mentor's editor for the words on the public course page (the admin edits it in `overview`). */

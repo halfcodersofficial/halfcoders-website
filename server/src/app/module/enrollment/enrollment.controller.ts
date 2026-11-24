@@ -112,6 +112,17 @@ const getCourseStudents = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const getCourseStudent = catchAsync(async (req: Request, res: Response) => {
+    const result = await EnrollmentService.getCourseStudent(req.user, req.params.courseId as string, req.params.studentId as string);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Student fetched successfully",
+        data: result,
+    });
+});
+
 const exportEnrollments = catchAsync(async (req: Request, res: Response) => {
     sendCsv(res, "enrolments", await EnrollmentService.exportEnrollments(req.query as IQueryParams));
 });
@@ -120,6 +131,7 @@ export const EnrollmentController = {
     exportEnrollments,
     getMyEnrollments,
     getCourseStudents,
+    getCourseStudent,
     getMyEnrollment,
     getAllEnrollments,
     getEnrollmentCourses,

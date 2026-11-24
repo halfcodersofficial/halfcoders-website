@@ -1,4 +1,5 @@
 import type { ClassMode, SubmissionStatus, SupportQueueStatus, SupportSessionStatus } from "./api.types";
+import type { StudentCourseBreakdown } from "./admin.types";
 import type { AssignmentLateTier, AssignmentPenalties, AssignmentRecheck } from "./learning.types";
 
 /** A student as a mentor sees them — by name, nothing more. */
@@ -311,15 +312,45 @@ export interface QueueHistoryEntry {
 }
 
 /** One student's standing on a course, for the mentor's progress view. */
+/** One student on a course's roster. A mentor gets the name and photo; `email` is an admin's only. */
 export interface CourseStudent {
     id: string;
     status: string;
     progress: number;
+    createdAt: string;
     startedAt: string;
-    student: { id: string; name: string; email: string; image: string | null };
+    student: { id: string; name: string; email?: string; image: string | null };
     currentModule: { id: string; title: string; order: number } | null;
     currentMilestone: { id: string; title: string; order: number } | null;
     _count?: { submissions: number; practiceCompletions: number };
+    /** How far they've got, against what's released on the course. */
+    stats: {
+        lessons: { completed: number; total: number };
+        modules: { completed: number; total: number };
+        assignments: { submitted: number; total: number };
+        /** `averagePercent`: the mean of their best score on each quiz taken. */
+        quizzes: { taken: number; total: number; averagePercent: number | null };
+        practice: { completed: number; total: number };
+    };
+    lastActivityAt: string | null;
+}
+
+/** One student's whole record on a course — `GET /enrollments/course/:courseId/students/:studentId`. */
+export interface CourseStudentRecord {
+    id: string;
+    status: string;
+    progress: number;
+    createdAt: string;
+    startedAt: string;
+    completedAt: string | null;
+    expiresAt: string | null;
+    student: { id: string; name: string; email?: string; image: string | null };
+    currentMilestone: { id: string; title: string; order: number } | null;
+    currentModule: { id: string; title: string; order: number } | null;
+    course: StudentCourseBreakdown["enrollment"]["course"];
+    xp: number;
+    lastActivityAt: string | null;
+    weeks: StudentCourseBreakdown["weeks"];
 }
 
 /** One hand-in on the course's results page. */

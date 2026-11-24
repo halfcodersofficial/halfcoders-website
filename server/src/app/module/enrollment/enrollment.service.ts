@@ -1,11 +1,13 @@
 import status from "http-status";
 import { Prisma } from "../../../generated/prisma/client";
-import { CourseStatus, EnrollmentStatus, NotificationType } from "../../../generated/prisma/enums";
+import { CourseStatus, EnrollmentStatus, NotificationType, QuizAttemptStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IQueryParams } from "../../interfaces/query.interface";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { learnerScope } from "../../lib/learningProfile";
 import { prisma } from "../../lib/prisma";
+import { seesStudentDetails, studentCardFor } from "../../lib/studentPrivacy";
+import { StudentDetailService } from "../user/studentDetail.service";
 import { adminCourseSelect, AdminCourseCard } from "../../utils/adminCourseSelect";
 import { assertCanManageCourse } from "../../utils/courseAccess";
 import { announceGrants, grantBonusCourses, revokeBonusCourses } from "../../utils/courseGrants";
@@ -279,12 +281,50 @@ const getEnrollmentCourse = async (courseId: string) => {
  * assigned to while an admin sees any. That gate is the whole reason this is a
  * separate endpoint from the admin-only enrolment register.
  */
+/** What a student can see of a course — the same rule progress is counted by. */
+const publishedWeek = { isPublished: true, milestone: { isPublished: true } } as const;
+const publishedLesson = { isPublished: true, module: publishedWeek } as const;
+
+/**
+ * The newest thing each enrolment's student did on its course — watched a
+ * lesson, handed in work, took a quiz, ticked off a practice day.
+ */
+const lastActivityByEnrollment = async (enrollmentIds: string[]) => {
+    const latest = new Map<string, Date>();
+    if (enrollmentIds.length === 0) return latest;
+
+    const where = { enrollmentId: { in: enrollmentIds } };
+    const [watched, submitted, quizzes, practice] = await Promise.all([
+        prisma.videoProgress.groupBy({ by: ["enrollmentId"], where, _max: { updatedAt: true } }),
+        prisma.assignmentSubmission.groupBy({ by: ["enrollmentId"], where, _max: { submittedAt: true } }),
+        prisma.quizAttempt.groupBy({ by: ["enrollmentId"], where, _max: { startedAt: true } }),
+        prisma.practiceCompletion.groupBy({ by: ["enrollmentId"], where, _max: { completedAt: true } }),
+    ]);
+    const note = (enrollmentId: string, date: Date | null) => {
+        const current = latest.get(enrollmentId);
+        if (date && (!current || date > current)) latest.set(enrollmentId, date);
+    };
+    for (const row of watched) note(row.enrollmentId, row._max.updatedAt);
+    for (const row of submitted) note(row.enrollmentId, row._max.submittedAt);
+    for (const row of quizzes) note(row.enrollmentId, row._max.startedAt);
+    for (const row of practice) note(row.enrollmentId, row._max.completedAt);
+    return latest;
+};
+
+/**
+ * The students on one course, for its staff, with how far each has got:
+ * lessons, modules, assignments handed in, quizzes taken (and their average
+ * best score), practice days, and when they were last active. Admins see
+ * contact details and search by email; a mentor on the course sees names and
+ * photos only (lib/studentPrivacy).
+ */
 const getCourseStudents = async (user: IRequestUser, courseId: string, query: IQueryParams) => {
     await assertCanManageCourse(user, courseId);
 
-    return new QueryBuilder(prisma.enrollment, query, {
-        searchableFields: ["student.name", "student.email"],
+    const result = await new QueryBuilder(prisma.enrollment, query, {
+        searchableFields: seesStudentDetails(user) ? ["student.name", "student.email"] : ["student.name"],
         filterableFields: ["status"],
+        sortableFields: ["createdAt", "progress", "updatedAt", "student.name"],
         maxLimit: 100,
     })
         .search()
@@ -292,13 +332,112 @@ const getCourseStudents = async (user: IRequestUser, courseId: string, query: IQ
         .sort()
         .paginate()
         .include({
-            student: { select: { id: true, name: true, email: true, image: true } },
+            student: { select: studentCardFor(user, { id: true, name: true, email: true, image: true }) },
             currentModule: { select: { id: true, title: true, order: true } },
             currentMilestone: { select: { id: true, title: true, order: true } },
             _count: { select: { submissions: true, practiceCompletions: true } },
         })
         .where({ courseId })
         .execute();
+
+    const rows = result.data as { id: string; _count: { submissions: number; practiceCompletions: number } }[];
+    if (rows.length === 0) return result;
+
+    const inCourse = { courseId };
+    const enrollmentIds = rows.map((row) => row.id);
+    const byEnrollment = { enrollmentId: { in: enrollmentIds } };
+    const [lessonTotal, moduleTotal, assignmentTotal, quizTotal, practiceTotal, lessonsDone, modulesDone, quizBest, lastActivity] =
+        await Promise.all([
+            prisma.video.count({ where: { ...inCourse, ...publishedLesson } }),
+            prisma.courseModule.count({ where: { ...inCourse, ...publishedWeek } }),
+            prisma.assignment.count({ where: { ...inCourse, ...publishedWeek } }),
+            prisma.quiz.count({ where: { ...inCourse, isPublished: true, OR: [{ module: publishedWeek }, { assignment: publishedWeek }] } }),
+            prisma.practiceDay.count({ where: { ...inCourse, ...publishedWeek } }),
+            prisma.videoProgress.groupBy({
+                by: ["enrollmentId"],
+                where: { ...byEnrollment, isCompleted: true, video: publishedLesson },
+                _count: { _all: true },
+            }),
+            prisma.moduleProgress.groupBy({
+                by: ["enrollmentId"],
+                where: { ...byEnrollment, isCompleted: true, module: publishedWeek },
+                _count: { _all: true },
+            }),
+            prisma.quizAttempt.groupBy({
+                by: ["enrollmentId", "quizId"],
+                where: { ...byEnrollment, status: QuizAttemptStatus.COMPLETED },
+                _max: { percentage: true },
+            }),
+            lastActivityByEnrollment(enrollmentIds),
+        ]);
+
+    const lessonsBy = new Map(lessonsDone.map((row) => [row.enrollmentId, row._count._all]));
+    const modulesBy = new Map(modulesDone.map((row) => [row.enrollmentId, row._count._all]));
+    const bestBy = new Map<string, number[]>();
+    for (const row of quizBest) bestBy.set(row.enrollmentId, [...(bestBy.get(row.enrollmentId) ?? []), row._max.percentage ?? 0]);
+
+    return {
+        ...result,
+        data: rows.map((row) => {
+            const best = bestBy.get(row.id) ?? [];
+            return {
+                ...row,
+                stats: {
+                    lessons: { completed: lessonsBy.get(row.id) ?? 0, total: lessonTotal },
+                    modules: { completed: modulesBy.get(row.id) ?? 0, total: moduleTotal },
+                    assignments: { submitted: row._count.submissions, total: assignmentTotal },
+                    quizzes: {
+                        taken: best.length,
+                        total: quizTotal,
+                        averagePercent: best.length ? Math.round(best.reduce((sum, value) => sum + value, 0) / best.length) : null,
+                    },
+                    practice: { completed: row._count.practiceCompletions, total: practiceTotal },
+                },
+                lastActivityAt: lastActivity.get(row.id) ?? null,
+            };
+        }),
+    };
+};
+
+/**
+ * One student on a course, for its staff: where they are, and everything
+ * they've done there week by week — each lesson, module, quiz attempt,
+ * assignment (with its marks, feedback and who gave them) and practice day.
+ * A mentor sees the name and photo; contact details stay with admins.
+ */
+const getCourseStudent = async (user: IRequestUser, courseId: string, studentId: string) => {
+    await assertCanManageCourse(user, courseId);
+
+    const enrollment = await prisma.enrollment.findUnique({
+        where: { studentId_courseId: { studentId, courseId } },
+        select: {
+            id: true,
+            status: true,
+            progress: true,
+            createdAt: true,
+            startedAt: true,
+            completedAt: true,
+            expiresAt: true,
+            student: { select: studentCardFor(user, { id: true, name: true, email: true, image: true }) },
+            currentMilestone: { select: { id: true, title: true, order: true } },
+            currentModule: { select: { id: true, title: true, order: true } },
+        },
+    });
+    if (!enrollment) throw new AppError(status.NOT_FOUND, "This student isn't on this course.");
+
+    const [breakdown, xp, lastActivity] = await Promise.all([
+        StudentDetailService.getStudentCourse(studentId, courseId),
+        prisma.courseXp.findUnique({ where: { studentId_courseId: { studentId, courseId } }, select: { totalXp: true } }),
+        lastActivityByEnrollment([enrollment.id]),
+    ]);
+
+    return {
+        ...enrollment,
+        course: breakdown.enrollment.course,
+        xp: xp?.totalXp ?? 0,
+        lastActivityAt: lastActivity.get(enrollment.id) ?? null,
+        weeks: breakdown.weeks,
+    };
 };
 
 /**
@@ -390,6 +529,7 @@ export const EnrollmentService = {
     exportEnrollments,
     activateEnrollment,
     getCourseStudents,
+    getCourseStudent,
     getMyEnrollments,
     getMyEnrollment,
     getAllEnrollments,

@@ -211,9 +211,22 @@ const timeline = (submission: StudentSubmission): TimelineEntry[] => {
     ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 };
 
-/** Feedback, the work itself, the dates, and every marking with who gave it. */
-export function SubmissionDetail({ submission, className }: { submission: StudentSubmission; className?: string }) {
+/**
+ * Feedback, the work itself, the dates, and every marking with who gave it.
+ * `courseHref`: where the course links to — the admin's course by default;
+ * null leaves the link out (the reader is already on that course).
+ */
+export function SubmissionDetail({
+    submission,
+    className,
+    courseHref,
+}: {
+    submission: StudentSubmission;
+    className?: string;
+    courseHref?: string | null;
+}) {
     const { assignment } = submission;
+    const courseLink = courseHref === undefined ? `/admin/courses/${assignment.course.id}` : courseHref;
     const entries = timeline(submission);
     // Marked before, handed in again, not marked since.
     const awaitingRemark = !submission.reviewedAt && submission.history.length > 0;
@@ -265,11 +278,13 @@ export function SubmissionDetail({ submission, className }: { submission: Studen
                             ? `${submission.maxScore} (late — full marks are ${assignment.totalMarks})`
                             : assignment.totalMarks}
                     </Fact>
-                    <Fact label="Course">
-                        <Link href={`/admin/courses/${assignment.course.id}`} className="hover:underline">
-                            {assignment.course.title}
-                        </Link>
-                    </Fact>
+                    {courseLink !== null && (
+                        <Fact label="Course">
+                            <Link href={courseLink} className="hover:underline">
+                                {assignment.course.title}
+                            </Link>
+                        </Fact>
+                    )}
                 </dl>
             </div>
 
@@ -279,7 +294,7 @@ export function SubmissionDetail({ submission, className }: { submission: Studen
                         <li key={index} className="relative">
                             <span
                                 className={cn(
-                                    "absolute -left-[1.6rem] top-1 size-2.5 rounded-full ring-4 ring-card",
+                                    "absolute left-[-1.6rem] top-1 size-2.5 rounded-full ring-4 ring-card",
                                     entry.by ? "bg-primary" : "bg-muted-foreground/50",
                                 )}
                                 aria-hidden

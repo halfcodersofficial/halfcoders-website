@@ -49,9 +49,43 @@ describe("mentor panel", () => {
     });
 
     describe("student privacy", () => {
-        it("keeps the course's student list from mentors", async () => {
-            expect((await api().get(`/api/v1/enrollments/course/${courseId}`).set("Cookie", lead.cookie)).status).toBe(403);
-            expect((await api().get(`/api/v1/enrollments/course/${courseId}`).set("Cookie", admin.cookie)).status).toBe(200);
+        it("shows a course's mentors its students and their progress — names and photos, no contact details", async () => {
+            const roster = (account: TestAccount, query = "") =>
+                api().get(`/api/v1/enrollments/course/${courseId}${query}`).set("Cookie", account.cookie);
+
+            const forMentor = await roster(lead);
+            expect(forMentor.status).toBe(200);
+            expect(forMentor.body.data).toHaveLength(3);
+            for (const row of forMentor.body.data) {
+                expect(Object.keys(row.student).sort()).toEqual(["id", "image", "name"]);
+                expect(row.stats.assignments.total).toBe(1);
+            }
+            const handedIn = forMentor.body.data.filter((row: { stats: { assignments: { submitted: number } } }) => row.stats.assignments.submitted === 1);
+            expect(handedIn).toHaveLength(2);
+
+            // Not by email, and not on a course they don't teach.
+            expect((await roster(lead, `?searchTerm=${encodeURIComponent(students[0].email)}`)).body.data).toHaveLength(0);
+            expect((await roster(stranger)).status).toBe(403);
+
+            const forAdmin = await roster(admin);
+            expect(forAdmin.status).toBe(200);
+            expect(forAdmin.body.data[0].student.email).toMatch(/@example\.test$/);
+        });
+
+        it("opens one student's record on the course for its mentors, without contact details", async () => {
+            const record = (account: TestAccount, studentId = students[0].id) =>
+                api().get(`/api/v1/enrollments/course/${courseId}/students/${studentId}`).set("Cookie", account.cookie);
+
+            const res = await record(lead);
+            expect(res.status).toBe(200);
+            expect(Object.keys(res.body.data.student).sort()).toEqual(["id", "image", "name"]);
+            const assignment = res.body.data.weeks
+                .flatMap((week: { items: { kind: string }[] }) => week.items)
+                .find((item: { kind: string }) => item.kind === "assignment");
+            expect(assignment.submission).toMatchObject({ status: "SUBMITTED", content: "Done" });
+
+            expect((await record(stranger)).status).toBe(403);
+            expect((await record(lead, stranger.id)).status).toBe(404);
         });
 
         it("names students on their work, and nothing more, for mentors only", async () => {
