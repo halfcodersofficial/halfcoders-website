@@ -399,11 +399,9 @@ function WeekItem({ item, moduleLabel, courseHref }: { item: StudentCourseItem; 
                                 </div>
                             </>
                         ) : item.missed ? (
-                            <p className="text-sm font-medium text-destructive">Missed — closed {formatDateTime(item.closesAt as string)}</p>
+                            <p className="text-sm font-medium text-destructive">Missed — the batch ended</p>
                         ) : (
-                            <p className="text-sm text-muted-foreground">
-                                Not submitted{item.closesAt ? ` · open until ${formatDateTime(item.closesAt)}` : ""}
-                            </p>
+                            <p className="text-sm text-muted-foreground">Not submitted · open until the batch ends</p>
                         )}
                     </div>
                 }

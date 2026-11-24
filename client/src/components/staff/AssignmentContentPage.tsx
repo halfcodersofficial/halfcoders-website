@@ -171,7 +171,8 @@ export default function AssignmentContentPage({
                                 {" "}· by {formatDateTime(tier.until)}: out of {tier.maxMarks}
                             </span>
                         ))}{" "}
-                        · then submissions close.
+                        · after that, still out of {assignment.lateTiers[assignment.lateTiers.length - 1].maxMarks} — submissions close only when the
+                        batch ends (the course moves to Previous).
                     </div>
                 )}
             </section>

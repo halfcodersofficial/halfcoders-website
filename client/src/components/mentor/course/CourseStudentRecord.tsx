@@ -322,9 +322,11 @@ function Assignments({ record }: { record: StudentRecord }) {
                                     {week}
                                     {submission
                                         ? ` · handed in ${formatDateTime(submission.submittedAt)}`
-                                        : item.closesAt
-                                          ? ` · ${item.missed ? "closed" : "open until"} ${formatDateTime(item.closesAt)}`
-                                          : ""}
+                                        : item.missed
+                                          ? " · the batch ended"
+                                          : item.deadline
+                                            ? ` · due ${formatDateTime(item.deadline)}`
+                                            : ""}
                                 </p>
                             </div>
                             {submission?.score !== null && submission?.score !== undefined && (

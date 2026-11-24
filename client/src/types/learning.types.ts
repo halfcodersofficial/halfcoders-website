@@ -121,13 +121,19 @@ export interface StudentAssignment {
     rubric: { id: string; title: string; description: string | null; maxPoints: number; order: number }[];
     submission: AssignmentSubmission | null;
     isOverdue: boolean;
-    /** Where a submission made right now would land, and what it would be marked out of. */
+    /**
+     * Where a submission made right now would land, and what it would be
+     * marked out of. LATE with `until` null: past every late window, still
+     * taken out of the last one's marks. CLOSED only once the batch has ended.
+     */
     window: {
         status: "ON_TIME" | "LATE" | "CLOSED";
         maxScore: number | null;
         until: string | null;
     };
-    /** Whether a hand-in can be made now: a first one in an open window, work sent back, or a (paid) resubmission before the results. */
+    /** The course moved to Previous (recorded): its assignments are no longer taken or checked. */
+    batchEnded: boolean;
+    /** Whether a hand-in can be made now: a first one while the batch runs, work sent back, or a (paid) resubmission before the results. */
     canSubmit: boolean;
     /** Staff have published the results: marks show, resubmitting is closed, rechecks are open. */
     resultsPublished: boolean;

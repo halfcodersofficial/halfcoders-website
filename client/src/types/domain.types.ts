@@ -385,6 +385,8 @@ export interface LearningMilestone {
         score: number | null;
         isSubmitted: boolean;
         isAccepted: boolean;
+        /** The batch is over (course moved to Previous): no more hand-ins or checking. */
+        isClosed: boolean;
         /** Its own lessons, in order — opened one at a time in the player. */
         materials: LessonMaterial[];
         /** Taken after its lessons, before its brief & submission. Null when it has none. */

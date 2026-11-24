@@ -469,8 +469,7 @@ export type StudentCourseItem =
         publishedAt: string | null;
         /** Taken after its lessons, before the brief & submission. */
         quiz: StudentCourseQuiz | null;
-        /** When first submissions stop — the last late window, else the deadline. */
-        closesAt: string | null;
+        /** The batch ended (course moved to Previous) without anything handed in. */
         missed: boolean;
         submission: StudentSubmission | null;
     }

@@ -141,6 +141,13 @@ type WeekGroup = { kind: "ASSIGNMENT"; entry: AssignmentRow } | { kind: "PRACTIC
 /** The student's part is done: the day marked done, or the work handed in. */
 const groupDone = (group: WeekGroup) => (group.kind === "PRACTICE" ? group.entry.isCompleted : group.entry.isSubmitted);
 
+/**
+ * Nothing left to do there: done — or an assignment whose batch has ended,
+ * which can't be handed in any more, so it isn't where a returning student
+ * picks up.
+ */
+const groupSettled = (group: WeekGroup) => groupDone(group) || (group.kind === "ASSIGNMENT" && group.entry.isClosed);
+
 /** Whether the group's own page is a stop on the way — not for a practice day with lessons. */
 const hasGroupPage = (group: WeekGroup) => group.kind === "ASSIGNMENT" || group.entry.materials.length === 0;
 
@@ -268,7 +275,7 @@ const resumeStop = (stops: CourseStop[]): CourseStop | null => {
         .slice(lastDoneAt + 1, end)
         .find(
             (stop) =>
-                ((stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupDone(stop.group)) ||
+                ((stop.kind === "MATERIAL" || stop.kind === "GROUP") && !groupSettled(stop.group)) ||
                 (stop.kind === "QUIZ" && !stop.courseModule && !stop.quiz.isCompleted),
         );
     if (pending) return pending;
@@ -2835,7 +2842,9 @@ function WeekRoute({
                                         ? "Marked"
                                         : group.entry.isSubmitted
                                             ? "Submitted"
-                                            : lessons > 0
+                                            : group.entry.isClosed
+                                                ? "Closed"
+                                                : lessons > 0
                                                 ? `${lessons} lesson${lessons === 1 ? "" : "s"}`
                                                 : "To do";
                             return (

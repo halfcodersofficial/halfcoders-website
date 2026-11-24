@@ -5,6 +5,7 @@ import {
     AlertTriangle,
     ChevronDown,
     Clock,
+    CodeXml,
     ExternalLink,
     Eye,
     FileText,
@@ -159,6 +160,36 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
 
     /** The one box that changes with where the student is. */
     const stage = (() => {
+        // The course moved to Previous (recorded): nothing more is taken or checked.
+        if (data.batchEnded) {
+            const mark = status === "ACCEPTED" && submission?.finalScore !== null && submission?.finalScore !== undefined ? submission.finalScore : null;
+            return (
+                <BatchEnded
+                    actions={
+                        submission && (
+                            <>
+                                {mySubmissionButton}
+                                {status === "ACCEPTED" && data.resultsPublished && (
+                                    <Button type="button" variant="outline" className="rounded-full" onClick={() => setPopup("feedback")}>
+                                        <MessageSquare className="size-4" aria-hidden /> Feedback
+                                    </Button>
+                                )}
+                            </>
+                        )
+                    }
+                >
+                    {mark !== null && data.resultsPublished && (
+                        <p className="mt-3 text-sm">
+                            Your mark:{" "}
+                            <span className="font-semibold tabular-nums">
+                                {mark}/{data.totalMarks}
+                            </span>
+                        </p>
+                    )}
+                </BatchEnded>
+            );
+        }
+
         if (showForm) {
             const sentBack = status === "NEEDS_REVISION" || status === "REJECTED";
             // A recheck the student asked for, still waiting: they may send their work again for it.
@@ -213,11 +244,14 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                         </div>
                     )}
 
-                    {!submission && data.window.status === "LATE" && (
+                    {!submission && data.window.status === "LATE" && data.window.maxScore !== null && (
                         <p className="flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning-ink">
                             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                            The deadline has passed. Submit before {formatDateTime(data.window.until!)} and this is marked out of {data.window.maxScore} instead
-                            of {data.totalMarks}.
+                            {data.window.until
+                                ? `The deadline has passed. Submit before ${formatDateTime(data.window.until)} and this is marked out of ${data.window.maxScore} instead of ${data.totalMarks}.`
+                                : data.window.maxScore < data.totalMarks
+                                  ? `The deadline has passed, so this is marked out of ${data.window.maxScore} instead of ${data.totalMarks}. You can still submit until the batch ends.`
+                                  : "The deadline has passed, but you can still submit until the batch ends."}
                         </p>
                     )}
 
@@ -374,9 +408,11 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                             <Badge variant={data.window.status === "CLOSED" ? "destructive" : data.window.status === "LATE" ? "warning" : "secondary"}>
                                 <Clock className="size-3" aria-hidden />
                                 {data.window.status === "CLOSED"
-                                    ? "Submissions closed"
+                                    ? "Batch ended — closed"
                                     : data.window.status === "LATE"
-                                      ? `Late — out of ${data.window.maxScore} until ${formatDateTime(data.window.until!)}`
+                                      ? data.window.until
+                                          ? `Late — out of ${data.window.maxScore} until ${formatDateTime(data.window.until)}`
+                                          : `Late — out of ${data.window.maxScore}`
                                       : `Due ${formatDateTime(data.deadline)}`}
                             </Badge>
                         )}
@@ -472,6 +508,41 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                     </ModalFooter>
                 </Modal>
             )}
+        </div>
+    );
+}
+
+/**
+ * The batch is over — the course moved to Previous (recorded) — so its
+ * assignments are no longer taken or checked. Shown in place of everything
+ * else, with the student's own work and mark still a click away.
+ */
+function BatchEnded({ actions, children }: { actions?: ReactNode; children?: ReactNode }) {
+    return (
+        <div className="mx-auto max-w-xl py-6 text-center">
+            {/* A small editor window, closed for good. */}
+            <span className="relative mx-auto mb-6 block w-28" aria-hidden>
+                <span className="block overflow-hidden rounded-lg border border-border bg-card shadow-card">
+                    <span className="flex gap-1 border-b border-border bg-secondary/60 px-2 py-1.5">
+                        <span className="size-1.5 rounded-full bg-destructive/60" />
+                        <span className="size-1.5 rounded-full bg-warning/70" />
+                        <span className="size-1.5 rounded-full bg-success/60" />
+                    </span>
+                    <span className="grid h-16 place-items-center text-primary">
+                        <CodeXml className="size-8" />
+                    </span>
+                </span>
+                <span className="absolute -bottom-2 -right-3 grid size-8 place-items-center rounded-full border-4 border-card bg-muted-foreground text-card">
+                    <Lock className="size-3.5" />
+                </span>
+            </span>
+            <p className="text-balance text-xl font-bold tracking-tight">Checking for this batch has ended</p>
+            <p className="mx-auto mt-2 max-w-md text-pretty text-sm leading-relaxed text-muted-foreground">
+                This batch is over, so assignments aren&apos;t taken or checked any more. Keep practising with the lessons — they&apos;re all still here, and
+                keep building your skills.
+            </p>
+            {children}
+            {actions && <div className="mt-5 flex flex-wrap justify-center gap-2">{actions}</div>}
         </div>
     );
 }
@@ -661,6 +732,13 @@ function BriefDetails({ assignment, hasSubmission }: { assignment: StudentAssign
                                 marks: tier.maxMarks,
                                 current: window.status === "LATE" && window.until === tier.until,
                             })),
+                            // Past the last window it's still taken, out of that window's marks, until the batch ends.
+                            {
+                                key: "after",
+                                until: null,
+                                marks: lateTiers[lateTiers.length - 1].maxMarks,
+                                current: window.status === "LATE" && window.until === null,
+                            },
                         ].map((step) => (
                             <li
                                 key={step.key}
@@ -670,16 +748,18 @@ function BriefDetails({ assignment, hasSubmission }: { assignment: StudentAssign
                                     !hasSubmission && step.current ? "bg-primary/10 font-medium text-primary" : "bg-secondary/40 text-muted-foreground",
                                 )}
                             >
-                                <span>Submitted by {formatDateTime(step.until)}</span>
+                                <span>
+                                    {step.until
+                                        ? `Submitted by ${formatDateTime(step.until)}`
+                                        : `After ${formatDateTime(lateTiers[lateTiers.length - 1].until)}, until the batch ends`}
+                                </span>
                                 <span>
                                     out of {step.marks}
                                     {!hasSubmission && step.current ? " · now" : ""}
                                 </span>
                             </li>
                         ))}
-                        <li className="px-3 text-xs text-muted-foreground">
-                            After {formatDateTime(lateTiers[lateTiers.length - 1].until)}, submissions close.
-                        </li>
+                        <li className="px-3 text-xs text-muted-foreground">Submissions close only when the batch ends and the course moves to recorded.</li>
                     </ol>
                 </section>
             )}
