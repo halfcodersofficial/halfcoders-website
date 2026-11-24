@@ -41,3 +41,24 @@ const LIVE_QUERIES: QueryKey[] = [
 
 export const refreshLiveData = (queryClient: QueryClient) =>
     Promise.all(LIVE_QUERIES.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+
+/**
+ * What a "marks changed" push refreshes: every page that shows a hand-in or
+ * its mark — the review queue and its tabs, a hand-in's history, a course's
+ * results and its students, a student's record, the student's own assignment
+ * and course player, the dashboards. The marking form keeps what's being
+ * typed: it reads its starting values once, when the hand-in opens.
+ */
+const MARK_QUERIES: QueryKey[] = [
+    ["reviews"],
+    ["assignment"],
+    ["learning"],
+    ["dashboard"],
+    ["staff", "results"],
+    ["staff", "students"],
+    ["admin", "student"],
+    ["leaderboard"],
+];
+
+export const refreshMarks = (queryClient: QueryClient) =>
+    Promise.all(MARK_QUERIES.map((queryKey) => queryClient.invalidateQueries({ queryKey })));

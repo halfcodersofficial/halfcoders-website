@@ -195,10 +195,13 @@ export interface StudentSubmission {
     id: string;
     enrollmentId: string;
     status: string;
+    /** The mentor's mark, before penalties and refunds. */
     score: number | null;
+    /** The mark that counts — `score` after every penalty and refund. What to show as "the mark". */
+    finalScore: number | null;
     /** A late submission's cap; `null` means it could earn the assignment's full marks. */
     maxScore: number | null;
-    /** The score as a percentage of what it could earn. */
+    /** The final mark as a percentage of what it could earn. */
     percent: number | null;
     /** Marked out of a late window's cap rather than full marks. */
     late: boolean;

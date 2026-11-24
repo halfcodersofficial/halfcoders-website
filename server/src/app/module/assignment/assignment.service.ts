@@ -1,12 +1,21 @@
 import status from "http-status";
 import { Prisma } from "../../../generated/prisma/client";
-import { CoursePhase, MarkAdjustmentKind, NotificationType, RecheckStatus, SubmissionStatus, XpSource } from "../../../generated/prisma/enums";
+import {
+    CoursePhase,
+    MarkAdjustmentKind,
+    NotificationType,
+    RecheckStatus,
+    SubmissionStatus,
+    SubmissionVersionKind,
+    XpSource,
+} from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { IQueryParams } from "../../interfaces/query.interface";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { isSubmissionFile, SUBMISSION_FILE_FOLDER, uploadPrivateFileToCloudinary } from "../../config/cloudinary.config";
 import { prisma } from "../../lib/prisma";
-import { nameOnly, seesStudentDetails, studentSelectFor } from "../../lib/studentPrivacy";
+import { emitMarksChanged } from "../../lib/realtime";
+import { nameOnly, seesStudentDetails, studentCardFor, studentSelectFor } from "../../lib/studentPrivacy";
 import {
     ASSIGNMENT_PENALTIES,
     finalScore,
@@ -51,6 +60,20 @@ const scoreFromRubric = (
     if (over) throw new AppError(status.BAD_REQUEST, `“${over.title}” is out of ${over.maxPoints}.`);
     const sum = rubric.reduce((total, line) => total + line.points, 0);
     return maxScore === totalMarks ? sum : Math.round((sum * maxScore) / totalMarks);
+};
+
+/**
+ * A mark or a hand-in changed: everyone who may have it on screen — the
+ * course's mentors and these students — refetches and sees the latest
+ * (lib/realtime `emitMarksChanged`). Never fails the request it follows.
+ */
+const announceMarksChanged = async (courseId: string, studentIds: string[]) => {
+    try {
+        const mentors = await prisma.courseMentor.findMany({ where: { courseId }, select: { mentorId: true } });
+        emitMarksChanged([...mentors.map((row) => row.mentorId), ...studentIds]);
+    } catch (error) {
+        logger.error("Couldn't announce a marks change", { courseId, error });
+    }
 };
 
 /** A course moved to Previous (recorded): its batch is over, and its assignments with it. */
@@ -597,8 +620,23 @@ const submitAssignment = async (
     let submission;
     try {
         submission = await prisma.$transaction(async (tx) => {
+            const handedInAt = new Date();
+            // Every hand-in is kept exactly as sent — the live row holds only the latest.
+            const keepVersion = (submissionId: string, attempt: number, versionKind: SubmissionVersionKind) =>
+                tx.submissionVersion.create({
+                    data: {
+                        submissionId,
+                        attempt,
+                        kind: versionKind,
+                        content: payload.content ?? null,
+                        submissionUrl: payload.submissionUrl ?? null,
+                        fileUrls: payload.fileUrls ?? [],
+                        submittedAt: handedInAt,
+                    },
+                });
+
             if (!existing) {
-                return tx.assignmentSubmission.create({
+                const created = await tx.assignmentSubmission.create({
                     data: {
                         assignmentId,
                         studentId: user.userId,
@@ -608,8 +646,11 @@ const submitAssignment = async (
                         fileUrls: payload.fileUrls ?? [],
                         status: SubmissionStatus.SUBMITTED,
                         maxScore,
+                        submittedAt: handedInAt,
                     },
                 });
+                await keepVersion(created.id, 1, SubmissionVersionKind.FIRST);
+                return created;
             }
 
             const attempt = existing.attempts + 1;
@@ -625,13 +666,14 @@ const submitAssignment = async (
                         content: payload.content ?? null,
                         submissionUrl: payload.submissionUrl ?? null,
                         fileUrls: payload.fileUrls ?? [],
-                        submittedAt: new Date(),
+                        submittedAt: handedInAt,
                         attempts: attempt,
                     },
                 });
                 if (updated.count === 0) {
                     throw new AppError(status.CONFLICT, "Your recheck was decided while you were sending this. Reload the page to see the result.");
                 }
+                await keepVersion(existing.id, attempt, SubmissionVersionKind.RECHECK);
                 return tx.assignmentSubmission.findUniqueOrThrow({ where: { id: existing.id } });
             }
 
@@ -647,7 +689,7 @@ const submitAssignment = async (
                     submissionUrl: payload.submissionUrl ?? null,
                     fileUrls: payload.fileUrls ?? [],
                     status: SubmissionStatus.SUBMITTED,
-                    submittedAt: new Date(),
+                    submittedAt: handedInAt,
                     score: null,
                     feedback: null,
                     reviewedById: null,
@@ -660,6 +702,7 @@ const submitAssignment = async (
                 throw new AppError(status.CONFLICT, "Your hand-in changed while you were submitting. Reload the page and try again.");
             }
             await tx.rubricScore.deleteMany({ where: { submissionId: existing.id } });
+            await keepVersion(existing.id, attempt, kind === "requested" ? SubmissionVersionKind.REQUESTED : SubmissionVersionKind.VOLUNTARY);
 
             if (penalised && !payWithXp) {
                 await tx.submissionMarkAdjustment.create({
@@ -720,6 +763,7 @@ const submitAssignment = async (
     }
 
     await notifyMentorsOfHandIn(user, assignment, { kind, late: maxScore !== null, submissionId: submission.id });
+    await announceMarksChanged(assignment.courseId, [user.userId]);
 
     return {
         ...forStudent(submission, assignment.resultsPublishedAt),
@@ -930,24 +974,46 @@ const reviewSubmission = async (
 
     logger.update("Reviewing submission", { submissionId, status: payload.status });
 
-    const reviewed = await prisma.assignmentSubmission.update({
-        where: { id: submissionId },
-        data: {
-            status: payload.status,
-            score: payload.score,
-            feedback: payload.feedback,
-            reviewedById: user.userId,
-            reviewedAt: new Date(),
-            ...(payload.rubric
-                ? {
-                    rubricScores: {
-                        deleteMany: {},
-                        create: payload.rubric.map((line) => ({ criterionId: line.criterionId, points: line.points, comment: line.comment || null })),
-                    },
-                }
-                : {}),
-        },
+    const reviewedAt = new Date();
+    // The rubric lines as scored, named — kept with this marking in its history.
+    const rubricLines = payload.rubric?.map((line) => {
+        const criterion = criteria.find((entry) => entry.id === line.criterionId);
+        return { title: criterion?.title ?? "", points: line.points, maxPoints: criterion?.maxPoints ?? 0, comment: line.comment || null };
     });
+    const [reviewed] = await prisma.$transaction([
+        prisma.assignmentSubmission.update({
+            where: { id: submissionId },
+            data: {
+                status: payload.status,
+                score: payload.score,
+                feedback: payload.feedback,
+                reviewedById: user.userId,
+                reviewedAt,
+                ...(payload.rubric
+                    ? {
+                        rubricScores: {
+                            deleteMany: {},
+                            create: payload.rubric.map((line) => ({ criterionId: line.criterionId, points: line.points, comment: line.comment || null })),
+                        },
+                    }
+                    : {}),
+            },
+        }),
+        // Every marking is kept as given — the live row holds only the latest.
+        prisma.submissionReview.create({
+            data: {
+                submissionId,
+                reviewerId: user.userId,
+                status: payload.status,
+                score: payload.status === SubmissionStatus.ACCEPTED ? (payload.score ?? null) : null,
+                feedback: payload.feedback ?? null,
+                ...(rubricLines ? { rubric: rubricLines } : {}),
+                createdAt: reviewedAt,
+            },
+        }),
+    ]);
+
+    await announceMarksChanged(submission.assignment.courseId, [submission.studentId]);
 
     // A mark waits for the results: the student hears about it when they're
     // published (`publishResults`), all together. Work sent back can't wait.
@@ -1080,6 +1146,8 @@ const claimSubmission = async (user: IRequestUser, submissionId: string, takeOve
         });
     }
 
+    // Co-mentors' queues show who has it.
+    await announceMarksChanged(submission.assignment.courseId, []);
     return prisma.assignmentSubmission.findUnique({
         where: { id: submissionId },
         select: { id: true, status: true, reviewedById: true, reviewedBy: { select: { id: true, name: true } }, updatedAt: true },
@@ -1107,6 +1175,7 @@ const releaseSubmission = async (user: IRequestUser, submissionId: string) => {
         where: { id: submissionId, status: SubmissionStatus.UNDER_REVIEW, reviewedById: submission.reviewedById },
         data: { status: SubmissionStatus.SUBMITTED, reviewedById: null },
     });
+    await announceMarksChanged(submission.assignment.courseId, []);
     return { id: submissionId, status: SubmissionStatus.SUBMITTED };
 };
 
@@ -1157,6 +1226,7 @@ const publishResults = async (user: IRequestUser, assignmentId: string) => {
         },
     );
 
+    await announceMarksChanged(assignment.courseId, marked.map((row) => row.studentId));
     return { resultsPublishedAt: now, notified: marked.length, waiting };
 };
 
@@ -1219,6 +1289,7 @@ const requestRecheck = async (user: IRequestUser, assignmentId: string, payload:
         return created;
     });
     logger.create("Recheck requested", { assignmentId, studentId: user.userId, recheckId: recheck.id });
+    await announceMarksChanged(assignment.courseId, [user.userId]);
 
     const student = user.name ? { name: user.name } : await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
     await notifyCourseMentors(
@@ -1334,6 +1405,7 @@ const decideRecheck = async (
         });
     });
     logger.update("Recheck decided", { recheckId, outcome: payload.outcome });
+    await announceMarksChanged(recheck.assignment.courseId, [recheck.submission.studentId]);
 
     const adjustment = recheck.submission.markAdjustment + (valid ? fee : -extra);
     const final = finalScore(newScore, adjustment);
@@ -1379,7 +1451,62 @@ const getSubmissionById = async (user: IRequestUser, submissionId: string) => {
     return submission;
 };
 
+/**
+ * A hand-in's whole history, for its course's staff: every version the
+ * student sent (exactly as sent), every marking (decision, mark, feedback,
+ * rubric, who), every recheck and every mark taken or given back — each list
+ * newest first. A mentor sees the student's name and photo, no contacts.
+ */
+const getSubmissionHistory = async (user: IRequestUser, submissionId: string) => {
+    const submission = await prisma.assignmentSubmission.findUnique({
+        where: { id: submissionId },
+        select: {
+            id: true, status: true, score: true, maxScore: true, markAdjustment: true, attempts: true, recheckOpen: true,
+            submittedAt: true, reviewedAt: true, feedback: true,
+            student: { select: studentCardFor(user, { id: true, name: true, email: true, image: true }) },
+            assignment: {
+                select: {
+                    id: true, title: true, totalMarks: true, deadline: true, courseId: true, resultsPublishedAt: true,
+                    course: { select: { id: true, title: true, milestoneLabel: true } },
+                    milestone: { select: { id: true, title: true, order: true } },
+                },
+            },
+            versions: {
+                orderBy: { submittedAt: "desc" },
+                select: { id: true, attempt: true, kind: true, content: true, submissionUrl: true, fileUrls: true, submittedAt: true },
+            },
+            reviews: {
+                orderBy: { createdAt: "desc" },
+                select: {
+                    id: true, status: true, score: true, feedback: true, rubric: true, createdAt: true,
+                    reviewer: { select: { id: true, name: true, image: true } },
+                },
+            },
+            rechecks: {
+                orderBy: { createdAt: "desc" },
+                select: {
+                    id: true, reason: true, status: true, scoreBefore: true, scoreAfter: true, reviewerNote: true, reviewedAt: true,
+                    createdAt: true, reviewedBy: { select: { id: true, name: true, image: true } },
+                },
+            },
+            adjustments: {
+                orderBy: { createdAt: "desc" },
+                select: { id: true, kind: true, marks: true, note: true, createdAt: true },
+            },
+        },
+    });
+    if (!submission) throw new AppError(status.NOT_FOUND, "Submission not found.");
+    await assertCanManageCourse(user, submission.assignment.courseId);
+
+    return {
+        ...submission,
+        finalScore: finalScore(submission.score, submission.markAdjustment),
+        penalties: ASSIGNMENT_PENALTIES,
+    };
+};
+
 export const AssignmentService = {
+    getSubmissionHistory,
     getRubric,
     setRubric,
     claimSubmission,

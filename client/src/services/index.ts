@@ -13,6 +13,7 @@ import type {
     MentorPastSession,
     MentorSupportSession,
     ReviewQueueItem,
+    SubmissionHistory,
 } from "@/types/mentor.types";
 import type {
     CouponCheck,
@@ -432,6 +433,10 @@ export const assignmentService = {
             .then(unwrapList),
 
     /** How many hand-ins are in each state, within the same course/assignment scope — and `RECHECK`, how many have a recheck waiting. */
+    /** Staff: a hand-in's whole history — every version, marking, recheck and mark change. */
+    submissionHistory: (submissionId: string) =>
+        httpClient.get<ApiResponse<SubmissionHistory>>(`/assignments/submissions/${submissionId}/history`).then(unwrap),
+
     reviewCounts: (params?: { courseId?: string; assignmentId?: string }) =>
         httpClient
             .get<ApiResponse<Record<SubmissionStatus | "RECHECK", number>>>("/assignments/submissions/queue/counts", { params })

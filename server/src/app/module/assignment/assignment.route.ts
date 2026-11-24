@@ -104,6 +104,8 @@ router.get("/my-submissions", checkAuth(Role.STUDENT), AssignmentController.getM
 // The one route both sides share: readable by the owning student or by staff
 // who manage the course, and the service decides which.
 router.get("/submissions/:submissionId", checkAuth(), AssignmentController.getSubmissionById);
+// A hand-in's whole history — every version, marking, recheck and mark change — for its course's staff.
+router.get("/submissions/:submissionId/history", checkAuth(...STAFF), AssignmentController.getSubmissionHistory);
 
 router.get(
     "/:assignmentId",

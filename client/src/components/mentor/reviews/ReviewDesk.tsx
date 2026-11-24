@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { ArrowUpDown, ClipboardCheck, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { toast } from "sonner";
+import { finalMark } from "@/components/admin/studentDetail/format";
 import { elapsed } from "@/components/mentor/dashboard/time";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -414,7 +415,7 @@ export default function ReviewDesk({
                                                                 )}
                                                             >
                                                                 {item.status === "ACCEPTED" && item.score !== null
-                                                                    ? `${item.score}/${item.assignment.totalMarks}`
+                                                                    ? `${finalMark(item.score, item.markAdjustment)}/${item.assignment.totalMarks}`
                                                                     : STATUS_META[item.status].label}
                                                             </span>
                                                         )}

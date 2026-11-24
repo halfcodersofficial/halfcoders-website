@@ -124,6 +124,8 @@ model AssignmentSubmission {
   rubricScores RubricScore[]
   adjustments  SubmissionMarkAdjustment[]
   rechecks     AssignmentRecheck[]
+  versions     SubmissionVersion[]
+  reviews      SubmissionReview[]
 
   /// One submission row per student per assignment — a resubmission updates
   /// the existing row so mentors never see duplicates in the review queue.
@@ -191,6 +193,50 @@ model AssignmentRecheck {
   @@index([assignmentId, status])
   @@index([status])
   @@map("assignment_recheck")
+  @@schema("learning")
+}
+
+/// Every hand-in, exactly as the student sent it — the first, each
+/// resubmission, and work sent again for a recheck. The live row
+/// (`AssignmentSubmission`) holds only the latest; this is its history.
+/// Append-only.
+model SubmissionVersion {
+  id            String                @id @default(uuid(7))
+  submissionId  String
+  /// The hand-in's `attempts` once this one landed: 1 for the first.
+  attempt       Int
+  kind          SubmissionVersionKind
+  content       String?
+  submissionUrl String?
+  fileUrls      String[]              @default([])
+  submittedAt   DateTime              @default(now())
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, submittedAt])
+  @@map("submission_version")
+  @@schema("learning")
+}
+
+/// Every marking of a hand-in as it was given: the decision, the mark, the
+/// feedback and the rubric lines. The live row keeps only the latest.
+/// Append-only. A recheck's decision is kept on `AssignmentRecheck`.
+model SubmissionReview {
+  id           String           @id @default(uuid(7))
+  submissionId String
+  reviewerId   String?
+  status       SubmissionStatus
+  score        Int?
+  feedback     String?
+  /// The rubric lines as scored then: [{ title, points, maxPoints, comment }].
+  rubric       Json?
+  createdAt    DateTime         @default(now())
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewer   User?                @relation("SubmissionReviewHistory", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, createdAt])
+  @@map("submission_review")
   @@schema("learning")
 }
 

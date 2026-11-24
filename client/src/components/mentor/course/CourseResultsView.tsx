@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, Download, Search } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { finalMark } from "@/components/admin/studentDetail/format";
 import CourseRatings from "@/components/mentor/course/CourseRatings";
 import { QuizAttemptModal, QuizQuestions } from "@/components/mentor/course/QuizBreakdown";
 import { pad2, plural } from "@/components/mentor/dashboard/time";
@@ -329,10 +330,11 @@ function AssignmentRow({
                                             {row.score === null ? (
                                                 <span className="text-muted-foreground">—</span>
                                             ) : (
-                                                <>
-                                                    <span className="font-semibold">{row.score}</span>
+                                                // The mark that counts — after resubmission and recheck penalties, as the student sees it.
+                                                <span title={row.markAdjustment !== 0 ? `Given ${row.score}, ${row.markAdjustment > 0 ? "+" : "−"}${Math.abs(row.markAdjustment)} for resubmitting and rechecks` : undefined}>
+                                                    <span className="font-semibold">{finalMark(row.score, row.markAdjustment)}</span>
                                                     <span className="text-muted-foreground"> / {assignment.totalMarks}</span>
-                                                </>
+                                                </span>
                                             )}
                                         </td>
                                         <td className="px-3 py-2.5 text-muted-foreground">{formatDate(row.submittedAt)}</td>
@@ -518,7 +520,7 @@ function downloadCsv(data: CourseResults) {
             ...data.assignments.map((assignment) => {
                 const row = assignment.submissions.find((entry) => entry.student.id === id);
                 if (!row) return "";
-                return row.score !== null ? row.score : STATUS[row.status].label;
+                return row.score !== null ? (finalMark(row.score, row.markAdjustment) as number) : STATUS[row.status].label;
             }),
             ...data.quizzes.map((quiz) => quiz.results.find((entry) => entry.student.id === id)?.bestPercent ?? ""),
         ]);
