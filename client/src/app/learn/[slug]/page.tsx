@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    AlertTriangle,
     Award,
     Bold,
     Bookmark,
@@ -13,7 +12,6 @@ import {
     ChevronLeft,
     ChevronRight,
     ClipboardCheck,
-    Clock,
     Code,
     Copyright,
     Dumbbell,
@@ -30,7 +28,6 @@ import {
     Megaphone,
     NotebookPen,
     PlayCircle,
-    RotateCcw,
     Search,
     Send,
     ThumbsDown,
@@ -44,36 +41,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
-import AssignmentResult from "@/components/learn/AssignmentResult";
+import AssignmentPane from "@/components/learn/AssignmentPane";
 import LessonQuestions from "@/components/learn/LessonQuestions";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
-import MaterialList from "@/components/learn/MaterialList";
 import ModuleComplete from "@/components/learn/ModuleComplete";
 import PracticePane from "@/components/learn/PracticePane";
 import RateCourse from "@/components/learn/RateCourse";
 import ReadingLesson from "@/components/learn/ReadingLesson";
-import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import QuizPane from "@/components/shared/QuizPane";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { confirmAction, infoAlert } from "@/lib/confirm";
+import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { linkify } from "@/lib/linkify";
 import { useSession } from "@/hooks/useSession";
 import { measureYouTubeDurations } from "@/lib/youtube";
 import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
-import {
-    assignmentService,
-    leaderboardService,
-    learningService,
-    lessonService,
-    practiceService,
-    progressService,
-} from "@/services";
+import { leaderboardService, learningService, lessonService, practiceService, progressService } from "@/services";
 import type {
     BookmarkedLesson,
     CourseLearning,
@@ -83,19 +71,7 @@ import type {
     LearningVideo,
     LessonState,
 } from "@/types/domain.types";
-import type { SubmissionStatus } from "@/types/api.types";
 import type { LessonMaterial } from "@/types/learning.types";
-
-const SUBMISSION_STATUS_META: Record<
-    SubmissionStatus,
-    { label: string; variant: "default" | "secondary" | "success" | "warning" | "destructive" }
-> = {
-    SUBMITTED: { label: "Submitted — awaiting review", variant: "secondary" },
-    UNDER_REVIEW: { label: "Under review", variant: "warning" },
-    ACCEPTED: { label: "Accepted", variant: "success" },
-    NEEDS_REVISION: { label: "Changes requested", variant: "warning" },
-    REJECTED: { label: "Not accepted", variant: "destructive" },
-};
 
 const COPYRIGHT_TEXT = [
     "এই কোর্সের প্রতিটি ভিডিও, টেক্সট, অ্যাসাইনমেন্ট ও ডাউনলোডযোগ্য ফাইল Half Coders এবং সংশ্লিষ্ট মেন্টরের কপিরাইটকৃত সম্পত্তি। ভর্তি হওয়ার মানে শুধু নিজে দেখা ও শেখার অনুমতি — এই কনটেন্ট কপি, পুনরায় আপলোড, বিক্রি, অন্য কারও সাথে আর্থিক বিনিময়ে বা বিনামূল্যে শেয়ার করা, কিংবা নিজের অ্যাকাউন্টের পাসওয়ার্ড কারও সাথে শেয়ার করা — কোনোটাই অনুমোদিত নয়।",
@@ -1394,11 +1370,7 @@ export default function LearnPage() {
                             watermark={user?.email}
                         />
                     ) : activeGroup?.kind === "ASSIGNMENT" ? (
-                        <AssignmentPane
-                            slug={slug}
-                            assignmentId={activeGroup.entry.id}
-                            onOpenMaterial={(materialId) => goToAssignment(activeGroup.entry.id, materialId)}
-                        />
+                        <AssignmentPane slug={slug} assignmentId={activeGroup.entry.id} />
                     ) : activeGroup?.kind === "PRACTICE" ? (
                         // Only a practice day with no lessons shows its own page.
                         <PracticePane key={activeGroup.entry.id} practice={activeGroup.entry} isPreview={data.isPreview} />
@@ -2900,414 +2872,5 @@ function WeekRoute({
                 </li>
             ))}
         </ul>
-    );
-}
-
-/**
- * The assignment brief and its submission box, swapped into the player pane
- * in place of the video — an assignment is just another piece of lesson
- * content, not a separate destination, so opening one never navigates away
- * from the course shell (header, sidebar, everything stays put).
- */
-function AssignmentPane({
-    slug,
-    assignmentId,
-    onOpenMaterial,
-}: {
-    slug: string;
-    assignmentId: string;
-    /** Opens one of its lessons in the player. */
-    onOpenMaterial: (materialId: string) => void;
-}) {
-    const queryClient = useQueryClient();
-    const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-    const [draft, setDraft] = useState("");
-    const [files, setFiles] = useState<AttachedFile[]>([]);
-    // A resubmission that costs marks opens only when asked for — never by accident.
-    const [editing, setEditing] = useState(false);
-    useEffect(() => setEditing(false), [assignmentId]);
-
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ["assignment", assignmentId],
-        queryFn: () => assignmentService.get(assignmentId),
-    });
-
-    const submission = data?.submission ?? null;
-
-    // One box in, one box out: the link and the notes are pre-joined here the
-    // same way they're split apart on submit, so editing an existing attempt
-    // doesn't drop either half of it.
-    useEffect(() => {
-        setDraft([submission?.submissionUrl, submission?.content].filter(Boolean).join("\n\n"));
-        setDescriptionExpanded(false);
-    }, [assignmentId, submission?.id, submission?.content, submission?.submissionUrl]);
-
-    // A resubmission starts from the files already handed in; any can be taken off.
-    const submittedFiles = submission?.fileUrls.join("\n") ?? "";
-    useEffect(() => {
-        setFiles(submittedFiles ? submittedFiles.split("\n").map(attachedFrom) : []);
-    }, [assignmentId, submittedFiles]);
-
-    const refresh = () => {
-        void queryClient.invalidateQueries({ queryKey: ["assignment", assignmentId] });
-        void queryClient.invalidateQueries({ queryKey: ["learning", slug] });
-    };
-
-    const submit = useMutation({
-        mutationFn: ({ content, acceptPenalty }: { content: string; acceptPenalty: boolean }) => {
-            const urlMatch = content.match(/https?:\/\/\S+/);
-            const submissionUrl = urlMatch ? urlMatch[0].replace(/[.,;:!?)\]]+$/, "") : undefined;
-            return assignmentService.submit(assignmentId, {
-                content: content || undefined,
-                submissionUrl,
-                fileUrls: files.map((file) => file.url),
-                acceptPenalty: acceptPenalty || undefined,
-            });
-        },
-        onSuccess: (result) => {
-            toast.success(
-                result?.penalty
-                    ? `Resubmitted — ${result.penalty.marks} marks${result.penalty.xp ? ` and ${result.penalty.xp} XP` : ""} were taken.`
-                    : "Submitted — your mentor will review it shortly.",
-            );
-            setEditing(false);
-            refresh();
-            void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
-        },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't submit your work.")),
-    });
-
-    if (isLoading) {
-        return (
-            <div className="space-y-4">
-                <Skeleton className="h-40" />
-                <Skeleton className="h-64" />
-            </div>
-        );
-    }
-
-    if (isError || !data) {
-        return (
-            <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-10 text-center">
-                <AlertTriangle className="mx-auto mb-3 size-8 text-muted-foreground" />
-                <p className="font-medium">Can&apos;t open this assignment</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    {getApiErrorMessage(error, "It may not be published yet.")}
-                </p>
-            </div>
-        );
-    }
-
-    // Waiting, before the results: it may well be marked already — the mark just isn't out yet.
-    const statusMeta = submission
-        ? submission.status === "SUBMITTED" && !data.resultsPublished
-            ? { label: "Marks & feedback in progress", variant: "secondary" as const }
-            : SUBMISSION_STATUS_META[submission.status]
-        : null;
-    // A resubmission that costs marks and XP, before the results are out.
-    const paid = data.resubmitCost;
-    const showForm = data.canSubmit && (!paid || editing);
-    const resubmissions = submission?.adjustments.filter((entry) => entry.kind === "RESUBMIT_PENALTY").length ?? 0;
-    const description = data.description ?? "";
-    const isLongDescription = description.length > 420;
-    const shownDescription =
-        !descriptionExpanded && isLongDescription ? `${description.slice(0, 420)}…` : description;
-
-    return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge>{data.totalMarks} marks</Badge>
-                {/* Only while there's no submission yet — after that, what counts
-                    is the mark the first submission fixed, shown below. */}
-                {data.deadline && !submission && (
-                    <Badge
-                        variant={
-                            data.window.status === "CLOSED"
-                                ? "destructive"
-                                : data.window.status === "LATE"
-                                    ? "warning"
-                                    : "secondary"
-                        }
-                    >
-                        <Clock className="size-3" />
-                        {data.window.status === "CLOSED"
-                            ? "Submissions closed"
-                            : data.window.status === "LATE"
-                                ? `Late — out of ${data.window.maxScore} until ${formatDateTime(data.window.until!)}`
-                                : `Due ${formatDateTime(data.deadline)}`}
-                    </Badge>
-                )}
-                {statusMeta && <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>}
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h2 className="mb-3 text-xl font-bold">{data.title}</h2>
-                <p className="whitespace-pre-line text-sm text-muted-foreground wrap-break-word">{linkify(shownDescription)}</p>
-                {isLongDescription && (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 rounded-full"
-                        onClick={() => setDescriptionExpanded((v) => !v)}
-                    >
-                        {descriptionExpanded ? "See less" : "See more"}
-                    </Button>
-                )}
-
-                {data.deadline && data.lateTiers.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Marking schedule</h3>
-                        <ol className="space-y-1.5 text-sm">
-                            {[
-                                { key: "deadline", until: data.deadline, marks: data.totalMarks, current: data.window.status === "ON_TIME" },
-                                ...data.lateTiers.map((tier) => ({
-                                    key: tier.until,
-                                    until: tier.until,
-                                    marks: tier.maxMarks,
-                                    current: data.window.status === "LATE" && data.window.until === tier.until,
-                                })),
-                            ].map((step) => (
-                                <li
-                                    key={step.key}
-                                    aria-current={!submission && step.current ? "true" : undefined}
-                                    className={cn(
-                                        "flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2",
-                                        !submission && step.current
-                                            ? "bg-primary/10 font-medium text-primary"
-                                            : "bg-secondary/40 text-muted-foreground",
-                                    )}
-                                >
-                                    <span>Submitted by {formatDateTime(step.until)}</span>
-                                    <span>
-                                        out of {step.marks}
-                                        {!submission && step.current ? " · now" : ""}
-                                    </span>
-                                </li>
-                            ))}
-                            <li className="px-3 text-xs text-muted-foreground">
-                                After {formatDateTime(data.lateTiers[data.lateTiers.length - 1].until)}, submissions close.
-                            </li>
-                        </ol>
-                    </div>
-                )}
-
-                {data.instructions && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Instructions</h3>
-                        <div
-                            className="text-sm leading-relaxed text-muted-foreground"
-                            // Escaped and link-restricted by renderLightMarkdown.
-                            dangerouslySetInnerHTML={{ __html: renderLightMarkdown(data.instructions) }}
-                        />
-                    </div>
-                )}
-
-                {data.rubric?.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">How it&apos;s marked</h3>
-                        <ul className="divide-y divide-border rounded-lg border border-border text-sm">
-                            {data.rubric.map((line) => (
-                                <li key={line.id} className="flex items-start justify-between gap-4 px-3 py-2">
-                                    <span className="min-w-0">
-                                        <span className="block font-medium">{line.title}</span>
-                                        {line.description && <span className="block text-xs text-muted-foreground">{line.description}</span>}
-                                    </span>
-                                    <span className="shrink-0 tabular-nums text-muted-foreground">{line.maxPoints} marks</span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {data.attachments.length > 0 && (
-                    <div className="mt-4 border-t border-border pt-4">
-                        <h3 className="mb-2 font-semibold">Attachments</h3>
-                        <ul className="space-y-1.5">
-                            {data.attachments.map((url, index) => (
-                                <li key={url}>
-                                    <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                                    >
-                                        <FileText className="size-4" />
-                                        Attachment {index + 1}
-                                        <ExternalLink className="size-3" />
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </div>
-
-            {/* The assignment's own lessons — what to watch, read or open before
-                submitting. Each opens in the player, like a module's lesson. */}
-            <MaterialList materials={data.materials} onOpen={onOpenMaterial} intro="Watch, read or open these before you submit." />
-
-            {/* The verdict, whenever the student may see one: the final mark with
-                how it was reached and the rechecks, or the feedback on work sent
-                back. A mark waiting for the results shows nothing here. */}
-            {submission?.reviewedAt && <AssignmentResult assignment={data} submission={submission} onChanged={refresh} />}
-
-            {/* Submission — a single box, the same way the reference platform
-                takes a link and a description as one free-text paste rather
-                than two separate form fields. */}
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h2 className="mb-4 font-semibold">
-                    {submission ? "Your submission" : "Submit your work"}
-                </h2>
-
-                {showForm ? (
-                    <form
-                        className="space-y-4"
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            if (!draft.trim() && files.length === 0) {
-                                toast.error(
-                                    "Add your work before submitting: paste a link, write an answer, or attach a file.",
-                                );
-                                return;
-                            }
-                            // What it costs, asked once more right before it's taken.
-                            if (
-                                paid &&
-                                !(await confirmAction({
-                                    title: `Resubmit for ${paid.marks} marks and ${paid.xp} XP?`,
-                                    text: `${paid.marks} marks come off your final mark and ${paid.xp} XP off your course XP. Your new work replaces the old one and goes back to your mentor.`,
-                                    confirmText: "Resubmit",
-                                    tone: "default",
-                                }))
-                            ) {
-                                return;
-                            }
-                            submit.mutate({ content: draft.trim(), acceptPenalty: Boolean(paid) });
-                        }}
-                    >
-                        <textarea
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            placeholder="Paste your GitHub repo link, live demo link, and any notes for your mentor…"
-                            rows={7}
-                            maxLength={20_000}
-                            className="w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary"
-                        />
-
-                        <SubmissionFiles assignmentId={assignmentId} files={files} onChange={setFiles} disabled={submit.isPending} />
-
-                        {submission?.status === "NEEDS_REVISION" && (
-                            <p className="flex items-start gap-2 rounded-lg bg-accent/10 p-3 text-sm">
-                                <RotateCcw className="mt-0.5 size-4 shrink-0" />
-                                Resubmitting replaces your previous attempt and sends it back for review.
-                                {submission.maxScore !== null
-                                    ? ` It stays marked out of ${submission.maxScore}, as when you first submitted.`
-                                    : " It's still marked out of the full total — a requested revision is never late."}
-                            </p>
-                        )}
-
-                        {!submission && data.window.status === "LATE" && (
-                            <p className="flex items-start gap-2 rounded-lg bg-accent/10 p-3 text-sm">
-                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                                The deadline has passed. Submit before {formatDateTime(data.window.until!)} and this
-                                is marked out of {data.window.maxScore} instead of {data.totalMarks}.
-                            </p>
-                        )}
-
-                        {paid && (
-                            <p className="flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-sm text-warning-ink">
-                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                                Resubmitting now costs {paid.marks} marks off your final mark and {paid.xp} XP. Your new work
-                                replaces the old one and goes back to your mentor.
-                            </p>
-                        )}
-
-                        <div className="flex flex-wrap gap-2">
-                            <Button type="submit" size="lg" isLoading={submit.isPending}>
-                                {!submission ? "Submit assignment" : paid ? `Resubmit · −${paid.marks} marks, −${paid.xp} XP` : "Resubmit"}
-                            </Button>
-                            {paid && (
-                                <Button type="button" size="lg" variant="outline" onClick={() => setEditing(false)} disabled={submit.isPending}>
-                                    Cancel
-                                </Button>
-                            )}
-                        </div>
-                    </form>
-                ) : (
-                    <div className="space-y-4">
-                        {submission?.status === "ACCEPTED" && (
-                            <p className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-sm text-success">
-                                <CheckCircle2 className="size-4" />
-                                {data.canRecheck
-                                    ? "Your result is in. Think the mark is wrong? Ask for a recheck above."
-                                    : "Your result is in — nothing more to do."}
-                            </p>
-                        )}
-
-                        {submission?.status === "SUBMITTED" && !data.resultsPublished && (
-                            <div className="space-y-3 rounded-lg bg-secondary p-3 text-sm">
-                                <p className="text-muted-foreground">
-                                    Your mentor will mark it. Marks and feedback show here once the results are published —
-                                    you&apos;ll be notified.
-                                </p>
-                                {/* Before the results: resubmitting is open, at a cost. */}
-                                {paid && (
-                                    <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-3">
-                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
-                                            <RotateCcw className="size-3.5" /> Resubmit
-                                        </Button>
-                                        <span className="text-xs text-muted-foreground">
-                                            Costs {paid.marks} marks and {paid.xp} XP each time, until the results are published.
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {submission?.status === "SUBMITTED" && data.resultsPublished && (
-                            <p className="rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
-                                The results are out, but yours hasn&apos;t been marked yet. It shows here as soon as it is.
-                            </p>
-                        )}
-
-                        {submission?.status === "UNDER_REVIEW" && (
-                            <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
-                                Your mentor has started reviewing this. You&apos;ll be notified when there&apos;s feedback.
-                            </p>
-                        )}
-
-                        {submission?.content && (
-                            <p className="whitespace-pre-line text-sm">{submission.content}</p>
-                        )}
-
-                        {submission && submission.fileUrls.length > 0 && (
-                            <SubmissionFiles assignmentId={assignmentId} files={submission.fileUrls.map(attachedFrom)} onChange={() => {}} disabled />
-                        )}
-
-                        {submission && (
-                            <p className="text-xs text-muted-foreground">
-                                Submitted {formatDateTime(submission.submittedAt)}
-                                {submission.maxScore !== null &&
-                                    ` · late, so marked out of ${submission.maxScore} of ${data.totalMarks}`}
-                                {/* What resubmitting has cost so far. */}
-                                {resubmissions > 0 &&
-                                    ` · resubmitted ${resubmissions} ${resubmissions === 1 ? "time" : "times"}: −${resubmissions * data.penalties.resubmitMarks} marks${submission.xpDeducted ? `, −${submission.xpDeducted} XP` : ""}`}
-                            </p>
-                        )}
-
-                        {!submission && data.window.status === "CLOSED" && (
-                            <p className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                                <AlertTriangle className="size-4" />
-                                {data.lateTiers.length > 0
-                                    ? "Submissions have closed — the last late window has passed."
-                                    : "The deadline passed before you submitted."}{" "}
-                                Talk to your mentor in a support session.
-                            </p>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
     );
 }

@@ -52,6 +52,8 @@ export const submitAssignmentZodSchema = z
         fileUrls: z.array(z.string().url()).max(10).optional(),
         /** The student has seen and accepted what resubmitting costs — required whenever it costs anything. */
         acceptPenalty: z.boolean().optional(),
+        /** How a paid resubmission is paid for: marks off the final mark, or XP. Required with `acceptPenalty`. */
+        payWith: z.enum(["MARKS", "XP"]).optional(),
     })
     // An empty submission is almost always a mis-click, and it would otherwise
     // sit in the mentor's review queue with nothing to review.

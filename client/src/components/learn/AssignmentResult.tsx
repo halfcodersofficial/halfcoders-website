@@ -34,47 +34,22 @@ const signed = (marks: number) => (marks > 0 ? `+${marks}` : `−${Math.abs(mark
 const MIN_REASON = 10;
 
 /**
- * A hand-in's verdict, once the student may see it. Work sent back shows the
- * mentor's feedback. A mark shows as the final mark — the mentor's mark after
- * every penalty and refund — with each change listed under it, the feedback
- * and rubric, and the rechecks: asked for here, with what one costs spelled
- * out before it's sent, and each past one with what came of it.
+ * The mentor's verdict on a hand-in, in full — what the "Feedback" popup
+ * shows: how the final mark was reached (the mentor's mark, then every
+ * penalty and refund), the written feedback, the rubric, who marked it, and
+ * every recheck with what came of it.
  */
-export default function AssignmentResult({
-    assignment,
-    submission,
-    onChanged,
-}: {
-    assignment: StudentAssignment;
-    submission: AssignmentSubmission;
-    /** After a recheck is asked for: the page refetches. */
-    onChanged: () => void;
-}) {
-    const [asking, setAsking] = useState(false);
+export function ResultDetails({ assignment, submission }: { assignment: StudentAssignment; submission: AssignmentSubmission }) {
     const accepted = submission.status === "ACCEPTED";
     const outOf = assignment.totalMarks;
     const { penalties } = assignment;
+    const hasRubric = (submission.rubricScores?.length ?? 0) > 0;
 
     return (
-        <div className={cn("rounded-xl border p-6 shadow-sm", accepted ? "border-success/40 bg-success/5" : "border-accent/40 bg-accent/5")}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="flex items-center gap-2 font-semibold">
-                    <MessageSquare className="size-4" aria-hidden /> {accepted ? "Your result" : "Mentor feedback"}
-                </h2>
-                {accepted && submission.finalScore !== null && (
-                    <span className="text-lg font-bold tabular-nums">
-                        {submission.finalScore}
-                        <span className="text-sm font-normal text-muted-foreground">
-                            /{outOf}
-                            {submission.maxScore !== null && ` · late, marked out of ${submission.maxScore}`}
-                        </span>
-                    </span>
-                )}
-            </div>
-
+        <div className="space-y-4">
             {/* How the final mark was reached — only when anything changed it. */}
             {accepted && submission.score !== null && submission.adjustments.length > 0 && (
-                <dl className="mt-4 divide-y divide-border/60 rounded-lg border border-border/60 bg-card/60 text-sm">
+                <dl className="divide-y divide-border/60 rounded-lg border border-border/60 bg-card/60 text-sm">
                     <div className="flex items-baseline justify-between gap-4 px-3 py-2">
                         <dt>Your mentor&apos;s mark</dt>
                         <dd className="font-semibold tabular-nums">{submission.score}</dd>
@@ -99,10 +74,19 @@ export default function AssignmentResult({
                 </dl>
             )}
 
-            {submission.feedback && <p className="mt-4 whitespace-pre-line text-sm">{submission.feedback}</p>}
+            <section aria-label="Feedback">
+                <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
+                    <MessageSquare className="size-4 text-primary" aria-hidden /> What your mentor said
+                </h3>
+                {submission.feedback ? (
+                    <p className="whitespace-pre-line text-sm wrap-break-word">{submission.feedback}</p>
+                ) : (
+                    <p className="text-sm text-muted-foreground">No written feedback{hasRubric ? " — the marks per part are below." : "."}</p>
+                )}
+            </section>
 
-            {(submission.rubricScores?.length ?? 0) > 0 && (
-                <ul className="mt-4 divide-y divide-border/60 rounded-lg border border-border/60 bg-card/60 text-sm">
+            {hasRubric && (
+                <ul className="divide-y divide-border/60 rounded-lg border border-border/60 bg-card/60 text-sm">
                     {assignment.rubric.map((line) => {
                         const given = submission.rubricScores?.find((score) => score.criterionId === line.id);
                         if (!given) return null;
@@ -123,57 +107,35 @@ export default function AssignmentResult({
             )}
 
             {submission.reviewedBy && submission.reviewedAt && (
-                <div className="mt-3 flex items-center gap-2 border-t border-border/50 pt-3">
+                <div className="flex items-center gap-2 border-t border-border/50 pt-3">
                     <Avatar src={submission.reviewedBy.image} name={submission.reviewedBy.name} size={28} />
                     <span className="text-xs text-muted-foreground">
-                        {submission.reviewedBy.name} · {formatDateTime(submission.reviewedAt)}
+                        Marked by {submission.reviewedBy.name} · {formatDateTime(submission.reviewedAt)}
                     </span>
                 </div>
             )}
 
-            {accepted && (assignment.canRecheck || submission.rechecks.length > 0) && (
-                <section aria-label="Rechecks" className="mt-5 space-y-3 border-t border-border/50 pt-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h3 className="flex items-center gap-2 text-sm font-semibold">
-                            <Scale className="size-4" aria-hidden /> Recheck
-                        </h3>
-                        {assignment.canRecheck && (
-                            <Button type="button" size="sm" variant="outline" onClick={() => setAsking(true)}>
-                                Ask for a recheck
-                            </Button>
-                        )}
-                    </div>
-                    {assignment.canRecheck && submission.rechecks.length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                            Think your mark is wrong? Ask your mentor to look again. It costs {penalties.recheckFeeMarks} marks, which you get
-                            back if your mark goes up.
-                        </p>
-                    )}
-                    {submission.rechecks.length > 0 && (
-                        <ol className="space-y-2">
-                            {submission.rechecks.map((recheck) => (
-                                <RecheckEntry key={recheck.id} recheck={recheck} penalties={penalties} />
-                            ))}
-                        </ol>
-                    )}
+            {submission.rechecks.length > 0 && (
+                <section aria-label="Rechecks" className="space-y-2 border-t border-border/50 pt-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold">
+                        <Scale className="size-4 text-primary" aria-hidden /> Your rechecks
+                    </h3>
+                    <ol className="space-y-2">
+                        {submission.rechecks.map((recheck) => (
+                            <RecheckEntry key={recheck.id} recheck={recheck} penalties={penalties} />
+                        ))}
+                    </ol>
                 </section>
             )}
-
-            <RecheckDialog
-                open={asking}
-                onOpenChange={setAsking}
-                assignmentId={assignment.id}
-                currentMark={submission.finalScore ?? 0}
-                outOf={outOf}
-                penalties={penalties}
-                onDone={() => {
-                    setAsking(false);
-                    onChanged();
-                }}
-            />
         </div>
     );
 }
+
+/** The newest recheck in a few words, for under the score. Null when there's none. */
+export const latestRecheckLabel = (submission: AssignmentSubmission) => {
+    const latest = submission.rechecks[0];
+    return latest ? `Recheck: ${RECHECK_META[latest.status].label.toLowerCase()}` : null;
+};
 
 /** One recheck: when it was asked, why, and what came of it. */
 function RecheckEntry({ recheck, penalties }: { recheck: AssignmentRecheck; penalties: StudentAssignment["penalties"] }) {
@@ -214,7 +176,7 @@ function RecheckEntry({ recheck, penalties }: { recheck: AssignmentRecheck; pena
  * Asking for a recheck: why, in the student's words, under exactly what it
  * costs and what each outcome means — so nobody is surprised by the fee.
  */
-function RecheckDialog({
+export function RecheckDialog({
     open,
     onOpenChange,
     assignmentId,
