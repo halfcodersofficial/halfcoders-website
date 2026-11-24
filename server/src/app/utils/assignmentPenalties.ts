@@ -12,7 +12,8 @@ import { SubmissionStatus } from "../../generated/prisma/enums";
  * A resubmission the mentor asked for ("Needs revision", or a rejection) is
  * free. After publication resubmitting closes; a recheck costs
  * `recheckFeeMarks` at once — refunded if the mark is raised, followed by a
- * further `recheckInvalidMarks` if it stands.
+ * further `recheckInvalidMarks` if it stands. While a recheck waits, the
+ * student may send their work again for it at no further cost.
  */
 export const ASSIGNMENT_PENALTIES = {
     resubmitMarks: 3,

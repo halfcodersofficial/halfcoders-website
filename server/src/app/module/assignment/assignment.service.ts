@@ -55,16 +55,18 @@ const scoreFromRubric = (
 
 /**
  * What handing an assignment in right now would be: the first hand-in, a
- * resubmission the mentor asked for (changes asked, or rejected — free), a
- * resubmission of the student's own choosing before the results are out
- * (charged), or none at all (`null`: in review, or results out).
+ * resubmission the mentor asked for (changes asked, or rejected — free), the
+ * work sent again for a recheck the student asked for (free — the recheck fee
+ * covers it), a resubmission of the student's own choosing before the results
+ * are out (charged), or none at all (`null`: in review, or results out).
  */
 const nextHandIn = (
-    existing: { status: SubmissionStatus } | null,
+    existing: { status: SubmissionStatus; recheckOpen?: boolean } | null,
     resultsPublishedAt: Date | null,
-): "first" | "requested" | "voluntary" | null => {
+): "first" | "requested" | "recheck" | "voluntary" | null => {
     if (!existing) return "first";
     if (existing.status === SubmissionStatus.NEEDS_REVISION || existing.status === SubmissionStatus.REJECTED) return "requested";
+    if (existing.status === SubmissionStatus.ACCEPTED && existing.recheckOpen) return "recheck";
     if (existing.status === SubmissionStatus.UNDER_REVIEW || resultsPublishedAt) return null;
     return "voluntary";
 };
@@ -390,9 +392,10 @@ const getAssignmentForStudent = async (user: IRequestUser, assignmentId: string)
         // The amounts, from the one place they're set — what the page shows is what's taken.
         penalties: ASSIGNMENT_PENALTIES,
         // A first hand-in needs a window still open (its mark cap is fixed
-        // then); work sent back can always be reworked; before the results
-        // are out a student may resubmit at a cost; in review, or once the
-        // results are out, not at all.
+        // then); work sent back can always be reworked; while a recheck the
+        // student asked for waits, they may send their work again for it;
+        // before the results are out a student may resubmit at a cost; in
+        // review, or once the results are out, not at all.
         canSubmit: next === "first" ? window.status !== "CLOSED" : next !== null,
         // What the next hand-in costs — the marks *or* the XP, the student's
         // choice — and the XP they have to pay with. Null when it's free.
@@ -439,13 +442,29 @@ const uploadSubmissionFiles = async (user: IRequestUser, assignmentId: string, f
 const notifyMentorsOfHandIn = async (
     user: IRequestUser,
     assignment: { id: string; courseId: string; title: string; course: { title: string } },
-    { kind, late }: { kind: "first" | "requested" | "voluntary"; late: boolean },
+    { kind, late, submissionId }: { kind: "first" | "requested" | "recheck" | "voluntary"; late: boolean; submissionId: string },
 ) => {
     const [waiting, student] = await Promise.all([
         prisma.assignmentSubmission.count({ where: { assignmentId: assignment.id, status: SubmissionStatus.SUBMITTED } }),
         user.name ? { name: user.name } : prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } }),
     ]);
     const who = student?.name ?? "A student";
+
+    // Work sent again for a recheck goes to the recheck, not the marking queue.
+    if (kind === "recheck") {
+        await notifyCourseMentors(
+            assignment.courseId,
+            {
+                title: `Recheck: work sent again for ${assignment.title}`,
+                message: `${who} sent their work again for their recheck · ${assignment.course.title}`,
+                type: NotificationType.ASSIGNMENT,
+                link: `/mentor/reviews?course=${assignment.courseId}&assignment=${assignment.id}&recheck=open&focus=${submissionId}`,
+            },
+            { except: user.userId },
+        );
+        return;
+    }
+
     const what =
         kind === "requested"
             ? "resubmitted it after your feedback"
@@ -510,7 +529,7 @@ const submitAssignment = async (
 
     const existing = await prisma.assignmentSubmission.findUnique({
         where: { assignmentId_studentId: { assignmentId, studentId: user.userId } },
-        select: { id: true, status: true, maxScore: true, attempts: true },
+        select: { id: true, status: true, maxScore: true, attempts: true, recheckOpen: true },
     });
 
     if (existing?.status === SubmissionStatus.UNDER_REVIEW) {
@@ -524,7 +543,7 @@ const submitAssignment = async (
         throw new AppError(
             status.CONFLICT,
             existing?.status === SubmissionStatus.ACCEPTED
-                ? "The results are out, so this can't be resubmitted any more. If you think your mark is wrong, ask for a recheck."
+                ? "The results are out, so this can't be resubmitted any more. If you think your mark is wrong, ask for a recheck — then you can send it again."
                 : "The results for this assignment have been published, so it can't be resubmitted any more.",
         );
     }
@@ -587,6 +606,28 @@ const submitAssignment = async (
             }
 
             const attempt = existing.attempts + 1;
+
+            // Sent again for a recheck: only the work changes. The mark, the
+            // feedback and the recheck stay — the mentor decides the recheck
+            // on this version. Guarded on the recheck still waiting, so work
+            // can't land after it's been decided.
+            if (kind === "recheck") {
+                const updated = await tx.assignmentSubmission.updateMany({
+                    where: { id: existing.id, attempts: existing.attempts, status: SubmissionStatus.ACCEPTED, recheckOpen: true },
+                    data: {
+                        content: payload.content ?? null,
+                        submissionUrl: payload.submissionUrl ?? null,
+                        fileUrls: payload.fileUrls ?? [],
+                        submittedAt: new Date(),
+                        attempts: attempt,
+                    },
+                });
+                if (updated.count === 0) {
+                    throw new AppError(status.CONFLICT, "Your recheck was decided while you were sending this. Reload the page to see the result.");
+                }
+                return tx.assignmentSubmission.findUniqueOrThrow({ where: { id: existing.id } });
+            }
+
             // Conditional on the attempt and state just read — see the doc comment.
             // `maxScore` deliberately untouched: it was fixed by the first submission.
             // A resubmission replaces the attempt whole — a field left out is cleared,
@@ -671,7 +712,7 @@ const submitAssignment = async (
         });
     }
 
-    await notifyMentorsOfHandIn(user, assignment, { kind, late: maxScore !== null });
+    await notifyMentorsOfHandIn(user, assignment, { kind, late: maxScore !== null, submissionId: submission.id });
 
     return {
         ...forStudent(submission, assignment.resultsPublishedAt),

@@ -118,6 +118,11 @@ export default function RecheckPanel({
                 <p className="mt-2 text-xs text-muted-foreground">
                     Your mark: <span className="font-semibold text-foreground">{before}</span> / {total}. The {fee}-mark fee is already taken.
                 </p>
+                {new Date(submission.submittedAt) > new Date(recheck.createdAt) && (
+                    <p className="mt-2 text-xs font-medium text-foreground">
+                        The student sent their work again for this recheck ({formatDateTime(submission.submittedAt)}) — the hand-in above is that new version.
+                    </p>
+                )}
             </section>
 
             <fieldset>

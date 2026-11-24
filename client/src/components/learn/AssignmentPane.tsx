@@ -22,7 +22,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { latestRecheckLabel, RecheckDialog, ResultDetails } from "@/components/learn/AssignmentResult";
+import { MarkChanges, RecheckDialog, RecheckResult, ResultDetails } from "@/components/learn/AssignmentResult";
 import SubmissionFiles, { attachedFrom, type AttachedFile } from "@/components/learn/SubmissionFiles";
 import { Eyebrow } from "@/components/site/code";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +111,9 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                     ? penalty.xp > 0
                         ? `Resubmitted — ${penalty.xp} XP was taken.`
                         : `Resubmitted — ${penalty.marks} marks will come off your final mark.`
-                    : "Submitted — your mentor will check it.",
+                    : submission?.recheckOpen
+                      ? "Sent — your mentor will recheck this version."
+                      : "Submitted — your mentor will check it.",
             );
             setPayWith(null);
             refresh();
@@ -149,7 +151,8 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     const showDetails = detailsOpen ?? (!submission && Boolean(data.instructions));
 
     const mySubmissionButton = (
-        <Button variant="outline" className="rounded-full" onClick={() => setPopup("submission")}>
+        // A plain button — it also sits inside the answer form while a recheck waits.
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => setPopup("submission")}>
             <FileText className="size-4" aria-hidden /> My submission
         </Button>
     );
@@ -158,6 +161,8 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
     const stage = (() => {
         if (showForm) {
             const sentBack = status === "NEEDS_REVISION" || status === "REJECTED";
+            // A recheck the student asked for, still waiting: they may send their work again for it.
+            const forRecheck = Boolean(submission?.recheckOpen);
             return (
                 <form
                     className="mx-auto max-w-3xl space-y-4"
@@ -183,6 +188,28 @@ export default function AssignmentPane({ slug, assignmentId }: { slug: string; a
                                     ? ` It stays marked out of ${submission.maxScore}, as when you first submitted.`
                                     : " It's still marked out of the full total."}
                             </p>
+                        </div>
+                    )}
+
+                    {forRecheck && submission && (
+                        <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
+                            <p className="flex items-center gap-2 font-semibold">
+                                <Scale className="size-4 shrink-0 text-primary" aria-hidden />
+                                Recheck asked — your mentor will look at it again
+                            </p>
+                            <p className="mt-1.5 text-muted-foreground">
+                                Your mark for now:{" "}
+                                <span className="font-semibold tabular-nums text-foreground">
+                                    {submission.finalScore}/{data.totalMarks}
+                                </span>
+                                . Fixed something? Send your work again below — it&apos;s free, and your mentor rechecks the version you send.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {mySubmissionButton}
+                                <Button type="button" variant="outline" className="rounded-full" onClick={() => setPopup("feedback")}>
+                                    <MessageSquare className="size-4" aria-hidden /> Feedback
+                                </Button>
+                            </div>
                         </div>
                     )}
 
@@ -494,9 +521,6 @@ function ScoreStage({
     onFeedback: () => void;
     onRecheck: () => void;
 }) {
-    const changed = submission.score !== null && submission.finalScore !== submission.score;
-    const recheck = latestRecheckLabel(submission);
-
     return (
         <div className="mx-auto max-w-xl text-center">
             <span className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
@@ -508,12 +532,8 @@ function ScoreStage({
                     {submission.finalScore}/{assignment.totalMarks}
                 </span>
             </div>
-            {(submission.maxScore !== null || changed) && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                    {submission.maxScore !== null && `Handed in late, so marked out of ${submission.maxScore}. `}
-                    {changed && `Your mentor gave ${submission.score} — what changed it is under Feedback.`}
-                </p>
-            )}
+            {submission.maxScore !== null && <p className="mt-3 text-xs text-muted-foreground">Handed in late, so marked out of {submission.maxScore}.</p>}
+            <MarkChanges submission={submission} />
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {mySubmissionButton}
@@ -527,15 +547,13 @@ function ScoreStage({
                 )}
             </div>
 
-            {recheck ? (
-                <p className="mt-3 text-xs text-muted-foreground">{recheck} — the details are under Feedback.</p>
-            ) : (
-                assignment.canRecheck && (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                        Think a mark is wrong? A recheck costs {assignment.penalties.recheckFeeMarks} marks — you get them back if your mark goes up.
-                    </p>
-                )
+            {assignment.canRecheck && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                    Think a mark is wrong? A recheck costs {assignment.penalties.recheckFeeMarks} marks — you get them back if your mark goes up. You can send
+                    your work again with it.
+                </p>
             )}
+            <RecheckResult submission={submission} penalties={assignment.penalties} />
         </div>
     );
 }

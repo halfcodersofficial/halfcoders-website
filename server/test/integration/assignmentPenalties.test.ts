@@ -155,11 +155,38 @@ describe("assignment results, penalties and rechecks", () => {
         expect((await review(submissionId, { status: "ACCEPTED", score: 95 })).status).toBe(409);
     });
 
+    it("lets the student send their work again while the recheck waits — free, the mark and feedback kept", async () => {
+        const before = await view();
+        expect(before).toMatchObject({ canSubmit: true, resubmitCost: null });
+
+        const res = await submit(student, { content: "Fixed for the recheck" });
+        expect(res.status).toBe(201);
+        expect(res.body.data.penalty).toBeNull();
+
+        const { submission } = await view();
+        expect(submission).toMatchObject({
+            status: "ACCEPTED",
+            score: 80,
+            finalScore: 75,
+            feedback: "Good",
+            recheckOpen: true,
+            content: "Fixed for the recheck",
+            attempts: 4,
+        });
+        expect(await adjustments()).toEqual([
+            { kind: "RESUBMIT_PENALTY", marks: -3 },
+            { kind: "RECHECK_FEE", marks: -2 },
+        ]);
+    });
+
     it("an invalid recheck keeps the mark and takes 3 more — once", async () => {
         const recheckId = (await view()).submission.rechecks[0].id;
         expect((await decide(recheckId, { outcome: "INVALID" })).status).toBe(400);
         expect((await decide(recheckId, { outcome: "INVALID", note: "Checked every question again." })).status).toBe(200);
         expect((await decide(recheckId, { outcome: "INVALID", note: "Again" })).status).toBe(409);
+        // Decided: sending the work again closes with it.
+        expect((await view()).canSubmit).toBe(false);
+        expect((await submit(student, { content: "One more go" })).status).toBe(409);
 
         const { submission } = await view();
         expect(submission).toMatchObject({ score: 80, finalScore: 72, recheckOpen: false });
