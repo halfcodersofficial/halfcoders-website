@@ -1307,8 +1307,8 @@ const requestRecheck = async (user: IRequestUser, assignmentId: string, payload:
 };
 
 /**
- * Staff decide a recheck. VALID: the mark goes up — to more than it was, at
- * most the hand-in's cap — and becomes exactly the mark given: every fee and
+ * Staff decide a recheck. VALID: the mark goes up — to more than the student
+ * had when they asked, at most the hand-in's cap — and becomes exactly the mark given: every fee and
  * penalty taken so far comes back. INVALID: the mark stands and a further
  * penalty is taken (so the recheck cost fee + penalty in all). Either way the
  * feedback can be rewritten, and the decision is the work's latest marking.
@@ -1339,6 +1339,15 @@ const decideRecheck = async (
     const note = payload.note?.trim() || null;
     let newScore = recheck.scoreBefore;
 
+    // The student's own mark when they asked — the mentor's mark less what was
+    // taken before this recheck (not its own fee). A raise has to beat this, not
+    // the mentor's mark: a full mark worn down by earlier fees can still go up.
+    const thisRecheck = await prisma.submissionMarkAdjustment.aggregate({
+        where: { submissionId: recheck.submissionId, refId: recheckId },
+        _sum: { marks: true },
+    });
+    const markWhenAsked = finalScore(recheck.scoreBefore, recheck.submission.markAdjustment - (thisRecheck._sum.marks ?? 0)) ?? 0;
+
     if (payload.outcome === "VALID") {
         const criteria = await prisma.rubricCriterion.findMany({
             where: { assignmentId: recheck.assignmentId },
@@ -1351,10 +1360,12 @@ const decideRecheck = async (
         else if (payload.score === undefined) throw new AppError(status.BAD_REQUEST, "Give the new mark.");
         else newScore = payload.score;
 
-        if (newScore <= recheck.scoreBefore) {
+        if (newScore <= markWhenAsked) {
             throw new AppError(
                 status.BAD_REQUEST,
-                `A valid recheck raises the mark above ${recheck.scoreBefore}. If the mark was right, decide it as not valid.`,
+                markWhenAsked >= maxScore
+                    ? `Their mark was already ${markWhenAsked} — it can't go higher. If the mark was right, decide it as not valid.`
+                    : `A valid recheck raises their mark above ${markWhenAsked}. If the mark was right, decide it as not valid.`,
             );
         }
         if (newScore > maxScore) {
@@ -1444,7 +1455,7 @@ const decideRecheck = async (
         userId: recheck.submission.studentId,
         title: `Recheck ${valid ? "done — mark raised" : "done — mark unchanged"}: ${recheck.assignment.title}`,
         message: valid
-            ? `Your mentor raised your mark from ${recheck.scoreBefore} to ${newScore}. That's your mark now — ${markNow}/${totalMarks}, with nothing taken off.`
+            ? `Your mentor raised your mark from ${markWhenAsked} to ${newScore}. That's your mark now — ${markNow}/${totalMarks}, with nothing taken off.`
             : `Your mentor checked again and the mark stands. ${extra} more marks were taken (${fee + extra} for this recheck in all). Your mark is now ${markNow}/${totalMarks}.`,
         type: NotificationType.ASSIGNMENT,
         link: `/learn/${recheck.assignment.course.slug}?assignment=${recheck.assignmentId}`,

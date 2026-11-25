@@ -267,9 +267,11 @@ function EventBody({ event, total }: { event: HistoryEvent; total: number }) {
             return (
                 <div className="space-y-3">
                     <p className={cn("text-sm font-medium", recheck.status === "VALID" ? "text-success" : "text-destructive")}>
-                        {recheck.status === "VALID"
-                            ? `Mark raised from ${recheck.scoreBefore} to ${recheck.scoreAfter}.`
-                            : `Mark kept at ${recheck.scoreBefore}.`}
+                        {recheck.status !== "VALID"
+                            ? `Mark kept at ${recheck.scoreBefore}.`
+                            : (recheck.scoreAfter ?? 0) > recheck.scoreBefore
+                              ? `Mark raised from ${recheck.scoreBefore} to ${recheck.scoreAfter}.`
+                              : `Mark raised to ${recheck.scoreAfter} — every mark taken off was given back.`}
                     </p>
                     {recheck.reviewedBy && (
                         <span className="inline-flex items-center gap-2 text-sm">

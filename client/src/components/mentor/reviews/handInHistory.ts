@@ -47,9 +47,11 @@ export const eventTitle = (event: HistoryEvent, totalMarks: number) => {
         case "recheckAsked":
             return "Recheck asked";
         case "recheckDecided":
-            return event.recheck.status === "VALID"
+            if (event.recheck.status !== "VALID") return `Recheck — mark kept at ${event.recheck.scoreBefore}`;
+            // Raised past the mentor's own mark, or only the marks taken off given back.
+            return (event.recheck.scoreAfter ?? 0) > event.recheck.scoreBefore
                 ? `Recheck — mark raised ${event.recheck.scoreBefore} → ${event.recheck.scoreAfter}`
-                : `Recheck — mark kept at ${event.recheck.scoreBefore}`;
+                : `Recheck — mark raised to ${event.recheck.scoreAfter}, nothing taken off`;
     }
 };
 
