@@ -22,6 +22,11 @@ interface ModuleCompleteProps {
      * module that's done — or null, the module itself.
      */
     finished: ModuleTrailItem | null;
+    /**
+     * The course is over (moved to Previous) — no more modules are coming,
+     * so this is the whole course finished, not the latest module.
+     */
+    courseOver?: boolean;
 }
 
 /** Bits of confetti around the tick — decoration only. */
@@ -52,15 +57,17 @@ function FinishedLine({ finished, courseModule }: { finished: ModuleTrailItem | 
 }
 
 /**
- * The finish line of a module and the practice days and assignments after
- * it, shown in the player's place: a "well done" for whatever was just
- * finished — the module, a practice day or an assignment. Where to go from
- * here is the player's Previous / Next below it and the course list beside it.
+ * The course's finish line, at the end of its last module (and the practice
+ * days and assignments after it), shown in the player's place. While the
+ * course runs, a "well done" for whatever was just finished — the module, a
+ * practice day or an assignment — with more to come. Once it's over, the
+ * whole course, finished. Where to go from here is the player's Previous /
+ * Next below it and the course list beside it.
  */
-export default function ModuleComplete({ course, milestone, courseModule, finished }: ModuleCompleteProps) {
+export default function ModuleComplete({ course, milestone, courseModule, finished, courseOver = false }: ModuleCompleteProps) {
     const moduleLabel = course.moduleLabel || "Module";
-    const place = `${course.milestoneLabel} ${pad2(milestone.order)} · ${moduleLabel} ${pad2(courseModule.order)}`;
-    const label = finished ? TRAIL_LABEL[finished.kind] : moduleLabel;
+    const place = courseOver ? course.title : `${course.milestoneLabel} ${pad2(milestone.order)} · ${moduleLabel} ${pad2(courseModule.order)}`;
+    const label = courseOver ? "Course" : finished ? TRAIL_LABEL[finished.kind] : moduleLabel;
 
     return (
         <EditorWindow
@@ -99,9 +106,19 @@ export default function ModuleComplete({ course, milestone, courseModule, finish
                 <Eyebrow className="mt-8">{place}</Eyebrow>
                 <h2 className="mt-2 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{label} complete!</h2>
                 <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted sm:text-base">
-                    <FinishedLine finished={finished} courseModule={courseModule} />
+                    {courseOver ? (
+                        <>
+                            Congratulations — you finished <span className="font-semibold text-editor-fg">&ldquo;{course.title}&rdquo;</span> successfully.
+                        </>
+                    ) : (
+                        <FinishedLine finished={finished} courseModule={courseModule} />
+                    )}
                 </p>
-                {!finished && <p className="mt-1.5 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted">Well done — keep going.</p>}
+                {(courseOver || !finished) && (
+                    <p className="mt-1.5 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted">
+                        {courseOver ? "Every lesson is done — well done." : "Well done — keep going."}
+                    </p>
+                )}
             </div>
         </EditorWindow>
     );
