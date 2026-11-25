@@ -34,6 +34,7 @@ import { assertCanManageCourse } from "../../utils/courseAccess";
 import { assertBatchDates, BATCH_FIELDS, type BatchDates } from "../../utils/courseBatch";
 import { clearItemModes, hasVenue, withBothModes } from "../../utils/courseMode";
 import { logger } from "../../utils/logger";
+import { assertCompleteOrdering } from "../../utils/ordering";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { generateCourseSlug } from "../../utils/slug";
 import { PRACTICE_COURSE_FILTER } from "../../utils/weekItems";
@@ -218,6 +219,8 @@ const createCourse = async (user: IRequestUser, payload: CreateCoursePayload) =>
     const slug = await generateCourseSlug(payload.title);
     const courseType = (payload.courseType as CourseType | undefined) ?? CourseType.BOOTCAMP;
     const batches = batchDatesFor(courseType, payload.phase, payload);
+    // A new course goes to the end of the catalogue's order; an admin moves it from there.
+    const { _max: last } = await prisma.course.aggregate({ where: { isDeleted: false }, _max: { position: true } });
 
     return prisma.course.create({
         data: {
@@ -230,6 +233,7 @@ const createCourse = async (user: IRequestUser, payload: CreateCoursePayload) =>
             // Only a course with offline classes has a venue.
             ...(!hasVenue(payload.mode as CourseMode) && { venue: null }),
             slug,
+            position: (last.position ?? 0) + 1,
             createdById: user.userId,
         },
         include: adminCourseInclude,
@@ -472,6 +476,26 @@ const deleteCourse = async (courseId: string) => {
     ]);
 };
 
+/** The catalogue's order: where an admin placed each course, then the newest. */
+const CATALOGUE_ORDER = [{ position: "asc" }, { createdAt: "desc" }];
+
+/**
+ * An admin's drag of the course list: every course that isn't deleted, in the
+ * order the catalogue shows them. The whole list, so nothing is left without
+ * a place.
+ */
+const reorderCourses = async (orderedIds: string[]) => {
+    await prisma.$transaction(async (tx) => {
+        const existing = await tx.course.findMany({ where: { isDeleted: false }, select: { id: true } });
+        assertCompleteOrdering(orderedIds, existing.map((course) => course.id));
+        // No unique index on `position`, so one pass will do.
+        for (const [index, id] of orderedIds.entries()) {
+            await tx.course.update({ where: { id }, data: { position: index + 1 } });
+        }
+    });
+    logger.update("Courses reordered", { count: orderedIds.length });
+};
+
 /** The enum columns the lists filter on, with the values each accepts. */
 const ENUM_FILTERS: Record<string, readonly string[]> = {
     level: Object.values(CourseLevel),
@@ -517,9 +541,9 @@ const getPublicCourses = async (query: IQueryParams) => {
         .search()
         .filter()
         .sort();
-    // `?sortBy=featured` — the catalogue's default: the courses an admin
-    // featured (the main programmes) first, then the newest.
-    if (query.sortBy === "featured") builder.orderBy([{ isFeatured: "desc" }, { createdAt: "desc" }]);
+    // `?sortBy=featured` — the catalogue's default: the order an admin set
+    // by dragging the course list (newest first among any it hasn't placed).
+    if (query.sortBy === "featured") builder.orderBy(CATALOGUE_ORDER);
 
     const result = await builder
         .paginate()
@@ -531,7 +555,7 @@ const getPublicCourses = async (query: IQueryParams) => {
 };
 
 const getAdminCourses = async (query: IQueryParams) => {
-    return new QueryBuilder(prisma.course, withKnownEnums(query), {
+    const builder = new QueryBuilder(prisma.course, withKnownEnums(query), {
         searchableFields: courseSearchableFields,
         filterableFields: courseFilterableFields,
         sortableFields: courseSortableFields,
@@ -539,7 +563,10 @@ const getAdminCourses = async (query: IQueryParams) => {
     })
         .search()
         .filter()
-        .sort()
+        .sort();
+    // Unsorted, the list is in the catalogue's order — the one the admin set.
+    if (!query.sortBy) builder.orderBy(CATALOGUE_ORDER);
+    return builder
         .paginate()
         .include(adminCourseInclude)
         .where({ isDeleted: false })
@@ -1124,6 +1151,7 @@ export const CourseService = {
     deleteCourse,
     getPublicCourses,
     getAdminCourses,
+    reorderCourses,
     getCourseBySlug,
     getCourseById,
     getStaffCourseSummary,

@@ -256,3 +256,8 @@ export const createCategoryZodSchema = z.object({
 export const updateCategoryZodSchema = createCategoryZodSchema.partial().extend({
     isActive: z.boolean().optional(),
 });
+
+/** The whole catalogue, in its new order — every course that isn't deleted, once. */
+export const reorderCoursesZodSchema = z.object({
+    orderedIds: z.array(z.string().trim().min(1)).min(1, "Provide at least one course").max(500),
+});

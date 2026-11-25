@@ -237,6 +237,9 @@ export const adminService = {
     courses: (params?: Params) =>
         httpClient.get<ApiResponse<AdminCourse[]>>("/courses/manage", { params }).then(unwrapList),
 
+    /** The catalogue's order: every course that isn't deleted, first to last. */
+    reorderCourses: (orderedIds: string[]) => httpClient.patch("/courses/manage/reorder", { orderedIds }).then(() => undefined),
+
     createCourse: (payload: Record<string, unknown>) =>
         httpClient.post<ApiResponse<AdminCourse>>("/courses/manage", payload).then(unwrap),
 
