@@ -57,8 +57,9 @@ export default function PracticeContentPage({
             update: (id, payload) => curriculumAuthoring.updatePracticeMaterial(id, payload),
             remove: (id) => curriculumAuthoring.deletePracticeMaterial(id),
             reorder: (orderedIds) => curriculumAuthoring.reorderPracticeMaterials(practiceDayId, orderedIds),
+            uploadImage: (file) => curriculumAuthoring.uploadLessonImage(courseId, file),
         }),
-        [practiceDayId],
+        [practiceDayId, courseId],
     );
 
     const milestone = milestones?.find((m) => m.practiceDays.some((p) => p.id === practiceDayId)) ?? null;

@@ -35,6 +35,8 @@ export interface MaterialsApi {
     update: (materialId: string, payload: Record<string, unknown>) => Promise<void>;
     remove: (materialId: string) => Promise<void>;
     reorder: (orderedIds: string[]) => Promise<void>;
+    /** Stores a picture put into a text lesson and answers with its link. */
+    uploadImage?: (file: File) => Promise<string>;
 }
 
 /**
@@ -165,6 +167,7 @@ export default function LessonMaterialsEditor({
                             type={adding}
                             layout="inline"
                             withDuration={false}
+                            onUploadImage={api.uploadImage}
                             isPending={create.isPending}
                             submitLabel={`Add ${TYPE_META[adding].label.toLowerCase()} lesson`}
                             onSubmit={(fields) => create.mutate({ type: adding, fields })}
@@ -276,7 +279,7 @@ export default function LessonMaterialsEditor({
                 open={editOpen}
                 onOpenChange={setEditOpen}
                 closeOnOutsideClick={false}
-                size={editing?.type === "TEXT" ? "lg" : "md"}
+                size={editing?.type === "TEXT" ? "2xl" : "md"}
                 title={editing ? `Edit ${TYPE_META[editing.type].label.toLowerCase()} lesson` : "Edit lesson"}
                 description="A lesson's type is fixed once it's created."
             >
@@ -287,6 +290,7 @@ export default function LessonMaterialsEditor({
                         lesson={editing}
                         layout="modal"
                         withDuration={false}
+                        onUploadImage={api.uploadImage}
                         isPending={update.isPending}
                         submitLabel="Save changes"
                         onSubmit={(fields) => update.mutate({ lesson: editing, fields })}

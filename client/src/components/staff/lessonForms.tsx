@@ -1,14 +1,15 @@
 "use client";
 
 import { FileText, Link2, type LucideIcon, PlayCircle, Plus, Save } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { type FormEvent, type ReactNode } from "react";
 import { z } from "zod";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import { Input, Textarea } from "@/components/ui/input";
 import { ModalBody, ModalFooter, modalFormClass } from "@/components/ui/modal";
 import { useZodForm } from "@/hooks/useZodForm";
-import { renderLightMarkdown } from "@/lib/lightMarkdown";
+import { lightMarkdownToText } from "@/lib/lightMarkdown";
 import { cn, formatDuration } from "@/lib/utils";
 import { optionalDurationField, optionalTextField, textField, urlField, youtubeUrlField } from "@/lib/validation";
 import type { LessonType } from "@/types/domain.types";
@@ -136,7 +137,7 @@ export function LessonTypePicker({
 /** The one-line detail under a lesson's title — length, reading time or where it links. */
 export function LessonDetail({ lesson }: { lesson: EditableLesson }) {
     if (lesson.type === "TEXT") {
-        const words = wordCount(lesson.content ?? "");
+        const words = wordCount(lightMarkdownToText(lesson.content ?? ""));
         return (
             <>
                 {words} words · ~{Math.max(1, Math.round(words / 200))} min read
@@ -177,6 +178,8 @@ interface LessonFormProps {
     onCancel: () => void;
     /** Module videos keep a running time; assignment videos don't. Defaults to true. */
     withDuration?: boolean;
+    /** Stores a picture put into a text lesson and answers with its link. */
+    onUploadImage?: (file: File) => Promise<string>;
 }
 
 /** One form per type, each with its own schema — they share only the frame. */
@@ -282,9 +285,8 @@ function VideoLessonForm({
     );
 }
 
-function TextLessonForm({ lesson, onSubmit, layout, isPending, submitLabel, onCancel }: LessonFormProps) {
+function TextLessonForm({ lesson, onSubmit, layout, isPending, submitLabel, onCancel, onUploadImage }: LessonFormProps) {
     const frame = { layout, isPending, submitLabel, onCancel };
-    const [showPreview, setShowPreview] = useState(false);
 
     const form = useZodForm({
         schema: textSchema,
@@ -302,51 +304,22 @@ function TextLessonForm({ lesson, onSubmit, layout, isPending, submitLabel, onCa
                 <Input placeholder="How the event loop works" autoFocus />
             </FormField>
 
+            {/* The text with the page beside it, as students will see it. */}
             <FormField
                 form={form}
                 name="content"
                 label="Lesson text"
                 required
                 counterMax={50_000}
-                hint={
-                    <>
-                        Supports <span className="font-mono"># Heading</span>,{" "}
-                        <span className="font-mono">**bold**</span>, <span className="font-mono">`code`</span>,{" "}
-                        <span className="font-mono">[link](https://…)</span> and{" "}
-                        <span className="font-mono">- bullet</span> lines.
-                    </>
-                }
-                labelAction={
-                    <button
-                        type="button"
-                        onClick={() => setShowPreview((open) => !open)}
-                        aria-expanded={showPreview}
-                        className="text-xs font-medium text-primary hover:underline"
-                    >
-                        {showPreview ? "Hide preview" : "Show preview"}
-                    </button>
-                }
+                hint="Select some text and pick a style from the toolbar, or add a table, picture or code from Insert. The preview shows it as students will."
             >
-                <Textarea rows={14} placeholder={"# What you'll learn\n\nWrite the lesson here…"} />
+                <RichTextEditor
+                    placeholder={"What you'll learn\n\nWrite the lesson here…"}
+                    maxLength={50_000}
+                    height={layout === "modal" ? "min(30rem, 55dvh)" : "30rem"}
+                    onUploadImage={onUploadImage}
+                />
             </FormField>
-
-            {showPreview && (
-                <div className="rounded-md border border-border bg-secondary/20 p-4">
-                    <p className="mb-2 text-xs font-semibold font-mono uppercase tracking-wide text-muted-foreground">
-                        Preview — as students see it
-                    </p>
-                    <div
-                        className="text-sm leading-relaxed"
-                        // Escaped and link-restricted by renderLightMarkdown.
-                        dangerouslySetInnerHTML={{
-                            __html: renderLightMarkdown(
-                                form.values.content,
-                                "<p class=\"text-muted-foreground\">Nothing to preview yet.</p>",
-                            ),
-                        }}
-                    />
-                </div>
-            )}
 
             <FormField
                 form={form}

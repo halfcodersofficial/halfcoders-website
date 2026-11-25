@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Award,
-    Bold,
     Bookmark,
     BookmarkCheck,
     Check,
@@ -12,7 +11,6 @@ import {
     ChevronLeft,
     ChevronRight,
     ClipboardCheck,
-    Code,
     Copyright,
     Dumbbell,
     ExternalLink,
@@ -22,7 +20,6 @@ import {
     HelpCircle,
     Hourglass,
     Link as LinkIcon,
-    List,
     ListTree,
     Lock,
     Megaphone,
@@ -30,8 +27,6 @@ import {
     PlayCircle,
     Search,
     Send,
-    ThumbsDown,
-    ThumbsUp,
     Trophy,
 } from "lucide-react";
 import Image from "next/image";
@@ -42,7 +37,7 @@ import { toast } from "sonner";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { ClassModeTag } from "@/components/shared/CourseClassification";
 import AssignmentPane from "@/components/learn/AssignmentPane";
-import LessonQuestions from "@/components/learn/LessonQuestions";
+import LessonExtras, { type LessonPanel, lessonStateKey, useLessonState } from "@/components/learn/LessonExtras";
 import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import ModuleComplete from "@/components/learn/ModuleComplete";
 import PracticePane from "@/components/learn/PracticePane";
@@ -54,13 +49,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { infoAlert } from "@/lib/confirm";
 import { getApiErrorMessage } from "@/lib/httpClient";
-import { renderLightMarkdown } from "@/lib/lightMarkdown";
 import { linkify } from "@/lib/linkify";
 import { useSession } from "@/hooks/useSession";
 import { measureYouTubeDurations } from "@/lib/youtube";
-import { cn, formatDateTime, formatDuration, formatHoursMinutes } from "@/lib/utils";
+import { cn, formatDuration, formatHoursMinutes } from "@/lib/utils";
 import { leaderboardService, learningService, lessonService, practiceService, progressService } from "@/services";
 import type {
     BookmarkedLesson,
@@ -69,7 +62,7 @@ import type {
     LearningModule,
     LearningQuiz,
     LearningVideo,
-    LessonState,
+    LessonTarget,
 } from "@/types/domain.types";
 import type { LessonMaterial } from "@/types/learning.types";
 
@@ -83,10 +76,6 @@ const COPYRIGHT_TEXT = [
 
 const COPYRIGHT_CLOSING =
     "একবার ধরা পড়লে বা কেসে জড়িয়ে গেলে, কেউ কিন্তু তোমাকে বাঁচাতে আসবে না — নিজের ও পরিবারের ভালোর জন্যই বিষয়গুলো এড়িয়ে চলো।";
-
-/** The note preview tab — same light markdown a text lesson is written in. */
-const renderNotePreview = (markdown: string): string =>
-    renderLightMarkdown(markdown, "<p class=\"text-muted-foreground\">Nothing to preview yet.</p>");
 
 /** "github.com" for a resource lesson's card — never throws on an odd link. */
 const hostnameOf = (url: string) => {
@@ -376,9 +365,7 @@ export default function LearnPage() {
 
     const [mobileCurriculumOpen, setMobileCurriculumOpen] = useState(false);
     // Notes and the copyright notice share one panel under the lesson.
-    const [lessonPanel, setLessonPanel] = useState<"notes" | "copyright">("notes");
-    const [notesTab, setNotesTab] = useState<"write" | "preview">("write");
-    const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const [lessonPanel, setLessonPanel] = useState<LessonPanel>("notes");
     const [rewardOpen, setRewardOpen] = useState(false);
     // "Next" completions waiting to reach the server, kept in order (see queueComplete).
     const completionQueueRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -396,7 +383,6 @@ export default function LearnPage() {
     });
     const isMountedRef = useRef(false);
     const { user } = useSession();
-    const [noteDraft, setNoteDraft] = useState("");
     const [sidebarSearch, setSidebarSearch] = useState("");
     const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
 
@@ -479,9 +465,11 @@ export default function LearnPage() {
             : null;
         if (requestedPractice && owningPracticeMilestone) {
             setActivePracticeId(requestedPractice);
-            // A day with lessons starts at its first one — it has no page of its own.
+            // A day with lessons starts at its first one — it has no page of its
+            // own — unless the link names one ("&material=", from a question's answer).
             const practiceDay = owningPracticeMilestone.practiceDays.find((p) => p.id === requestedPractice);
-            setActiveMaterialId(practiceDay?.materials[0]?.id ?? null);
+            const requestedMaterial = practiceDay?.materials.find((m) => m.id === searchParams.get("material"));
+            setActiveMaterialId(requestedMaterial?.id ?? practiceDay?.materials[0]?.id ?? null);
             setOpenMilestones(new Set([owningPracticeMilestone.id]));
             return;
         }
@@ -954,89 +942,16 @@ export default function LearnPage() {
             });
     }, [allVideos]);
 
-    // ---- Notes / bookmark / reaction — the active lesson's own state. -----
-
-    const { data: lessonState } = useQuery({
-        queryKey: ["lesson-state", activeVideoId],
-        queryFn: () => lessonService.state(activeVideoId as string),
-        enabled: Boolean(activeVideoId) && !data?.isPreview,
-    });
-
-    useEffect(() => {
-        setNoteDraft(lessonState?.note ?? "");
-        setNotesTab("write");
-    }, [lessonState?.note, activeVideoId]);
-
-    const lessonStateKey = ["lesson-state", activeVideoId] as const;
-    const invalidateLessonState = () => queryClient.invalidateQueries({ queryKey: lessonStateKey });
-
-    const saveNote = useMutation({
-        mutationFn: (content: string) => lessonService.saveNote(activeVideoId as string, content),
-        onSuccess: () => {
-            toast.success("Note saved.");
-            void invalidateLessonState();
-        },
-        onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't save your note.")),
-    });
-
-    /** Wraps the current selection in markdown syntax, or inserts a placeholder when nothing's selected. */
-    const insertMarkdown = (before: string, after: string, placeholder: string) => {
-        const el = noteTextareaRef.current;
-        if (!el) return;
-        const start = el.selectionStart;
-        const end = el.selectionEnd;
-        const selected = noteDraft.slice(start, end) || placeholder;
-        const next = noteDraft.slice(0, start) + before + selected + after + noteDraft.slice(end);
-        setNoteDraft(next);
-
-        requestAnimationFrame(() => {
-            el.focus();
-            el.selectionStart = start + before.length;
-            el.selectionEnd = start + before.length + selected.length;
-        });
-    };
-
-    // Optimistic: a toggle should feel instant, and the invalidate-and-refetch
-    // this still triggers is what makes the number of clicks and the number of
-    // rows in the database agree once the round trip actually lands.
-    const setBookmark = useMutation({
-        mutationFn: (bookmarked: boolean) => lessonService.setBookmark(activeVideoId as string, bookmarked),
-        onMutate: async (bookmarked) => {
-            await queryClient.cancelQueries({ queryKey: lessonStateKey });
-            const previous = queryClient.getQueryData<LessonState>(lessonStateKey);
-            queryClient.setQueryData<LessonState | undefined>(lessonStateKey, (current) =>
-                current ? { ...current, isBookmarked: bookmarked } : current,
-            );
-            return { previous };
-        },
-        onSuccess: (result) => {
-            toast.success(result.isBookmarked ? "Lesson bookmarked." : "Bookmark removed.");
-            if (data) void queryClient.invalidateQueries({ queryKey: ["lesson-bookmarks", data.course.id] });
-        },
-        onError: (err, _bookmarked, context) => {
-            if (context) queryClient.setQueryData(lessonStateKey, context.previous);
-            toast.error(getApiErrorMessage(err, "Couldn't update your bookmark."));
-        },
-        onSettled: () => void invalidateLessonState(),
-    });
-
-    const setReaction = useMutation({
-        mutationFn: (reaction: "LIKE" | "DISLIKE" | null) =>
-            lessonService.setReaction(activeVideoId as string, reaction),
-        onMutate: async (nextReaction) => {
-            await queryClient.cancelQueries({ queryKey: lessonStateKey });
-            const previous = queryClient.getQueryData<LessonState>(lessonStateKey);
-            queryClient.setQueryData<LessonState | undefined>(lessonStateKey, (current) =>
-                current ? { ...current, reaction: nextReaction } : current,
-            );
-            return { previous };
-        },
-        onError: (err, _reaction, context) => {
-            if (context) queryClient.setQueryData(lessonStateKey, context.previous);
-            toast.error(getApiErrorMessage(err, "Couldn't save your reaction."));
-        },
-        onSettled: () => void invalidateLessonState(),
-    });
+    // ---- Notes / bookmark / reaction — the open lesson's own state: a
+    // module's lesson, or a practice day's (an assignment's lessons have none).
+    const extrasLesson: LessonTarget | null =
+        !activeAssignmentId && activePracticeId && activeMaterialId
+            ? { kind: "practice", id: activeMaterialId }
+            : activeVideoId
+              ? { kind: "video", id: activeVideoId }
+              : null;
+    const lessonApi = useLessonState(extrasLesson, data?.course.id, Boolean(data) && !data?.isPreview);
+    const lessonState = lessonApi.state;
 
     const { data: myRank } = useQuery({
         queryKey: ["leaderboard", "my-rank", data?.course.id],
@@ -1054,7 +969,7 @@ export default function LearnPage() {
         enabled: Boolean(data) && !data?.isPreview,
     });
     const bookmarkedVideoIds = useMemo(
-        () => new Set(bookmarks?.map((b) => b.videoId) ?? []),
+        () => new Set(bookmarks?.flatMap((b) => (b.videoId ? [b.videoId] : [])) ?? []),
         [bookmarks],
     );
 
@@ -1062,11 +977,11 @@ export default function LearnPage() {
     // above, which is scoped to whichever lesson is currently playing.
     const toggleRowBookmark = useMutation({
         mutationFn: ({ videoId, bookmarked }: { videoId: string; bookmarked: boolean }) =>
-            lessonService.setBookmark(videoId, bookmarked),
+            lessonService.setBookmark({ kind: "video", id: videoId }, bookmarked),
         onSuccess: (result, { videoId }) => {
             toast.success(result.isBookmarked ? "Lesson bookmarked." : "Bookmark removed.");
             if (data) void queryClient.invalidateQueries({ queryKey: ["lesson-bookmarks", data.course.id] });
-            if (videoId === activeVideoId) void invalidateLessonState();
+            if (videoId === activeVideoId) void queryClient.invalidateQueries({ queryKey: lessonStateKey({ kind: "video", id: videoId }) });
         },
         onError: (err) => toast.error(getApiErrorMessage(err, "Couldn't update your bookmark.")),
     });
@@ -1136,7 +1051,6 @@ export default function LearnPage() {
         }
     };
 
-    const reaction = lessonState?.reaction ?? null;
     const moduleLabel = data.course.moduleLabel || "Module";
 
     // The open "complete" screen's module, and the assignment or practice day
@@ -1160,8 +1074,10 @@ export default function LearnPage() {
                     : null;
     const activeStopIndex = activeStopKey ? stops.findIndex((stop) => stop.key === activeStopKey) : -1;
     const activeStop = activeStopIndex >= 0 ? stops[activeStopIndex] : null;
-    // The lesson area (title, notes, questions) is for a module's lesson only.
+    // The lesson area (title, notes, questions) is for a module's lesson…
     const showsLesson = activeStop?.kind === "VIDEO" && Boolean(activeVideo);
+    // …and notes, questions and the rest go under a practice day's lessons too.
+    const showsPracticeLesson = activeStop?.kind === "MATERIAL" && activeGroup?.kind === "PRACTICE" && extrasLesson?.kind === "practice";
 
     // A lesson counts as done when the student moves on from it with "Next"
     // (or "Finish" on the last one) — there's no separate complete button.
@@ -1290,20 +1206,6 @@ export default function LearnPage() {
         document.getElementById("lesson-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
-    // A reaction is a one-shot vote, not a toggle — once given it can't be
-    // changed to the other option or cleared, so a repeat click just
-    // explains why instead of silently doing nothing.
-    const handleReaction = (next: "LIKE" | "DISLIKE") => {
-        if (reaction) {
-            void infoAlert({
-                title: "You've already given feedback",
-                text: "Your like/dislike on this lesson can't be changed.",
-            });
-            return;
-        }
-        setReaction.mutate(next);
-    };
-
     const curriculumProps: CurriculumSidebarProps = {
         data,
         slug,
@@ -1389,7 +1291,7 @@ export default function LearnPage() {
                             labelled row under the video, just always in reach. On a
                             phone that row is a short scroll away, so the room goes
                             to the course name instead. */}
-                        {!data.isPreview && showsLesson && activeVideo && !activeVideo.isLocked && (
+                        {!data.isPreview && extrasLesson && ((showsLesson && activeVideo && !activeVideo.isLocked) || showsPracticeLesson) && (
                             <span className="hidden items-center gap-1 sm:flex sm:gap-2">
                                 <Button variant="ghost" size="icon" aria-label="Jump to notes" onClick={openNotes}>
                                     <NotebookPen className="size-4" />
@@ -1399,7 +1301,7 @@ export default function LearnPage() {
                                     size="icon"
                                     aria-label={lessonState?.isBookmarked ? "Remove bookmark" : "Bookmark this lesson"}
                                     aria-pressed={lessonState?.isBookmarked ?? false}
-                                    onClick={() => setBookmark.mutate(!lessonState?.isBookmarked)}
+                                    onClick={() => lessonApi.setBookmark.mutate({ target: extrasLesson, bookmarked: !lessonState?.isBookmarked })}
                                     className={cn(lessonState?.isBookmarked && "text-primary")}
                                 >
                                     {lessonState?.isBookmarked ? (
@@ -1610,6 +1512,17 @@ export default function LearnPage() {
                                     {linkify(activeStop.material.description)}
                                 </p>
                             )}
+
+                            {/* A practice day's lesson gets the same as a module's: notes, bookmark, questions. */}
+                            {showsPracticeLesson && !data.isPreview && extrasLesson && (
+                                <LessonExtras
+                                    lesson={extrasLesson}
+                                    api={lessonApi}
+                                    panel={lessonPanel}
+                                    onPanelChange={setLessonPanel}
+                                    copyright={<CopyrightPanel slug={slug} />}
+                                />
+                            )}
                         </div>
                     )}
 
@@ -1735,183 +1648,16 @@ export default function LearnPage() {
                                 </p>
                             )}
 
-                            {/* Lesson action bar — the Notes / Copyright switch for
-                                the panel below, a bookmark and a like/dislike
-                                reaction, all real state against this lesson. */}
-                            {!data.isPreview && !activeVideo.isLocked && (
-                                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                                    <div role="tablist" aria-label="Under this lesson" className="flex gap-1 rounded-full bg-secondary p-1">
-                                        {(
-                                            [
-                                                { id: "notes", label: "Notes", icon: NotebookPen },
-                                                { id: "copyright", label: "Copyright", icon: Copyright },
-                                            ] as const
-                                        ).map(({ id, label, icon: Icon }) => (
-                                            <button
-                                                key={id}
-                                                type="button"
-                                                role="tab"
-                                                id={`lesson-tab-${id}`}
-                                                aria-selected={lessonPanel === id}
-                                                aria-controls="lesson-panel"
-                                                onClick={() => setLessonPanel(id)}
-                                                className={cn(
-                                                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-                                                    lessonPanel === id
-                                                        ? "bg-card text-foreground shadow-sm"
-                                                        : "text-muted-foreground hover:text-foreground",
-                                                )}
-                                            >
-                                                <Icon className={cn("size-4", lessonPanel === id && "text-primary")} />
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => setBookmark.mutate(!lessonState?.isBookmarked)}
-                                        isLoading={setBookmark.isPending}
-                                        aria-pressed={lessonState?.isBookmarked ?? false}
-                                        className={cn(
-                                            "rounded-full",
-                                            lessonState?.isBookmarked && "bg-primary/10 text-primary hover:bg-primary/15",
-                                        )}
-                                    >
-                                        {lessonState?.isBookmarked ? (
-                                            <BookmarkCheck className="size-4" />
-                                        ) : (
-                                            <Bookmark className="size-4" />
-                                        )}
-                                        {lessonState?.isBookmarked ? "Bookmarked" : "Bookmark"}
-                                    </Button>
-
-                                    <span className="ml-auto flex items-center gap-1 rounded-full bg-secondary p-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label="Like this lesson"
-                                            aria-pressed={reaction === "LIKE"}
-                                            className={cn("size-8 rounded-full", reaction === "LIKE" && "bg-success/15 text-success")}
-                                            onClick={() => handleReaction("LIKE")}
-                                        >
-                                            <ThumbsUp className="size-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label="Dislike this lesson"
-                                            aria-pressed={reaction === "DISLIKE"}
-                                            className={cn("size-8 rounded-full", reaction === "DISLIKE" && "bg-destructive/15 text-destructive")}
-                                            onClick={() => handleReaction("DISLIKE")}
-                                        >
-                                            <ThumbsDown className="size-4" />
-                                        </Button>
-                                    </span>
-                                </div>
+                            {/* Notes, bookmark, like/dislike and questions — all real state against this lesson. */}
+                            {!data.isPreview && !activeVideo.isLocked && extrasLesson?.kind === "video" && (
+                                <LessonExtras
+                                    lesson={extrasLesson}
+                                    api={lessonApi}
+                                    panel={lessonPanel}
+                                    onPanelChange={setLessonPanel}
+                                    copyright={<CopyrightPanel slug={slug} />}
+                                />
                             )}
-
-                            {/* The panel the Notes / Copyright tabs switch — the note
-                                editor, or the copyright notice in the same spot. */}
-                            {!data.isPreview && !activeVideo.isLocked && (
-                                <div
-                                    id="lesson-panel"
-                                    role="tabpanel"
-                                    aria-labelledby={`lesson-tab-${lessonPanel}`}
-                                    className="scroll-mt-32"
-                                >
-                                {lessonPanel === "copyright" ? (
-                                    <CopyrightPanel slug={slug} />
-                                ) : (
-                                <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-                                    <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                                        <p className="flex items-center gap-2 text-sm font-semibold">
-                                            <NotebookPen className="size-4 text-primary" aria-hidden /> Your notes
-                                        </p>
-                                        <div role="tablist" aria-label="Notes view" className="flex gap-1 rounded-full bg-secondary p-1">
-                                            {(["write", "preview"] as const).map((tab) => (
-                                                <button
-                                                    key={tab}
-                                                    type="button"
-                                                    role="tab"
-                                                    aria-selected={notesTab === tab}
-                                                    onClick={() => setNotesTab(tab)}
-                                                    className={cn(
-                                                        "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
-                                                        notesTab === tab
-                                                            ? "bg-card text-foreground shadow-sm"
-                                                            : "text-muted-foreground hover:text-foreground",
-                                                    )}
-                                                >
-                                                    {tab}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {notesTab === "write" ? (
-                                        <div>
-                                            <div className="flex items-center gap-1 border-b border-border bg-secondary/30 px-3 py-1.5">
-                                                {[
-                                                    { icon: Bold, label: "Bold", before: "**", after: "**", placeholder: "bold text" },
-                                                    { icon: Code, label: "Code", before: "`", after: "`", placeholder: "code" },
-                                                    { icon: LinkIcon, label: "Link", before: "[", after: "](https://)", placeholder: "link text" },
-                                                    { icon: List, label: "Bulleted list", before: "- ", after: "", placeholder: "list item" },
-                                                ].map(({ icon: Icon, label, before, after, placeholder }) => (
-                                                    <Button
-                                                        key={label}
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        aria-label={label}
-                                                        onClick={() => insertMarkdown(before, after, placeholder)}
-                                                    >
-                                                        <Icon className="size-4" />
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                            <textarea
-                                                ref={noteTextareaRef}
-                                                value={noteDraft}
-                                                onChange={(e) => setNoteDraft(e.target.value)}
-                                                placeholder="Write your note here with Markdown support…"
-                                                rows={8}
-                                                maxLength={10_000}
-                                                className="w-full resize-none bg-transparent p-4 text-sm leading-relaxed outline-none"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div
-                                            className="min-h-40 p-4 text-sm leading-relaxed"
-                                            // Safe: `renderNotePreview` HTML-escapes the source
-                                            // before applying its own markdown replacements.
-                                            dangerouslySetInnerHTML={{ __html: renderNotePreview(noteDraft) }}
-                                        />
-                                    )}
-
-                                    <div className="flex items-center justify-between gap-3 border-t border-border bg-secondary/30 px-4 py-3">
-                                        <p className="text-xs text-muted-foreground">
-                                            {lessonState?.noteUpdatedAt
-                                                ? `Last saved ${formatDateTime(lessonState.noteUpdatedAt)}`
-                                                : "Not saved yet"}
-                                        </p>
-                                        <Button
-                                            size="sm"
-                                            className="rounded-full px-5"
-                                            onClick={() => saveNote.mutate(noteDraft)}
-                                            isLoading={saveNote.isPending}
-                                        >
-                                            Save note
-                                        </Button>
-                                    </div>
-                                </div>
-                                )}
-                                </div>
-                            )}
-
-                            {!data.isPreview && !activeVideo.isLocked && <LessonQuestions videoId={activeVideo.id} />}
-
                         </div>
                     )}
                 </div>
@@ -2256,40 +2002,42 @@ function CurriculumSidebar({
                         </p>
                     ) : (
                         <ul className="divide-y divide-border">
-                            {bookmarks.map((bookmark) => (
-                                <li key={bookmark.videoId}>
-                                    <button
-                                        type="button"
-                                        onClick={() => goTo(bookmark.videoId)}
-                                        disabled={!canOpenLesson(bookmark.videoId)}
-                                        title={
-                                            canOpenLesson(bookmark.videoId)
-                                                ? undefined
-                                                : "Opens once you finish the lessons before it"
-                                        }
-                                        aria-current={activeVideoId === bookmark.videoId ? "true" : undefined}
-                                        className={cn(
-                                            "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
-                                            activeVideoId === bookmark.videoId && "bg-primary/10 text-primary",
-                                        )}
-                                    >
-                                        {canOpenLesson(bookmark.videoId) ? (
-                                            <BookmarkCheck className="size-4 shrink-0" />
-                                        ) : (
-                                            <Lock className="size-4 shrink-0" />
-                                        )}
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block truncate">{bookmark.title}</span>
-                                            <span className="block truncate text-xs text-muted-foreground">
-                                                {bookmark.moduleTitle}
+                            {bookmarks.map((bookmark) => {
+                                // A module's lesson opens one at a time; a practice day's any time.
+                                const videoId = bookmark.videoId;
+                                const opens = videoId ? canOpenLesson(videoId) : true;
+                                const isActive = videoId ? activeVideoId === videoId : activeMaterialId === bookmark.practiceMaterialId;
+                                return (
+                                    <li key={videoId ?? bookmark.practiceMaterialId}>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                videoId
+                                                    ? goTo(videoId)
+                                                    : bookmark.practiceDayId && goToPractice(bookmark.practiceDayId, bookmark.practiceMaterialId)
+                                            }
+                                            disabled={!opens}
+                                            title={opens ? undefined : "Opens once you finish the lessons before it"}
+                                            aria-current={isActive ? "true" : undefined}
+                                            className={cn(
+                                                "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
+                                                isActive && "bg-primary/10 text-primary",
+                                            )}
+                                        >
+                                            {opens ? <BookmarkCheck className="size-4 shrink-0" /> : <Lock className="size-4 shrink-0" />}
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate">{bookmark.title}</span>
+                                                <span className="block truncate text-xs text-muted-foreground">
+                                                    {videoId ? bookmark.moduleTitle : `Practice day · ${bookmark.moduleTitle}`}
+                                                </span>
                                             </span>
-                                        </span>
-                                        <span className="shrink-0 text-xs text-muted-foreground">
-                                            {bookmark.durationLabel !== "0:00" && bookmark.durationLabel}
-                                        </span>
-                                    </button>
-                                </li>
-                            ))}
+                                            <span className="shrink-0 text-xs text-muted-foreground">
+                                                {bookmark.durationLabel !== "0:00" && bookmark.durationLabel}
+                                            </span>
+                                        </button>
+                                    </li>
+                                );
+                            })}
                         </ul>
                     )}
                 </div>

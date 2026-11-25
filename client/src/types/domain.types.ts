@@ -409,6 +409,15 @@ export interface LearningMilestone {
 
 export type LessonReaction = "LIKE" | "DISLIKE";
 
+/**
+ * A lesson a student keeps notes, a bookmark, a reaction and questions on —
+ * a module's (`video`) or a practice day's (`practice`).
+ */
+export interface LessonTarget {
+    kind: "video" | "practice";
+    id: string;
+}
+
 export interface LessonState {
     note: string | null;
     noteUpdatedAt: string | null;
@@ -416,11 +425,15 @@ export interface LessonState {
     reaction: LessonReaction | null;
 }
 
+/** A bookmarked lesson: a module's (`videoId`), or a practice day's (`practiceMaterialId`). */
 export interface BookmarkedLesson {
-    videoId: string;
+    videoId: string | null;
+    practiceMaterialId: string | null;
+    practiceDayId: string | null;
     title: string;
     durationLabel: string;
-    moduleId: string;
+    moduleId: string | null;
+    /** Where it sits — its module's title, or its practice day's. */
     moduleTitle: string;
 }
 
@@ -797,7 +810,10 @@ export interface LessonQuestion {
 
 /** A question in the staff inbox, with where it was asked. */
 export interface InboxQuestion extends LessonQuestion {
-    video: { id: string; title: string; module: { title: string; order: number; milestone: { order: number } } };
+    /** The lesson it's on: a module's… */
+    video: { id: string; title: string; module: { title: string; order: number; milestone: { order: number } } } | null;
+    /** …or a practice day's. */
+    practiceMaterial: { id: string; title: string; practiceDay: { id: string; title: string; milestone: { order: number } } } | null;
     course: { id: string; title: string; slug: string; milestoneLabel: string; moduleLabel: string };
 }
 

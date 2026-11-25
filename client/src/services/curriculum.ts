@@ -116,6 +116,22 @@ export const curriculumAuthoring = {
             .then(({ url }) => url);
     },
 
+    /**
+     * Stores a picture put into a text lesson and answers with its URL — the
+     * lesson keeps the URL in its text when it's saved. Same store, and the
+     * same rights, as a course image; the picture goes up as it is, uncropped.
+     */
+    uploadLessonImage: (courseId: string, image: File) => {
+        const formData = new FormData();
+        formData.append("image", image, image.name || "lesson-image.png");
+        return httpClient
+            .post<ApiResponse<{ url: string }>>(`/courses/staff/${courseId}/images`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            })
+            .then(unwrap)
+            .then(({ url }) => url);
+    },
+
     // ---- Milestones
     listMilestones: (courseId: string) =>
         httpClient

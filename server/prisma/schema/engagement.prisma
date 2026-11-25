@@ -49,24 +49,29 @@ model CourseReview {
   @@schema("learning")
 }
 
-/// A question asked on a lesson, for the course's mentors (and classmates) to answer.
+/// A question asked on a lesson, for the course's mentors (and classmates) to
+/// answer — a module's lesson (`videoId`) or a practice day's
+/// (`practiceMaterialId`); exactly one is set.
 model LessonQuestion {
-  id         String   @id @default(uuid(7))
-  courseId   String
-  videoId    String
-  authorId   String
-  body       String
+  id                 String   @id @default(uuid(7))
+  courseId           String
+  videoId            String?
+  practiceMaterialId String?
+  authorId           String
+  body               String
   /// Marked by whoever asked, or by the course's staff.
-  isResolved Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isResolved         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  video   Video          @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  author  User           @relation("LessonQuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  answers LessonAnswer[]
+  course           Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  video            Video?            @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  practiceMaterial PracticeMaterial? @relation(fields: [practiceMaterialId], references: [id], onDelete: Cascade)
+  author           User              @relation("LessonQuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  answers          LessonAnswer[]
 
   @@index([videoId, createdAt])
+  @@index([practiceMaterialId, createdAt])
   @@index([courseId, isResolved])
   @@map("lesson_question")
   @@schema("learning")

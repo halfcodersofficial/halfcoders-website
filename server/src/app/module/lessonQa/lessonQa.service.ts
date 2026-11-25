@@ -8,6 +8,7 @@ import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
 import { STUDENT_NAME_ONLY } from "../../lib/studentPrivacy";
 import { assertCanManageCourse, requireCourseAccess, requireEnrollment } from "../../utils/courseAccess";
+import type { LessonRef } from "../lesson/lesson.service";
 import { createNotification, notifyCourseMentors } from "../notification/notification.service";
 
 /**
@@ -48,40 +49,51 @@ const present = (questions: Thread[], staff: Set<string>, viewer: IRequestUser) 
 
 const authorIdsOf = (questions: Thread[]) => [...new Set(questions.flatMap((q) => [q.authorId, ...q.answers.map((a) => a.authorId)]))];
 
-const loadVideo = async (videoId: string) => {
-    const video = await prisma.video.findUnique({
-        where: { id: videoId },
-        select: { id: true, title: true, courseId: true, course: { select: { slug: true, title: true } } },
-    });
-    if (!video) throw new AppError(status.NOT_FOUND, "Lesson not found.");
-    return video;
+/** Where a lesson opens for its students — a module's, or a practice day's. */
+const learnLink = (
+    slug: string,
+    lesson: { videoId: string | null; practiceMaterial: { id: string; practiceDayId: string } | null },
+) =>
+    lesson.practiceMaterial
+        ? `/learn/${slug}?practice=${lesson.practiceMaterial.practiceDayId}&material=${lesson.practiceMaterial.id}`
+        : `/learn/${slug}?video=${lesson.videoId}`;
+
+/** The lesson a question is on — a module's (a `Video`) or a practice day's — with its course. */
+const loadLesson = async (ref: LessonRef) => {
+    const select = { id: true, title: true, courseId: true, course: { select: { slug: true, title: true } } } as const;
+    const lesson =
+        ref.kind === "video"
+            ? await prisma.video.findUnique({ where: { id: ref.id }, select })
+            : await prisma.practiceMaterial.findUnique({ where: { id: ref.id }, select });
+    if (!lesson) throw new AppError(status.NOT_FOUND, "Lesson not found.");
+    return { ...lesson, field: ref.kind === "video" ? { videoId: ref.id } : { practiceMaterialId: ref.id } };
 };
 
 /** A lesson's questions, open ones first, each with its answers — for its students and staff. */
-const listForLesson = async (user: IRequestUser, videoId: string) => {
-    const video = await loadVideo(videoId);
-    await requireCourseAccess(user, video.courseId);
+const listForLesson = async (user: IRequestUser, ref: LessonRef) => {
+    const lesson = await loadLesson(ref);
+    await requireCourseAccess(user, lesson.courseId);
     const questions = await prisma.lessonQuestion.findMany({
-        where: { videoId },
+        where: lesson.field,
         orderBy: [{ isResolved: "asc" }, { createdAt: "desc" }],
         take: 100,
         include: thread,
     });
-    return present(questions, await staffOf(video.courseId, authorIdsOf(questions)), user);
+    return present(questions, await staffOf(lesson.courseId, authorIdsOf(questions)), user);
 };
 
 /** A student asks on a lesson; the course's mentors hear about it. */
-const ask = async (user: IRequestUser, videoId: string, body: string) => {
-    const video = await loadVideo(videoId);
-    await requireEnrollment(user, video.courseId);
+const ask = async (user: IRequestUser, ref: LessonRef, body: string) => {
+    const lesson = await loadLesson(ref);
+    await requireEnrollment(user, lesson.courseId);
     const question = await prisma.lessonQuestion.create({
-        data: { courseId: video.courseId, videoId, authorId: user.userId, body },
+        data: { courseId: lesson.courseId, ...lesson.field, authorId: user.userId, body },
         include: thread,
     });
     await notifyCourseMentors(
-        video.courseId,
+        lesson.courseId,
         {
-            title: `Question on “${video.title}”`,
+            title: `Question on “${lesson.title}”`,
             message: body.length > 200 ? `${body.slice(0, 197)}…` : body,
             type: NotificationType.COURSE,
             link: `/mentor/questions?focus=${question.id}`,
@@ -94,7 +106,11 @@ const ask = async (user: IRequestUser, videoId: string, body: string) => {
 const loadQuestion = async (questionId: string) => {
     const question = await prisma.lessonQuestion.findUnique({
         where: { id: questionId },
-        include: { video: { select: { id: true, title: true, course: { select: { slug: true } } } } },
+        include: {
+            video: { select: { title: true } },
+            practiceMaterial: { select: { id: true, title: true, practiceDayId: true } },
+            course: { select: { slug: true } },
+        },
     });
     if (!question) throw new AppError(status.NOT_FOUND, "Question not found.");
     return question;
@@ -124,9 +140,9 @@ const answer = async (user: IRequestUser, questionId: string, body: string) => {
         await createNotification({
             userId: question.authorId,
             title: staff ? `A mentor answered your question` : `${created.author.name} answered your question`,
-            message: `On “${question.video.title}”: ${body.length > 200 ? `${body.slice(0, 197)}…` : body}`,
+            message: `On “${question.video?.title ?? question.practiceMaterial?.title ?? "a lesson"}”: ${body.length > 200 ? `${body.slice(0, 197)}…` : body}`,
             type: NotificationType.COURSE,
-            link: `/learn/${question.video.course.slug}?video=${question.videoId}#q-${question.id}`,
+            link: `${learnLink(question.course.slug, question)}#q-${question.id}`,
             senderId: user.userId,
             ...(staff ? { email: { actionLabel: "See the answer" } } : {}),
         });
@@ -193,6 +209,9 @@ const inbox = async (user: IRequestUser, query: IQueryParams) => {
             include: {
                 ...thread,
                 video: { select: { id: true, title: true, module: { select: { title: true, order: true, milestone: { select: { order: true } } } } } },
+                practiceMaterial: {
+                    select: { id: true, title: true, practiceDay: { select: { id: true, title: true, milestone: { select: { order: true } } } } },
+                },
                 course: { select: { id: true, title: true, slug: true, milestoneLabel: true, moduleLabel: true } },
             },
         }),
@@ -203,7 +222,12 @@ const inbox = async (user: IRequestUser, query: IQueryParams) => {
         staffByCourse.set(courseId, await staffOf(courseId, authorIdsOf(questions.filter((q) => q.courseId === courseId))));
     }
     return {
-        data: questions.map((question) => ({ ...present([question], staffByCourse.get(question.courseId)!, user)[0], video: question.video, course: question.course })),
+        data: questions.map((question) => ({
+            ...present([question], staffByCourse.get(question.courseId)!, user)[0],
+            video: question.video,
+            practiceMaterial: question.practiceMaterial,
+            course: question.course,
+        })),
         meta: { page, limit, total, totalPages: Math.ceil(total / limit), open },
     };
 };

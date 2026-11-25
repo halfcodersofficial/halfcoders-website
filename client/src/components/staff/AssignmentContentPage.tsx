@@ -58,8 +58,9 @@ export default function AssignmentContentPage({
             update: (id, payload) => curriculumAuthoring.updateAssignmentMaterial(id, payload),
             remove: (id) => curriculumAuthoring.deleteAssignmentMaterial(id),
             reorder: (orderedIds) => curriculumAuthoring.reorderAssignmentMaterials(assignmentId, orderedIds),
+            uploadImage: (file) => curriculumAuthoring.uploadLessonImage(courseId, file),
         }),
-        [assignmentId],
+        [assignmentId, courseId],
     );
 
     // Its quiz, if it has one — the quiz page's own query.

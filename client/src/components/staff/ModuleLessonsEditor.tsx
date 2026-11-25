@@ -97,6 +97,8 @@ export default function ModuleLessonsEditor({
     // The course's own word for a module ("Session", "Day"…) — the header's query, already cached.
     const { data: course } = useQuery({ queryKey: ["staff", "course", courseId], queryFn: () => curriculumAuthoring.getCourse(courseId) });
     const moduleLabel = (course?.moduleLabel ?? "Module").toLowerCase();
+    // A picture put into a text lesson — stored with the course's images.
+    const uploadImage = (file: File) => curriculumAuthoring.uploadLessonImage(courseId, file);
 
     const { data: videos, isLoading, isError, error } = useQuery({
         queryKey: ["videos", moduleId],
@@ -429,6 +431,7 @@ export default function ModuleLessonsEditor({
                                 key={`${adding}-${addFormKey}`}
                                 type={adding}
                                 layout="inline"
+                                onUploadImage={uploadImage}
                                 isPending={create.isPending}
                                 submitLabel={`Add ${TYPE_META[adding].label.toLowerCase()} lesson`}
                                 onSubmit={(fields) => create.mutate({ type: adding, fields })}
@@ -612,7 +615,7 @@ export default function ModuleLessonsEditor({
                 open={editOpen}
                 onOpenChange={setEditOpen}
                 closeOnOutsideClick={false}
-                size={editing?.type === "TEXT" ? "lg" : "md"}
+                size={editing?.type === "TEXT" ? "2xl" : "md"}
                 title={editing ? `Edit ${TYPE_META[editing.type].label.toLowerCase()} lesson` : "Edit lesson"}
                 description="A lesson's type is fixed once it's created."
             >
@@ -622,6 +625,7 @@ export default function ModuleLessonsEditor({
                         type={editing.type}
                         lesson={editing}
                         layout="modal"
+                        onUploadImage={uploadImage}
                         isPending={update.isPending}
                         submitLabel="Save changes"
                         onSubmit={(fields) => update.mutate({ lesson: editing, fields })}

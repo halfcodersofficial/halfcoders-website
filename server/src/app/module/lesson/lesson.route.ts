@@ -39,6 +39,12 @@ router.patch(
     LessonController.setReaction,
 );
 
+// The same, for a practice day's lessons.
+router.get("/practice/:materialId", checkAuth(Role.STUDENT), LessonController.getLessonState);
+router.put("/practice/:materialId/note", checkAuth(Role.STUDENT), validateRequest(noteZodSchema), LessonController.saveNote);
+router.patch("/practice/:materialId/bookmark", checkAuth(Role.STUDENT), validateRequest(bookmarkZodSchema), LessonController.setBookmark);
+router.patch("/practice/:materialId/reaction", checkAuth(Role.STUDENT), validateRequest(reactionZodSchema), LessonController.setReaction);
+
 router.get(
     "/courses/:courseId/bookmarks",
     checkAuth(Role.STUDENT),
