@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 
 interface FreePreviewPlayerProps {
     video: { title: string; youtubeVideoId: string } | null;
@@ -13,8 +14,12 @@ interface FreePreviewPlayerProps {
  *
  * Radix's dialog for the parts that are easy to get wrong: focus moves into
  * the dialog and back out on close, Escape and the overlay both dismiss it,
- * and the page behind is marked inert for screen readers. The iframe is only
+ * and the page behind is marked inert for screen readers. The player is only
  * mounted while open, so closing actually stops the video.
+ *
+ * It's the lesson player, as inside the course: a preview is one of the
+ * course's own lessons, so it gets the same cover over YouTube — no title,
+ * channel or "Watch on YouTube" link to take the video away from.
  */
 export default function FreePreviewPlayer({ video, onClose }: FreePreviewPlayerProps) {
     return (
@@ -40,17 +45,7 @@ export default function FreePreviewPlayer({ video, onClose }: FreePreviewPlayerP
                         </Dialog.Close>
                     </div>
 
-                    {video && (
-                        <div className="aspect-video">
-                            <iframe
-                                src={`https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?autoplay=1&rel=0&modestbranding=1`}
-                                title={video.title}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                className="size-full"
-                            />
-                        </div>
-                    )}
+                    {video && <LessonVideoPlayer key={video.youtubeVideoId} youtubeVideoId={video.youtubeVideoId} title={video.title} autoPlay />}
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

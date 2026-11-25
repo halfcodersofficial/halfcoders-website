@@ -1,32 +1,20 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import {
-    Award,
-    BookmarkCheck,
-    BookOpen,
-    ClipboardCheck,
-    ClipboardList,
-    CreditCard,
-    Dumbbell,
-    Headphones,
-    ListChecks,
-    NotebookPen,
-    ThumbsDown,
-    ThumbsUp,
-    UserPlus,
-    type LucideIcon,
-} from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowRight, BookmarkCheck, BookOpen, NotebookPen, ThumbsDown, ThumbsUp, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
 import { StatusPill } from "@/components/admin/StatusPill";
 import { TREND_COLORS, TrendChart } from "@/components/admin/TrendChart";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cn, formatBDT } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { StudentEnrollment, StudentOverview } from "@/types/admin.types";
+import { ActivityRow } from "./ActivityRow";
 import { percentLabel, percentTone, weekLabel, XP_SOURCE_LABEL } from "./format";
+import { QuizAttemptReview } from "./QuizAttemptReview";
 
 const LEARNING_SERIES = [
     { key: "lessons" as const, label: "Lessons completed", ...TREND_COLORS[0] },
@@ -34,30 +22,21 @@ const LEARNING_SERIES = [
     { key: "checks" as const, label: "Quizzes & practice days", ...TREND_COLORS[2] },
 ];
 
-const FEED: Record<StudentOverview["feed"][number]["kind"], { icon: LucideIcon; verb: string }> = {
-    lesson: { icon: BookOpen, verb: "Completed lesson" },
-    submission: { icon: ClipboardList, verb: "Submitted" },
-    review: { icon: ClipboardCheck, verb: "Got marks on" },
-    quiz: { icon: ListChecks, verb: "Took quiz" },
-    practice: { icon: Dumbbell, verb: "Finished practice day" },
-    support: { icon: Headphones, verb: "Joined support" },
-    enrolled: { icon: UserPlus, verb: "Enrolled in" },
-    certificate: { icon: Award, verb: "Earned a certificate for" },
-    payment: { icon: CreditCard, verb: "Paid for" },
-};
-
 /**
  * The student at a glance: each course with how far they've got, what they
  * did over the last month, their latest activity, and where their XP came
  * from.
  */
 export function StudentOverviewTab({
+    studentId,
     data,
     onOpenCourse,
 }: {
+    studentId: string;
     data: StudentOverview;
     onOpenCourse: (courseId: string) => void;
 }) {
+    const [review, setReview] = useState<{ attemptId: string; title: string } | null>(null);
     const trend = data.trend.map((day) => ({
         date: day.date,
         lessons: day.lessons,
@@ -102,46 +81,32 @@ export function StudentOverviewTab({
 
             <div className="min-w-0 space-y-6">
                 <Card className="shadow-card">
-                    <CardHeader>
+                    <CardHeader className="flex-row items-baseline justify-between gap-3">
                         <CardTitle>Recent activity</CardTitle>
+                        <Link
+                            href={`/admin/students/${studentId}/activity`}
+                            className="shrink-0 text-xs font-medium text-primary-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            See all
+                        </Link>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-3">
                         {data.feed.length === 0 ? (
                             <p className="text-sm text-muted-foreground">Nothing yet.</p>
                         ) : (
-                            <ol className="relative space-y-4 before:absolute before:inset-y-2 before:left-3.5 before:w-px before:bg-border">
-                                {data.feed.slice(0, 15).map((entry) => {
-                                    const { icon: Icon, verb } = FEED[entry.kind];
-                                    return (
-                                        <li key={entry.id} className="relative flex gap-3">
-                                            <span className="relative grid size-7 shrink-0 place-items-center rounded-full border border-border bg-card text-primary">
-                                                <Icon className="size-3.5" aria-hidden />
-                                            </span>
-                                            <div className="min-w-0 flex-1 pt-0.5">
-                                                <p className="text-sm leading-snug">
-                                                    <span className="text-muted-foreground">{verb} </span>
-                                                    <span className="font-medium wrap-break-word">{entry.title}</span>
-                                                    {entry.detail && entry.kind !== "support" && (
-                                                        <span className="font-semibold tabular-nums"> · {entry.detail}</span>
-                                                    )}
-                                                    {entry.amount !== undefined && (
-                                                        <span className="font-semibold tabular-nums"> · {formatBDT(entry.amount)}</span>
-                                                    )}
-                                                </p>
-                                                <p className="truncate text-xs text-muted-foreground">
-                                                    {formatDistanceToNow(new Date(entry.at), { addSuffix: true })}
-                                                    {entry.by && entry.kind === "review" && ` · by ${entry.by.name}`}
-                                                    {entry.by && entry.kind === "support" && ` · with ${entry.by.name}`}
-                                                    {entry.course && entry.kind !== "enrolled" && entry.kind !== "certificate" && entry.kind !== "payment" && (
-                                                        <> · {entry.course.title}</>
-                                                    )}
-                                                </p>
-                                            </div>
-                                        </li>
-                                    );
-                                })}
+                            <ol className="-mx-2 divide-y divide-border">
+                                {data.feed.map((entry) => (
+                                    <li key={entry.id}>
+                                        <ActivityRow entry={entry} compact onOpenQuiz={(attemptId, title) => setReview({ attemptId, title })} />
+                                    </li>
+                                ))}
                             </ol>
                         )}
+                        <Button asChild variant="outline" size="sm" className="w-full">
+                            <Link href={`/admin/students/${studentId}/activity`}>
+                                {data.moreActivity ? "See all activity" : "Open the activity page"} <ArrowRight />
+                            </Link>
+                        </Button>
                     </CardContent>
                 </Card>
 
@@ -187,6 +152,8 @@ export function StudentOverviewTab({
                     </CardContent>
                 </Card>
             </div>
+
+            <QuizAttemptReview attemptId={review?.attemptId ?? null} title={review?.title} onClose={() => setReview(null)} />
         </div>
     );
 }

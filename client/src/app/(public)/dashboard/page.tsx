@@ -8,6 +8,7 @@ import {
     BookOpenText,
     CalendarCheck2,
     CheckCircle2,
+    Clapperboard,
     ClipboardCheck,
     Flame,
     Gift,
@@ -27,9 +28,10 @@ import { Progress } from "@/components/ui/progress";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STUDENT_ROLES } from "@/lib/access";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatHoursMinutes } from "@/lib/utils";
 import { dashboardService } from "@/services";
-import { liveClassService } from "@/services/conceptual";
+import { conceptualService, liveClassService } from "@/services/conceptual";
+import type { ConceptualCourseSummary } from "@/types/conceptual.types";
 import type { Enrollment, LessonType, StudentDashboard, UpNextPlan } from "@/types/domain.types";
 
 const COURSE_FILTERS = [
@@ -86,6 +88,9 @@ function StudentDashboardView() {
         refetchOnWindowFocus: true,
         refetchInterval: 2 * 60_000,
     });
+    // The courses with conceptual session recordings — the same list as the
+    // Conceptual Sessions page, so watching one there updates the card here.
+    const conceptual = useQuery({ queryKey: ["conceptual", "my-courses"], queryFn: conceptualService.myCourses });
 
     if (isLoading || !data) {
         return (
@@ -119,6 +124,25 @@ function StudentDashboardView() {
     const filteredEnrollments = courseFilter
         ? ownCourses.filter((enrollment) => enrollment.status === courseFilter)
         : ownCourses;
+
+    // Under them, side by side in one grid: the extras, then a card for each
+    // course with conceptual session recordings.
+    const recordings = conceptual.data ?? [];
+    const extrasCount = rewardCourses.length + recordings.length;
+    const extras =
+        rewardCourses.length && recordings.length
+            ? {
+                  title: "More to learn",
+                  hint: "Courses that came free with yours, and the recorded conceptual classes of your courses. Any time.",
+                  accent: "bg-syn-number",
+              }
+            : rewardCourses.length
+              ? { title: "Reward & free courses", hint: "Courses that came free with yours, and free courses you joined. Learn them any time.", accent: "bg-syn-number" }
+              : {
+                    title: "Conceptual sessions",
+                    hint: "Every live conceptual class of your courses, recorded and up the day after. Watch them any time.",
+                    accent: "bg-syn-func",
+                };
 
     return (
         <div className="container-page space-y-8 py-8 sm:py-10">
@@ -208,21 +232,22 @@ function StudentDashboardView() {
                             </section>
                         )}
 
-                        {rewardCourses.length > 0 && (
-                            <section aria-labelledby="reward-courses-title">
+                        {extrasCount > 0 && (
+                            <section aria-labelledby="extras-title">
                                 <div className="mb-5">
-                                    <h2 id="reward-courses-title" className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
-                                        <span aria-hidden className="h-5 w-1 rounded-full bg-syn-number" />
-                                        Reward &amp; free courses
-                                        <span className="text-base font-normal text-muted-foreground">({rewardCourses.length})</span>
+                                    <h2 id="extras-title" className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
+                                        <span aria-hidden className={cn("h-5 w-1 rounded-full", extras.accent)} />
+                                        {extras.title}
+                                        <span className="text-base font-normal text-muted-foreground">({extrasCount})</span>
                                     </h2>
-                                    <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-                                        Courses that came free with yours, and free courses you joined. Learn them any time.
-                                    </p>
+                                    <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">{extras.hint}</p>
                                 </div>
                                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                     {rewardCourses.map((enrollment) => (
                                         <CourseTile key={enrollment.id} enrollment={enrollment} />
+                                    ))}
+                                    {recordings.map((summary) => (
+                                        <ConceptualTile key={summary.course.id} summary={summary} />
                                     ))}
                                 </div>
                             </section>
@@ -927,6 +952,102 @@ function CourseTile({ enrollment }: { enrollment: Enrollment }) {
                             </Link>
                         </Button>
                     )}
+                </div>
+            </div>
+        </article>
+    );
+}
+
+/** A recording added in the last three days that the student hasn't watched yet. */
+const FRESH_MS = 3 * 24 * 60 * 60 * 1000;
+
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+
+/**
+ * One course's conceptual session recordings, as a tile beside the courses:
+ * the course's picture with how many recordings it has and how many are
+ * watched, the one to watch next, and the way into the player — at that one.
+ */
+function ConceptualTile({ summary }: { summary: ConceptualCourseSummary }) {
+    const { course, next, latest } = summary;
+    const href = `/learn/${course.slug}/conceptual${next ? `?session=${next.id}` : ""}`;
+    const allWatched = summary.watched >= summary.recordings;
+    const isFresh = Boolean(latest && latest.id === next?.id && Date.now() - new Date(latest.addedAt).getTime() < FRESH_MS);
+
+    return (
+        <article className="group flex flex-col overflow-hidden rounded-card border border-border bg-card transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-card-hover">
+            <Link href={href} tabIndex={-1} aria-hidden className="relative aspect-video overflow-hidden bg-secondary">
+                <SafeImage
+                    src={course.thumbnail}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 100vw, 420px"
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    fallback={<Clapperboard className="size-8 text-muted-foreground" />}
+                />
+                {/* A dark band and a play button: this card opens videos, not a course. */}
+                <span className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
+                <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-primary shadow-[0_10px_30px_-6px_rgb(116_50_240/0.8)] ring-4 ring-white/15 transition-transform duration-300 group-hover:scale-110">
+                    <svg viewBox="0 0 24 24" className="ml-0.5 size-6 fill-white" aria-hidden>
+                        <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+                    </svg>
+                </span>
+                <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-2 rounded-sm bg-editor/85 py-1 pl-1 pr-2.5 text-xs font-semibold text-editor-fg shadow-lg">
+                    {allWatched ? (
+                        <span className="grid size-7 place-items-center rounded-full bg-success">
+                            <CheckCircle2 className="size-4" />
+                        </span>
+                    ) : (
+                        <ProgressRing value={(summary.watched / summary.recordings) * 100} size={28} stroke={3} fillIn trackClassName="stroke-white/25">
+                            <span aria-hidden />
+                        </ProgressRing>
+                    )}
+                    <span className="tabular-nums">
+                        {summary.watched}/{summary.recordings} watched
+                    </span>
+                </span>
+                <span className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-sm bg-editor/85 px-2 py-1 font-mono text-xs font-semibold text-white">
+                    <Clapperboard className="size-3.5" aria-hidden />
+                    {plural(summary.recordings, "recording")}
+                    {summary.totalDuration > 0 && <span className="font-normal text-white/70">· {formatHoursMinutes(summary.totalDuration)}</span>}
+                </span>
+            </Link>
+
+            <div className="flex flex-1 flex-col px-4 pb-4 pt-3.5">
+                <p className="flex items-center gap-2 text-xs font-semibold text-syn-func">
+                    <Video className="size-3.5" aria-hidden />
+                    Conceptual sessions
+                    {isFresh && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-primary">New recording</span>}
+                </p>
+                <h3 className="mt-1.5 line-clamp-2 font-bold leading-snug tracking-tight">
+                    <Link href={href} className="transition-colors hover:text-primary">
+                        {course.title}
+                    </Link>
+                </h3>
+                <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    {next ? (
+                        <>
+                            <Play className="size-3.5 shrink-0 fill-current text-primary" aria-hidden />
+                            <span className="shrink-0">{summary.watched > 0 ? "Up next:" : "Start with:"}</span>
+                            <span className="truncate font-medium text-foreground">{next.title}</span>
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 className="size-3.5 shrink-0 text-success" aria-hidden />
+                            You&apos;ve watched every recording so far.
+                        </>
+                    )}
+                </p>
+
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+                    <Button asChild size="sm" className="px-4">
+                        <Link href={href}>{next ? (summary.watched > 0 ? "Continue watching" : "Start watching") : "Watch again"}</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                        <Link href="/conceptual-sessions">
+                            <Clapperboard /> All recordings
+                        </Link>
+                    </Button>
                 </div>
             </div>
         </article>

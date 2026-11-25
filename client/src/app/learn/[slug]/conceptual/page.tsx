@@ -1,11 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Clapperboard, Lock, PlayCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Clapperboard, Lock, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import LessonVideoPlayer from "@/components/learn/LessonVideoPlayer";
 import LiveClassStrip from "@/components/learn/LiveClassStrip";
 import ProgressRing from "@/components/shared/ProgressRing";
 import { BackButton } from "@/components/ui/back-button";
@@ -14,15 +14,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage } from "@/lib/httpClient";
 import { linkify } from "@/lib/linkify";
 import { cn, formatHoursMinutes } from "@/lib/utils";
+import { useSession } from "@/hooks/useSession";
 import { conceptualService } from "@/services/conceptual";
-import type { ConceptualCourse, ConceptualRecording, ConceptualTopic } from "@/types/conceptual.types";
+import type { ConceptualCourse, ConceptualTopic } from "@/types/conceptual.types";
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
 /**
  * One course's conceptual session recordings: the player on the left, the
- * topics on the right with every recording in them, ticked as the student
- * marks them watched. Opens on `?session=`, else the first recording not yet
+ * topics on the right with every recording in them. Played in the lesson
+ * player — our own controls over a YouTube frame that can't be clicked into,
+ * with the student's email drifting over the video — so a recording can't be
+ * lifted off YouTube or screen-recorded without saying whose it was. A
+ * recording ticks itself off as watched once most of it has played; there's
+ * nothing to press. Opens on `?session=`, else the first recording not yet
  * watched. Only video — nothing here touches course progress.
  */
 export default function ConceptualPlayerPage() {
@@ -30,6 +35,7 @@ export default function ConceptualPlayerPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const queryClient = useQueryClient();
+    const { user } = useSession();
     const queryKey = ["conceptual", "course", slug];
 
     const { data, isLoading, isError, error } = useQuery({
@@ -53,7 +59,6 @@ export default function ConceptualPlayerPage() {
     // Which topics are open: the active one's by default, then whatever the student toggles.
     const [toggled, setToggled] = useState<Record<string, boolean>>({});
     const isOpen = (topicId: string) => toggled[topicId] ?? topicId === active?.topic.id;
-    const [started, setStarted] = useState<string | null>(null);
 
     const markWatched = useMutation({
         mutationFn: ({ id, watched }: { id: string; watched: boolean }) => conceptualService.setWatched(id, watched),
@@ -73,9 +78,10 @@ export default function ConceptualPlayerPage() {
             }
             return { previous };
         },
-        onError: (err, _variables, context) => {
+        // A tick the student never asked for: if it doesn't save, it quietly
+        // comes back off, and the next full watch tries again.
+        onError: (_err, _variables, context) => {
             if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-            toast.error(getApiErrorMessage(err, "Couldn't save that."));
         },
         onSettled: () => void queryClient.invalidateQueries({ queryKey: ["conceptual", "my-courses"] }),
     });
@@ -148,12 +154,29 @@ export default function ConceptualPlayerPage() {
                     <LiveClassStrip slug={slug} />
                     {active ? (
                         <>
-                            <Player
-                                recording={active.session}
-                                number={index + 1}
-                                total={recordings.length}
-                                started={started === active.session.id}
-                                onStart={() => setStarted(active.session.id)}
+                            {/* Keyed per recording, so each one starts fresh at its play cover. */}
+                            <LessonVideoPlayer
+                                key={active.session.id}
+                                youtubeVideoId={active.session.youtubeVideoId}
+                                title={active.session.title}
+                                subtitle={`Recording ${index + 1} of ${recordings.length}${active.session.durationLabel ? ` · ${active.session.durationLabel}` : ""}`}
+                                coverImage={data.course.thumbnail}
+                                prev={previous ? { title: previous.session.title, onSelect: () => goTo(previous.session.id), label: "Previous recording" } : null}
+                                next={next ? { title: next.session.title, onSelect: () => goTo(next.session.id), label: "Next recording" } : null}
+                                watermark={user?.email}
+                                onWatched={
+                                    active.session.isWatched
+                                        ? undefined
+                                        : () => {
+                                              // Pin it in the URL first: without `?session=` the page
+                                              // opens the first unwatched recording, which would jump
+                                              // away from this one the moment it's ticked.
+                                              if (requested !== active.session.id) {
+                                                  router.replace(`/learn/${slug}/conceptual?session=${active.session.id}`, { scroll: false });
+                                              }
+                                              markWatched.mutate({ id: active.session.id, watched: true });
+                                          }
+                                }
                             />
 
                             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -166,9 +189,14 @@ export default function ConceptualPlayerPage() {
                                     <h2 className="mt-1.5 text-balance text-xl font-bold leading-snug tracking-tight sm:text-2xl">
                                         {active.session.title}
                                     </h2>
-                                    <p className="mt-1 text-sm tabular-nums text-muted-foreground">
+                                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm tabular-nums text-muted-foreground">
                                         Recording {index + 1} of {recordings.length}
                                         {active.session.durationLabel && ` · ${active.session.durationLabel}`}
+                                        {active.session.isWatched && (
+                                            <span className="inline-flex items-center gap-1 font-medium text-success">
+                                                <CheckCircle2 className="size-3.5" aria-hidden /> Watched
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
 
@@ -182,33 +210,6 @@ export default function ConceptualPlayerPage() {
                                         onClick={() => previous && goTo(previous.session.id)}
                                     >
                                         <ChevronLeft />
-                                    </Button>
-                                    <Button
-                                        variant={active.session.isWatched ? "outline" : "default"}
-                                        aria-pressed={active.session.isWatched}
-                                        onClick={() => {
-                                            // Pin it in the URL first: without `?session=` the player
-                                            // falls back to the first unwatched one, which would jump
-                                            // away from this recording the moment it's ticked.
-                                            if (requested !== active.session.id) {
-                                                router.replace(`/learn/${slug}/conceptual?session=${active.session.id}`, { scroll: false });
-                                            }
-                                            markWatched.mutate({ id: active.session.id, watched: !active.session.isWatched });
-                                        }}
-                                        className={cn(
-                                            "rounded-full px-5",
-                                            active.session.isWatched && "border-success/40 text-success hover:bg-success/10",
-                                        )}
-                                    >
-                                        {active.session.isWatched ? (
-                                            <>
-                                                <CheckCircle2 /> Watched
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check /> Mark as watched
-                                            </>
-                                        )}
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -282,66 +283,7 @@ export default function ConceptualPlayerPage() {
     );
 }
 
-/**
- * The YouTube player behind an opaque cover until the student presses play —
- * the same cover as the lesson player, which hides YouTube's own title and
- * "Watch on YouTube" link (cross-origin, so they can't be styled away).
- */
-function Player({
-    recording,
-    number,
-    total,
-    started,
-    onStart,
-}: {
-    recording: ConceptualRecording;
-    number: number;
-    total: number;
-    started: boolean;
-    onStart: () => void;
-}) {
-    return (
-        <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-panel ring-1 ring-border">
-            {started ? (
-                <iframe
-                    key={recording.id}
-                    src={`https://www.youtube-nocookie.com/embed/${recording.youtubeVideoId}?rel=0&modestbranding=1&disablekb=1&autoplay=1`}
-                    title={recording.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="size-full"
-                />
-            ) : (
-                <button
-                    type="button"
-                    onClick={onStart}
-                    onContextMenu={(event) => event.preventDefault()}
-                    aria-label={`Play ${recording.title}`}
-                    className="group absolute inset-0 flex flex-col items-center justify-center gap-5 overflow-hidden bg-black px-6 text-center text-white"
-                >
-                    <span
-                        aria-hidden
-                        className="pointer-events-none absolute left-1/2 top-1/2 size-112 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand opacity-25 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
-                    />
-                    <span className="relative grid size-20 place-items-center rounded-full bg-brand shadow-[0_10px_40px_-8px_oklch(0.55_0.2_260/0.8)] ring-8 ring-white/10 transition-transform duration-300 group-hover:scale-105">
-                        <svg viewBox="0 0 24 24" className="ml-1 size-8 fill-white" aria-hidden>
-                            <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-                        </svg>
-                    </span>
-                    <span className="relative max-w-xl space-y-1.5">
-                        <span className="block text-lg font-semibold leading-snug sm:text-xl">{recording.title}</span>
-                        <span className="block text-sm tabular-nums text-white/60">
-                            Recording {number} of {total}
-                            {recording.durationLabel && ` · ${recording.durationLabel}`}
-                        </span>
-                    </span>
-                </button>
-            )}
-        </div>
-    );
-}
-
-/** One topic: its header (opens and closes), then its recordings, each with its watched tick. */
+/** One topic: its header (opens and closes), then its recordings, each ticked once watched. */
 function TopicGroup({
     topic,
     open,

@@ -76,6 +76,11 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # Where a student signs in from (city, network) on their admin page:
+      # ipinfo.io looks each address up once. Works without a token up to
+      # 1,000 lookups a day; a free token (ipinfo.io/signup) raises that.
+      - key: IPINFO_TOKEN
+        sync: false
       - key: SUPER_ADMIN_NAME
         value: Half Coders Admin
       - key: SUPER_ADMIN_EMAIL

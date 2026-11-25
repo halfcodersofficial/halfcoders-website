@@ -5,13 +5,25 @@ import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { IRequestUser } from "../../interfaces/requestUser.interface";
 import { ensureLearningProfile } from "../../lib/learningProfile";
-import { clearSessionCookie, endSession, resolveRequestSession, startSession } from "../../lib/session";
+import { SignInMethod } from "../../../generated/prisma/enums";
+import { clearSessionCookie, endSession, resolveRequestSession, signInAttempt, startSession } from "../../lib/session";
 import { AuthService } from "./auth.service";
 
-/** Signs `userId` in on this browser and answers with their profile (plus `extra`). */
-const signIn = async (req: Request, res: Response, userId: string, message: string, extra?: Record<string, unknown>) => {
+/**
+ * Signs `userId` in on this browser and answers with their profile (plus
+ * `extra`). `how` goes into the sign-in history: the way they got in, and how
+ * many of their devices were signed out to make room.
+ */
+const signIn = async (
+    req: Request,
+    res: Response,
+    userId: string,
+    message: string,
+    how: { method: SignInMethod; signedOutOthers?: number },
+    extra?: Record<string, unknown>,
+) => {
     await ensureLearningProfile(userId);
-    const sessionId = await startSession(res, req, userId);
+    const sessionId = await startSession(res, req, userId, how.method, how.signedOutOthers);
     const me = await AuthService.getMe({ userId, sessionId } as IRequestUser);
     sendResponse(res, { httpStatusCode: status.OK, success: true, message, data: { ...me, ...extra } });
 };
@@ -28,7 +40,7 @@ const register = catchAsync(async (req: Request, res: Response) => {
 
 const verifyEmail = catchAsync(async (req: Request, res: Response) => {
     const userId = await AuthService.verifyEmail(req.body);
-    await signIn(req, res, userId, "Email verified — you're signed in.");
+    await signIn(req, res, userId, "Email verified — you're signed in.", { method: SignInMethod.EMAIL_CODE });
 });
 
 const resendVerification = catchAsync(async (req: Request, res: Response) => {
@@ -37,14 +49,21 @@ const resendVerification = catchAsync(async (req: Request, res: Response) => {
 });
 
 const login = catchAsync(async (req: Request, res: Response) => {
-    const userId = await AuthService.login(req.body);
-    await signIn(req, res, userId, "Signed in.");
+    const { userId, signedOutOthers } = await AuthService.login(req.body, signInAttempt(req, SignInMethod.PASSWORD));
+    await signIn(req, res, userId, "Signed in.", { method: SignInMethod.PASSWORD, signedOutOthers });
 });
 
 /** `isNewAccount` tells the web app whether to greet a new member or a returning one. */
 const googleSignIn = catchAsync(async (req: Request, res: Response) => {
-    const { userId, isNewAccount } = await AuthService.googleSignIn(req.body);
-    await signIn(req, res, userId, isNewAccount ? "Account created — you're signed in." : "Signed in.", { isNewAccount });
+    const { userId, isNewAccount, signedOutOthers } = await AuthService.googleSignIn(req.body, signInAttempt(req, SignInMethod.GOOGLE));
+    await signIn(
+        req,
+        res,
+        userId,
+        isNewAccount ? "Account created — you're signed in." : "Signed in.",
+        { method: SignInMethod.GOOGLE, signedOutOthers },
+        { isNewAccount },
+    );
 });
 
 /** Ends this browser's session, if it has one, and clears the cookie either way. */
@@ -82,7 +101,7 @@ const forgotPassword = catchAsync(async (req: Request, res: Response) => {
 
 const resetPassword = catchAsync(async (req: Request, res: Response) => {
     const userId = await AuthService.resetPassword(req.body);
-    await signIn(req, res, userId, "Password changed — you're signed in.");
+    await signIn(req, res, userId, "Password changed — you're signed in.", { method: SignInMethod.PASSWORD_RESET });
 });
 
 const changePassword = catchAsync(async (req: Request, res: Response) => {

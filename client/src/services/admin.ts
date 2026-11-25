@@ -44,8 +44,13 @@ import type {
     MentorReviewCourse,
     PlatformSettingKey,
     PlatformSettings,
+    StudentAccess,
+    StudentActivityPage,
+    StudentActivitySummary,
     StudentCourseBreakdown,
+    StudentCourseQuizzes,
     StudentOverview,
+    StudentSignIn,
     TestimonialInput,
 } from "@/types/admin.types";
 
@@ -80,6 +85,27 @@ export const adminService = {
         httpClient
             .get<ApiResponse<StudentCourseBreakdown>>(`/users/students/${userId}/courses/${courseId}`)
             .then(unwrap),
+
+    /** Every quiz, course by course. An attempt's answers are `quizService.getAttempt`. */
+    studentQuizzes: (userId: string) =>
+        httpClient.get<ApiResponse<StudentCourseQuizzes[]>>(`/users/students/${userId}/quizzes`).then(unwrap),
+
+    /** A page of everything they did; `before` is the last page's `nextCursor`, `kinds` comma-separated. */
+    studentActivity: (userId: string, params?: { before?: string; limit?: number; kinds?: string; courseId?: string }) =>
+        httpClient.get<ApiResponse<StudentActivityPage>>(`/users/students/${userId}/activity`, { params }).then(unwrap),
+
+    studentActivitySummary: (userId: string) =>
+        httpClient.get<ApiResponse<StudentActivitySummary>>(`/users/students/${userId}/activity/summary`).then(unwrap),
+
+    /** Where the account is used from: devices, places and the signs of sharing. */
+    studentAccess: (userId: string) =>
+        httpClient.get<ApiResponse<StudentAccess>>(`/users/students/${userId}/devices`).then(unwrap),
+
+    studentSignIns: (userId: string, params?: Params) =>
+        httpClient.get<ApiResponse<StudentSignIn[]>>(`/users/students/${userId}/sign-ins`, { params }).then(unwrapList),
+
+    signOutStudentDevice: (userId: string, sessionId: string) =>
+        httpClient.delete(`/users/students/${userId}/devices/${sessionId}`).then(() => undefined),
 
     mentors: (params?: Params) =>
         httpClient.get<ApiResponse<AdminUser[]>>("/users/mentors", { params }).then(unwrapList),

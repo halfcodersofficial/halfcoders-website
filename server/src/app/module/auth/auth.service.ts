@@ -9,7 +9,7 @@ import { exchangeGoogleCode, GoogleIdentity, verifyGoogleCredential } from "../.
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../../lib/password";
 import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
-import { endAllSessions, endSession, liveDevices, makeRoomForDevice, MAX_DEVICES } from "../../lib/session";
+import { endAllSessions, endSession, liveDevices, makeRoomForDevice, MAX_DEVICES, SignInAttempt } from "../../lib/session";
 import { sendEmail } from "../../utils/email";
 import { logger } from "../../utils/logger";
 import { assertRealEmail } from "../../utils/realEmail";
@@ -169,13 +169,17 @@ const resendVerification = async ({ email }: { email: string }) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Checks the email and password. Returns the account to sign in; an
+ * Checks the email and password. Returns the account to sign in (and how
+ * many of its devices were signed out to make room); an
  * unverified email gets a fresh code and a 403 the client turns into the
  * verify step. An account already on every device it may use gets a 409 the
  * client turns into the device-limit step, which comes back with
  * `signOutAllDevices` once the person agrees.
  */
-const login = async ({ email, password, signOutAllDevices }: { email: string; password: string; signOutAllDevices?: boolean }) => {
+const login = async (
+    { email, password, signOutAllDevices }: { email: string; password: string; signOutAllDevices?: boolean },
+    attempt?: SignInAttempt,
+) => {
     const account = await findByEmail(email);
     // An account without a password (made with Google) takes as long to
     // refuse as an unknown email, and answers the same.
@@ -191,8 +195,8 @@ const login = async ({ email, password, signOutAllDevices }: { email: string; pa
         await sendAuthCodeQuietly(account, AuthCodePurpose.VERIFY_EMAIL);
         throw new AppError(status.FORBIDDEN, "Verify your email first — we've sent you a code.").setData({ code: "EMAIL_NOT_VERIFIED", email: account.email });
     }
-    await makeRoomForDevice(account.id, signOutAllDevices);
-    return account.id;
+    const signedOutOthers = await makeRoomForDevice(account.id, signOutAllDevices, attempt);
+    return { userId: account.id, signedOutOthers };
 };
 
 // ---------------------------------------------------------------------------
@@ -210,7 +214,10 @@ const login = async ({ email, password, signOutAllDevices }: { email: string; pa
  * sign-in again with `signOutAllDevices`. A code works only once, so its 409
  * carries the ID token (`credential`) to come back with.
  */
-const googleSignIn = async ({ code, credential, signOutAllDevices }: { code?: string; credential?: string; signOutAllDevices?: boolean }) => {
+const googleSignIn = async (
+    { code, credential, signOutAllDevices }: { code?: string; credential?: string; signOutAllDevices?: boolean },
+    attempt?: SignInAttempt,
+) => {
     let google: GoogleIdentity;
     let idToken: string | undefined;
     if (code) {
@@ -237,7 +244,7 @@ const googleSignIn = async ({ code, credential, signOutAllDevices }: { code?: st
             select: { id: true },
         });
         logger.create("Account created with Google", { userId: user.id });
-        return { userId: user.id, isNewAccount: true };
+        return { userId: user.id, isNewAccount: true, signedOutOthers: 0 };
     }
 
     if (account.googleId && account.googleId !== google.sub) {
@@ -263,15 +270,16 @@ const googleSignIn = async ({ code, credential, signOutAllDevices }: { code?: st
         logger.update("Google account linked", { userId: account.id });
     }
 
+    let signedOutOthers: number;
     try {
-        await makeRoomForDevice(account.id, signOutAllDevices);
+        signedOutOthers = await makeRoomForDevice(account.id, signOutAllDevices, attempt);
     } catch (error) {
         if (idToken && error instanceof AppError && error.statusCode === status.CONFLICT) {
             error.setData({ ...(error.data as object), credential: idToken });
         }
         throw error;
     }
-    return { userId: account.id, isNewAccount: false };
+    return { userId: account.id, isNewAccount: false, signedOutOthers };
 };
 
 // ---------------------------------------------------------------------------

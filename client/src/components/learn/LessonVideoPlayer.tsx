@@ -53,6 +53,9 @@ const formatTime = (totalSeconds: number) => {
 
 const rateLabel = (rate: number) => (rate === 1 ? "Normal" : `${rate}×`);
 
+/** How much of a video counts as having watched it, for `onWatched`. */
+const WATCHED_SHARE = 0.9;
+
 /**
  * How far YouTube's frame runs past the stage above and below, in the frame's
  * own pixels. When paused, YouTube pins the video's title and channel to the
@@ -148,13 +151,20 @@ interface LessonVideoPlayerProps {
     subtitle?: string;
     /** The course's cover image, behind the play button before the first play. */
     coverImage?: string | null;
-    prev?: { title: string; onSelect: () => void } | null;
+    /** `label` names the step when it isn't a lesson ("Previous recording"); "Previous lesson" otherwise. */
+    prev?: { title: string; onSelect: () => void; label?: string } | null;
     /** `label` names the step when it isn't a lesson ("Finish module"); "Next lesson" otherwise. */
     next?: { title: string; onSelect: () => void; label?: string } | null;
     /** The viewer's email, drifting over the video so a screen recording names who made it. */
     watermark?: string;
     /** Called once with the video's running time, as soon as the player knows it. */
     onDuration?: (seconds: number) => void;
+    /**
+     * Called once when the student has played most of the video (`WATCHED_SHARE`
+     * of it) or to its end — for videos that tick themselves off as watched,
+     * with no button to press (the conceptual session recordings).
+     */
+    onWatched?: () => void;
     /**
      * Start playing as soon as it mounts, as if the cover had been pressed —
      * for a player that only mounts on a tap (the checkout's guide video), so
@@ -183,6 +193,7 @@ export default function LessonVideoPlayer({
     next,
     watermark,
     onDuration,
+    onWatched,
     autoPlay = false,
 }: LessonVideoPlayerProps) {
     const rootRef = useRef<HTMLDivElement>(null);
@@ -246,6 +257,20 @@ export default function LessonVideoPlayer({
 
     const isFullscreen = nativeFullscreen || pseudoFullscreen;
     const active = status === "playing" || status === "buffering";
+
+    // Watched: most of it played, or to the end — said once per video.
+    const onWatchedRef = useRef(onWatched);
+    const watchedReportedRef = useRef(false);
+    useEffect(() => {
+        onWatchedRef.current = onWatched;
+    }, [onWatched]);
+    useEffect(() => {
+        if (watchedReportedRef.current || !started || !(duration > 0)) return;
+        if (status === "ended" || current >= duration * WATCHED_SHARE) {
+            watchedReportedRef.current = true;
+            onWatchedRef.current?.();
+        }
+    }, [started, status, current, duration]);
     const controlsShown = started && !failed && (!active || menuOpen || chromeAwake || scrubTime !== null);
 
     /** Shows the controls, then hides them again after a moment of no movement. */
@@ -1033,7 +1058,7 @@ export default function LessonVideoPlayer({
                         page's own "Previous" and "Next" right under the video. */}
                     {prev && (
                         <ControlButton
-                            label={`Previous lesson: ${prev.title}`}
+                            label={`${prev.label ?? "Previous lesson"}: ${prev.title}`}
                             onClick={prev.onSelect}
                             className="hidden sm:grid"
                         >

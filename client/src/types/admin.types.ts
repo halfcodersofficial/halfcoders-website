@@ -405,17 +405,177 @@ export interface StudentOverview {
     engagement: { notes: number; bookmarks: number; likes: number; dislikes: number };
     /** The last 30 days, oldest first; `date` is YYYY-MM-DD in Dhaka. */
     trend: { date: string; lessons: number; submissions: number; quizzes: number; practice: number }[];
-    /** What they did, newest first. */
-    feed: {
+    /** The latest few things they did — the whole feed is the activity page. */
+    feed: StudentActivityEntry[];
+    /** The activity page has more than `feed`. */
+    moreActivity: boolean;
+}
+
+/** Where an IP address is, roughly — null when it hasn't been looked up (yet). */
+export interface IpPlace {
+    city: string | null;
+    region: string | null;
+    /** ISO code, e.g. "BD". */
+    country: string | null;
+    /** The internet provider, or a host or VPN. */
+    network: string | null;
+    /** A private address — the same network as the server. */
+    local: boolean;
+}
+
+export type StudentActivityKind =
+    | "lesson"
+    | "submission"
+    | "review"
+    | "quiz"
+    | "practice"
+    | "support"
+    | "enrolled"
+    | "certificate"
+    | "payment"
+    | "signin"
+    | "refused";
+
+export type SignInMethod = "PASSWORD" | "GOOGLE" | "EMAIL_CODE" | "PASSWORD_RESET";
+
+/** One thing a student did — `GET /users/students/:id/activity`. */
+export interface StudentActivityEntry {
+    id: string;
+    kind: StudentActivityKind;
+    at: string;
+    title: string;
+    course: { id: string; title: string } | null;
+    /** "Week 03 · Module 2". */
+    where?: string | null;
+    detail?: string | null;
+    status?: string | null;
+    score?: { label: string; percent: number | null } | null;
+    /** Taka, for a payment. */
+    amount?: number;
+    by?: { id: string; name: string; image: string | null } | null;
+    /** A finished quiz — opens its answers. */
+    quizAttemptId?: string;
+    /** A sign-in's device, address and place. */
+    device?: DeviceInfo & { ipAddress: string | null; place: IpPlace | null };
+    method?: SignInMethod | null;
+    signedOutOthers?: number;
+}
+
+export interface StudentActivityPage {
+    data: StudentActivityEntry[];
+    /** `before` for the next page; null once there's no more. */
+    nextCursor: string | null;
+}
+
+/** The top of the activity page — `GET /users/students/:id/activity/summary`. */
+export interface StudentActivitySummary {
+    counts: Record<StudentActivityKind, number>;
+    courses: { id: string; title: string }[];
+    /** 26 weeks, oldest first; `date` is YYYY-MM-DD in Dhaka. */
+    calendar: { date: string; lessons: number; submissions: number; quizzes: number; practice: number; total: number }[];
+    activeDays: { last30: number; inCalendar: number };
+    streak: { current: number; longest: number };
+}
+
+/** Where a student's account is used from — `GET /users/students/:id/devices`. */
+export interface StudentAccess {
+    maxDevices: number;
+    /** The oldest sign-in on record. */
+    historySince: string | null;
+    risk: {
+        level: "low" | "medium" | "high";
+        signs: { id: string; level: "medium" | "high"; title: string; detail: string }[];
+    };
+    /** The last `days` days. */
+    window: {
+        days: number;
+        signIns: number;
+        refused: number;
+        /** Refusals never followed by signing the other devices out — someone who didn't want to push them out. */
+        gaveUp: number;
+        /** Sign-ins that signed other devices out to make room. */
+        kickouts: number;
+        devices: number;
+        places: number;
+        countries: number;
+        addresses: number;
+    };
+    /** Signed in now, most recently used first. */
+    live: (DeviceInfo & {
+        /** The session's id — what signing it out sends. */
         id: string;
-        kind: "lesson" | "submission" | "review" | "quiz" | "practice" | "support" | "enrolled" | "certificate" | "payment";
-        at: string;
-        title: string;
-        course: { id: string; title: string } | null;
-        detail?: string | null;
-        amount?: number;
-        by?: { id: string; name: string; image: string | null } | null;
+        userAgent: string | null;
+        method: SignInMethod | null;
+        signedInAt: string;
+        signedInFrom: { ip: string | null; place: IpPlace | null };
+        lastSeenAt: string;
+        lastSeenFrom: { ip: string | null; place: IpPlace | null };
+        expiresAt: string;
+    })[];
+    /** Every device it's been used on (a browser on a system, whatever its version), most recent first. */
+    devices: (DeviceInfo & {
+        id: string;
+        firstSeenAt: string;
+        lastSeenAt: string;
+        signIns: number;
+        refused: number;
+        addresses: number;
+        places: IpPlace[];
+        live: boolean;
+    })[];
+    /** Every place it's been used from, most recent first. `place` is null when it isn't known. */
+    places: {
+        key: string;
+        place: IpPlace | null;
+        networks: string[];
+        addresses: number;
+        signIns: number;
+        refused: number;
+        firstSeenAt: string;
+        lastSeenAt: string;
     }[];
+}
+
+/** One sign-in — `GET /users/students/:id/sign-ins`. */
+export interface StudentSignIn extends DeviceInfo {
+    id: string;
+    outcome: "SIGNED_IN" | "DEVICE_LIMIT_REFUSED";
+    /** Null for one from before the history began. */
+    method: SignInMethod | null;
+    signedOutOthers: number;
+    ipAddress: string | null;
+    userAgent: string | null;
+    place: IpPlace | null;
+    createdAt: string;
+    /** When that device signed out; null while live, or when it simply ran out. */
+    endedAt: string | null;
+    live: boolean;
+    lastSeenAt: string | null;
+    /** The first sign-in from this device, or from this city. */
+    newDevice: boolean;
+    newPlace: boolean;
+}
+
+/** One course's quizzes for a student — `GET /users/students/:id/quizzes`. */
+export interface StudentCourseQuizzes {
+    enrollmentId: string;
+    status: EnrollmentStatus;
+    progress: number;
+    course: { id: string; title: string; thumbnail: string | null; milestoneLabel: string; moduleLabel: string };
+    quizzes: {
+        id: string;
+        title: string;
+        questions: number;
+        /** Out for students now; false for one they took that's been hidden since. */
+        live: boolean;
+        week: { title: string; order: number } | null;
+        module: { title: string; order: number } | null;
+        assignment: { title: string } | null;
+        attempts: StudentCourseQuiz["attempts"];
+        bestPercent: number | null;
+        lastTakenAt: string | null;
+    }[];
+    stats: { total: number; taken: number; averagePercent: number | null; fullMarks: number; low: number };
 }
 
 export interface StudentCourseLesson {
