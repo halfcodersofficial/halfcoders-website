@@ -1,14 +1,19 @@
+"use client";
+
 import { formatDistanceToNowStrict } from "date-fns";
-import { CreditCard, GraduationCap, UserPlus, type LucideIcon } from "lucide-react";
+import { ArrowRight, CreditCard, GraduationCap, UserPlus, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn, formatBDT, formatDateTime } from "@/lib/utils";
 import type { AdminDashboard } from "@/types/admin.types";
+import Panel from "./Panel";
 
 type Tone = "success" | "warning" | "danger" | "primary" | "muted";
+type Kind = "payments" | "enrolments" | "people";
 
 interface Event {
     id: string;
+    kind: Kind;
     at: string;
     icon: LucideIcon;
     /** Colours the icon, so money and admin actions stand out from sign-ups at a glance. */
@@ -32,6 +37,17 @@ const ICON_TONE: Record<Tone, string> = {
 
 const ROLE_WORD: Record<string, string> = { STUDENT: "a student", MENTOR: "a mentor", ADMIN: "an admin", SUPER_ADMIN: "a super admin" };
 
+/** The filter tabs, and where each one's "see all" goes. */
+const FILTERS: { key: Kind | "all"; label: string; more?: { href: string; label: string } }[] = [
+    { key: "all", label: "All" },
+    { key: "payments", label: "Payments", more: { href: "/admin/orders", label: "All payments" } },
+    { key: "enrolments", label: "Enrolments", more: { href: "/admin/enrollments", label: "All enrolments" } },
+    { key: "people", label: "New people", more: { href: "/admin/students", label: "All students" } },
+];
+
+/** How many lines the feed shows — about as tall as the courses beside it. */
+const SHOWN = 8;
+
 const orderLink = (order: AdminDashboard["recentOrders"][number]) =>
     `/admin/orders/${order.course.id}?q=${encodeURIComponent(order.orderNumber)}&open=${order.id}`;
 
@@ -42,10 +58,10 @@ function eventsOf(data: AdminDashboard): Event[] {
         const amount = <strong className="font-semibold">{formatBDT(order.total)}</strong>;
         return {
             id: `order-${order.id}`,
+            kind: "payments",
             at: order.createdAt,
             icon: CreditCard,
-            tone:
-                order.status === "PAID" ? "success" : order.status === "PENDING" ? "warning" : order.status === "FAILED" ? "danger" : "muted",
+            tone: order.status === "PAID" ? "success" : order.status === "PENDING" ? "warning" : order.status === "FAILED" ? "danger" : "muted",
             href: orderLink(order),
             course: order.course.title,
             text:
@@ -88,6 +104,7 @@ function eventsOf(data: AdminDashboard): Event[] {
         .filter((enrollment) => !enrollment.orderId || !orderIds.has(enrollment.orderId))
         .map((enrollment) => ({
             id: `enrolment-${enrollment.id}`,
+            kind: "enrolments",
             at: enrollment.createdAt,
             icon: GraduationCap,
             tone: "primary",
@@ -95,19 +112,18 @@ function eventsOf(data: AdminDashboard): Event[] {
             course: enrollment.course.title,
             text: (
                 <>
-                    <strong className="font-semibold">{enrollment.student.name}</strong>{" "}
-                    {enrollment.orderId ? "enrolled" : "was enrolled by an admin"}
+                    <strong className="font-semibold">{enrollment.student.name}</strong> {enrollment.orderId ? "enrolled" : "was enrolled by an admin"}
                 </>
             ),
         }));
 
     const signUps: Event[] = data.recentUsers.map((person) => ({
         id: `user-${person.id}`,
+        kind: "people",
         at: person.createdAt,
         icon: UserPlus,
         tone: "muted",
-        href:
-            person.role === "STUDENT" ? `/admin/students/${person.id}` : person.role === "MENTOR" ? `/admin/mentors/${person.id}` : undefined,
+        href: person.role === "STUDENT" ? `/admin/students/${person.id}` : person.role === "MENTOR" ? `/admin/mentors/${person.id}` : undefined,
         text: (
             <>
                 <strong className="font-semibold">{person.name}</strong> joined as {ROLE_WORD[person.role] ?? person.role.toLowerCase()}
@@ -115,29 +131,62 @@ function eventsOf(data: AdminDashboard): Event[] {
         ),
     }));
 
-    return [...orders, ...enrolments, ...signUps].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
+    return [...orders, ...enrolments, ...signUps].sort((a, b) => b.at.localeCompare(a.at));
 }
 
 /**
  * The latest on the platform, as short lines on a timeline: who paid, who
- * joined, who was enrolled — the three old "recent" lists read as one story.
- * Each is two lines at most (what happened; the course and when), so the
- * feed stays about as tall as the courses beside it.
+ * joined, who was enrolled — the three "recent" lists read as one story, or
+ * one kind at a time from the tabs. Each is two lines at most (what happened;
+ * the course and when), so the feed stays about as tall as the courses beside it.
  */
 export default function ActivityFeed({ data, className }: { data: AdminDashboard; className?: string }) {
-    const events = eventsOf(data);
+    const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
+    const current = FILTERS.find((entry) => entry.key === filter) ?? FILTERS[0];
+    const all = eventsOf(data);
+    const events = (filter === "all" ? all : all.filter((event) => event.kind === filter)).slice(0, SHOWN);
 
     return (
-        <section aria-labelledby="activity-title" className={cn("overflow-hidden rounded-card border border-border bg-card shadow-card", className)}>
-            <header className="border-b border-border px-5 py-4 sm:px-6 bg-surface">
-                <h2 id="activity-title" className="text-lg font-semibold tracking-tight">
-                    Latest activity
-                </h2>
-            </header>
+        <Panel
+            id="activity-title"
+            title="Latest activity"
+            file="activity.log"
+            className={className}
+            footer={
+                current.more ? (
+                    <Link href={current.more.href} className="inline-flex items-center gap-1 font-sans text-xs font-medium text-primary hover:underline">
+                        {current.more.label} <ArrowRight className="size-3.5" aria-hidden />
+                    </Link>
+                ) : (
+                    <span>Newest first · pick a tab to see one kind</span>
+                )
+            }
+        >
+            <div role="group" aria-label="Show" className="no-scrollbar flex gap-1 overflow-x-auto border-b border-border px-4 py-2 sm:px-5">
+                {FILTERS.map((entry) => {
+                    const selected = entry.key === filter;
+                    return (
+                        <button
+                            key={entry.key}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setFilter(entry.key)}
+                            className={cn(
+                                "shrink-0 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
+                                selected ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                            )}
+                        >
+                            {entry.label}
+                        </button>
+                    );
+                })}
+            </div>
 
             {events.length === 0 ? (
-                <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-                    Nothing yet — orders, enrolments and new learners show up here as they happen.
+                <p className="px-6 py-12 text-center text-sm text-muted-foreground">
+                    {filter === "all"
+                        ? "Nothing yet — orders, enrolments and new learners show up here as they happen."
+                        : `No recent ${current.label.toLowerCase()}.`}
                 </p>
             ) : (
                 <ol className="relative px-5 py-3 sm:px-6">
@@ -163,7 +212,7 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
                                                 <span aria-hidden>·</span>
                                             </>
                                         )}
-                                        <time dateTime={event.at} title={formatDateTime(event.at)} className="shrink-0">
+                                        <time dateTime={event.at} title={formatDateTime(event.at)} className="shrink-0 font-mono text-[0.7rem]">
                                             {formatDistanceToNowStrict(new Date(event.at), { addSuffix: true })}
                                         </time>
                                         {event.note && (
@@ -186,7 +235,10 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
                         return (
                             <li key={event.id}>
                                 {event.href ? (
-                                    <Link href={event.href} className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-secondary/40">
+                                    <Link
+                                        href={event.href}
+                                        className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-secondary/40"
+                                    >
                                         {body}
                                     </Link>
                                 ) : (
@@ -197,6 +249,6 @@ export default function ActivityFeed({ data, className }: { data: AdminDashboard
                     })}
                 </ol>
             )}
-        </section>
+        </Panel>
     );
 }

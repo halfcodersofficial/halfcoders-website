@@ -59,6 +59,7 @@ export function TrendChart<K extends string>({
     emptyMessage,
     format = String,
     formatTick = format,
+    reference,
 }: {
     trend: Day<K>[];
     /** Up to three, coloured from `TREND_COLORS` in order. One needs no legend — the title names it. */
@@ -68,6 +69,8 @@ export function TrendChart<K extends string>({
     format?: (value: number) => string;
     /** The same, short enough for the y-axis — "৳1.1K". */
     formatTick?: (value: number) => string;
+    /** A dashed line across the columns at this value — the daily average — labelled at its right end. */
+    reference?: { value: number; label: string };
 }) {
     const total = (day: Day<K>) => SERIES.reduce((sum, { key }) => sum + day[key], 0);
     const describe = (day: Day<K>) =>
@@ -177,6 +180,19 @@ export function TrendChart<K extends string>({
                         );
                     })}
                 </div>
+
+                {/* Over the columns, so a tall one doesn't hide it; the label sits just above the line. */}
+                {!empty && reference && reference.value > 0 && (
+                    <div
+                        className="pointer-events-none absolute inset-x-0 left-8 border-t border-dashed border-foreground/45"
+                        style={{ bottom: `${(reference.value / top) * 100}%` }}
+                        aria-hidden
+                    >
+                        <span className="absolute bottom-0.5 right-0 rounded-sm bg-card/90 px-1 text-[10px] font-medium tabular-nums text-muted-foreground">
+                            {reference.label}
+                        </span>
+                    </div>
+                )}
 
                 {activeDay && active !== null && (
                     <div

@@ -20,12 +20,13 @@ const today = () =>
  * editor window on graph paper, opened on a "Today" tab, greeting the person
  * by name with the date beside it. `children` runs on inside the window under
  * the greeting (the admin's "needs you" list); `status` fills the violet bar
- * along its foot.
+ * along its foot; `toolbar` sits in the tab strip, before the date.
  */
 export default function ConsoleHero({
     description,
     actions,
     status,
+    toolbar,
     children,
     className,
 }: {
@@ -33,6 +34,8 @@ export default function ConsoleHero({
     /** Buttons beside the greeting; dress secondary ones with `HERO_OUTLINE`. */
     actions?: ReactNode;
     status?: ReactNode;
+    /** A small control in the tab strip, left of the date — a refresh button. */
+    toolbar?: ReactNode;
     children?: ReactNode;
     className?: string;
 }) {
@@ -43,8 +46,11 @@ export default function ConsoleHero({
         <EditorWindow
             tabs={[{ name: "today.md", label: "Today", active: true }]}
             actions={
-                <span className="font-mono text-[0.7rem] text-editor-muted" suppressHydrationWarning>
-                    {today()}
+                <span className="flex items-center gap-3">
+                    {toolbar}
+                    <span className="font-mono text-[0.7rem] text-editor-muted" suppressHydrationWarning>
+                        {today()}
+                    </span>
                 </span>
             }
             status={status}
