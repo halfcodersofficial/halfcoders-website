@@ -1,87 +1,14 @@
 "use client";
 
-import { Headphones, ListChecks, Receipt } from "lucide-react";
+import { Headphones, Receipt } from "lucide-react";
 import type { ReactNode } from "react";
 import DataTable, { type Column } from "@/components/admin/DataTable";
 import { StatusPill } from "@/components/admin/StatusPill";
 import { SupportFeedbackScores } from "@/components/shared/SupportFeedback";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { cn, formatBDT, formatDateTime, formatQueueNumber } from "@/lib/utils";
-import type { StudentOverview, StudentQuizAttempt } from "@/types/admin.types";
-import { GATEWAY_LABEL, percentLabel, percentTone, weekLabel } from "./format";
-
-/** Every quiz attempt, newest first — each one kept, so retakes show. */
-export function StudentQuizzes({ attempts }: { attempts: StudentQuizAttempt[] }) {
-    if (attempts.length === 0) {
-        return <EmptyTab icon={ListChecks} title="No quizzes taken yet." hint="Each attempt at a module quiz shows up here with its score." />;
-    }
-
-    const completed = attempts.filter((attempt) => attempt.status === "COMPLETED");
-    const average = completed.length
-        ? completed.reduce((sum, attempt) => sum + attempt.percentage, 0) / completed.length
-        : null;
-    const perfect = completed.filter((attempt) => attempt.percentage === 100).length;
-
-    const columns: Column<StudentQuizAttempt>[] = [
-        {
-            id: "quiz",
-            header: "Quiz",
-            primary: true,
-            sortable: true,
-            sortValue: (attempt) => attempt.quiz.title,
-            cell: (attempt) => (
-                <div className="min-w-0">
-                    <p className="truncate font-medium">{attempt.quiz.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {weekLabel(attempt.quiz.course.milestoneLabel, (attempt.quiz.module ?? attempt.quiz.assignment)?.milestone.order ?? 0)} ·{" "}
-                        {attempt.quiz.module ? `${attempt.quiz.course.moduleLabel} ${attempt.quiz.module.order}` : "Assignment"} ·{" "}
-                        {attempt.quiz.course.title}
-                    </p>
-                </div>
-            ),
-        },
-        {
-            id: "score",
-            header: "Score",
-            className: "whitespace-nowrap",
-            sortable: true,
-            sortValue: (attempt) => (attempt.status === "COMPLETED" ? attempt.percentage : -1),
-            cell: (attempt) =>
-                attempt.status === "COMPLETED" ? (
-                    <span>
-                        <span className={cn("font-semibold tabular-nums", percentTone(attempt.percentage))}>{attempt.percentage}%</span>
-                        <span className="ml-2 text-xs tabular-nums text-muted-foreground">
-                            {attempt.correctCount}/{attempt.totalQuestions} correct
-                        </span>
-                    </span>
-                ) : (
-                    <Badge variant="secondary">Unfinished</Badge>
-                ),
-        },
-        {
-            id: "when",
-            header: "When",
-            className: "whitespace-nowrap",
-            sortable: true,
-            sortValue: (attempt) => new Date(attempt.completedAt ?? attempt.startedAt),
-            cell: (attempt) => formatDateTime(attempt.completedAt ?? attempt.startedAt),
-        },
-    ];
-
-    return (
-        <div className="space-y-4">
-            <Summary
-                items={[
-                    ["Attempts", attempts.length],
-                    ["Average", percentLabel(average)],
-                    ["Full marks", perfect],
-                ]}
-            />
-            <DataTable rows={attempts} columns={columns} rowKey={(attempt) => attempt.id} />
-        </div>
-    );
-}
+import type { StudentOverview } from "@/types/admin.types";
+import { GATEWAY_LABEL } from "./format";
 
 type Order = StudentOverview["orders"][number];
 

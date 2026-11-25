@@ -11,6 +11,7 @@ import {
     changeCourseStatusZodSchema,
     courseContentZodSchema,
     createCourseZodSchema,
+    reorderCoursesZodSchema,
     updateCourseZodSchema,
 } from "./course.validation";
 
@@ -30,6 +31,15 @@ router.post(
     checkAuth(...ADMINS),
     validateRequest(createCourseZodSchema),
     CourseController.createCourse,
+);
+
+// The catalogue's order, dragged in the admin course list. Before
+// `/manage/:courseId`, so "reorder" is never read as a course id.
+router.patch(
+    "/manage/reorder",
+    checkAuth(...ADMINS),
+    validateRequest(reorderCoursesZodSchema),
+    CourseController.reorderCourses,
 );
 
 router.get("/manage/:courseId", checkAuth(...ADMINS), CourseController.getCourseById);

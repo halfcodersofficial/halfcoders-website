@@ -67,6 +67,9 @@ model Course {
   venue                  String?
   isFeatured             Boolean         @default(false)
   isPopular              Boolean         @default(false)
+  /// Its place in the catalogue, set by an admin dragging the course list:
+  /// lowest first. A new course goes after every other one.
+  position               Int             @default(0)
   /// Bullet list rendered under "What Students Will Learn" (plan §8).
   outcomes               String[]        @default([])
   requirements           String[]        @default([])

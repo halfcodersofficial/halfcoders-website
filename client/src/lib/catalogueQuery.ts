@@ -20,7 +20,7 @@ export const CATALOGUE_SECTION_SIZE = 8;
  * sort silently falls back to the endpoint default.
  */
 export const CATALOGUE_SORTS = [
-    // The main programmes an admin featured first, then the newest.
+    // The order an admin set with "Arrange order" on the course list.
     { value: "", label: "Recommended", sortBy: "featured", sortOrder: "desc" },
     { value: "newest", label: "Newest first", sortBy: "createdAt", sortOrder: "desc" },
     { value: "oldest", label: "Oldest first", sortBy: "createdAt", sortOrder: "asc" },

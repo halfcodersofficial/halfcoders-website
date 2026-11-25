@@ -105,13 +105,6 @@ const weekRows = (milestone: LearningMilestone, withAssignmentsAndPractice: bool
 /** The module's quiz is taken, or it has none. */
 const quizDone = (courseModule: LearningModule) => !courseModule.quiz || courseModule.quiz.isCompleted;
 
-/**
- * Every lesson of the module done and its quiz taken — worked out here, so a
- * "Next" shows at once, before the server answers.
- */
-const isModuleDone = (courseModule: LearningModule) =>
-    courseModule.videos.length > 0 && courseModule.videos.every((video) => video.isCompleted) && quizDone(courseModule);
-
 /** "Quiz: Loop" — without doubling a title staff already started with "Quiz". */
 const quizLabel = (title: string) => (/^quiz\b/i.test(title.trim()) ? title : `Quiz: ${title}`);
 
@@ -190,26 +183,49 @@ const stopKey = {
 };
 
 /**
+ * The course's one "complete" stop: the last module with lessons — the newest
+ * one released — and the week it's in. It sits at the end of that week, after
+ * the module's practice days and assignments; a module released later takes
+ * it over.
+ */
+const courseFinish = (data: CourseLearning): { courseModule: LearningModule; milestone: LearningMilestone } | null => {
+    for (const milestone of [...data.curriculum].reverse()) {
+        const last = weekRows(milestone, false).findLast((row) => row.kind === "MODULE" && row.entry.videos.length > 0);
+        if (last?.kind === "MODULE") return { courseModule: last.entry, milestone };
+    }
+    return null;
+};
+
+/**
+ * Every lesson of the course done and every module's quiz taken — what opens
+ * its "complete" stop. `counts` says whether a lesson counts as done (the
+ * page also counts the one "Next" is about to complete).
+ */
+const isCourseDone = (data: CourseLearning, counts: (video: LearningVideo) => boolean = (video) => video.isCompleted) =>
+    data.curriculum.every((milestone) =>
+        milestone.modules.every((courseModule) => courseModule.videos.length === 0 || (courseModule.videos.every(counts) && quizDone(courseModule))),
+    );
+
+/**
+ * No more modules are coming: the course has been moved to Previous (its
+ * batch is over, sold as recorded). Its "complete" stop is then the whole
+ * course's, not the latest module's.
+ */
+const isCourseOver = (data: CourseLearning) => data.course.phase === "PREVIOUS";
+
+/**
  * Every stop of the course in order — what Previous and Next walk. Each
- * module's lessons, its quiz among them; then the practice days and
- * assignments that follow it in the week, each its lessons (and an
- * assignment, or a practice day with no lessons, its own page); and only then
- * the module's "complete" screen, so finishing a module means finishing the
- * practice that goes with it first.
+ * module's lessons, its quiz among them; the practice days and assignments
+ * of the week, each its lessons (and an assignment, or a practice day with
+ * no lessons, its own page); and once, at the end of the week the last
+ * module is in, the course's "complete" screen (see `courseFinish`).
  */
 const courseStops = (data: CourseLearning): CourseStop[] => {
     const stops: CourseStop[] = [];
+    const finish = courseFinish(data);
     for (const milestone of data.curriculum) {
-        let finishing: LearningModule | null = null;
-        const closeModule = () => {
-            if (finishing && finishing.videos.length > 0) {
-                stops.push({ kind: "FINISH", key: stopKey.finish(finishing.id), courseModule: finishing, milestone });
-            }
-            finishing = null;
-        };
         for (const row of weekRows(milestone, true)) {
             if (row.kind === "MODULE") {
-                closeModule();
                 const courseModule = row.entry;
                 for (const step of moduleSteps(courseModule)) {
                     stops.push(
@@ -218,7 +234,6 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
                             : { kind: "QUIZ", key: stopKey.quiz(step.quiz.id), quiz: step.quiz, courseModule, group: null, milestone },
                     );
                 }
-                finishing = courseModule;
                 continue;
             }
             const group: WeekGroup = row.kind === "PRACTICE" ? { kind: "PRACTICE", entry: row.entry } : { kind: "ASSIGNMENT", entry: row.entry };
@@ -232,7 +247,9 @@ const courseStops = (data: CourseLearning): CourseStop[] => {
             }
             if (hasGroupPage(group)) stops.push({ kind: "GROUP", key: stopKey.group(group.entry.id), group, milestone });
         }
-        closeModule();
+        if (finish?.milestone.id === milestone.id) {
+            stops.push({ kind: "FINISH", key: stopKey.finish(finish.courseModule.id), courseModule: finish.courseModule, milestone });
+        }
     }
     return stops;
 };
@@ -320,7 +337,7 @@ const moduleTrail = (milestone: LearningMilestone, moduleId: string): WeekGroup[
 };
 
 /**
- * What a module's "complete" stop is for — what was just finished: the last
+ * What the "complete" stop after a module is for — what was just finished: the last
  * practice day or assignment after the module that's done, or (null) the
  * module itself.
  */
@@ -350,7 +367,7 @@ export default function LearnPage() {
     const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
     // Same idea for a module's quiz.
     const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-    // …and for a module's "complete" screen, the last stop of every module.
+    // …and for the course's "complete" screen, at the end of its last module.
     const [activeCompleteModuleId, setActiveCompleteModuleId] = useState<string | null>(null);
     // …and for a practice day's own page.
     const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
@@ -512,8 +529,8 @@ export default function LearnPage() {
     // Open the student's current milestone and pick up where they are, so
     // returning to the page resumes rather than restarts: the first lesson
     // or quiz still to do — or a practice day or assignment before it that's
-    // still to do (one released since). With everything done, the last
-    // module's "complete" screen — the end of the road so far — not lesson 1.
+    // still to do (one released since). With everything done, the course's
+    // "complete" screen — the end of the road so far — not lesson 1.
     useEffect(() => {
         if (
             !data ||
@@ -713,7 +730,7 @@ export default function LearnPage() {
         openQuiz(quizId);
     };
 
-    /** A module's "complete" screen, its last stop. Its last lesson stays the one behind it. */
+    /** The course's "complete" screen (`moduleId` its last module). That module's last lesson stays the one behind it. */
     const goToModuleComplete = (moduleId: string) => {
         const lastLesson = data && findModule(data, moduleId)?.courseModule.videos.at(-1);
         if (lastLesson) setActiveVideoId(lastLesson.id);
@@ -745,12 +762,12 @@ export default function LearnPage() {
         }
     };
 
-    // Should a "complete" screen ever be open for a module that isn't done —
-    // a last lesson whose save the server turned down — show that lesson again.
+    // Should the "complete" screen ever be open with the course not done — a
+    // last lesson whose save the server turned down — or for a module that's
+    // no longer the last (one released meanwhile), show the lesson behind it.
     useEffect(() => {
         if (!data || !activeCompleteModuleId || pendingCompletionsRef.current > 0) return;
-        const place = findModule(data, activeCompleteModuleId);
-        if (!place || !isModuleDone(place.courseModule)) setActiveCompleteModuleId(null);
+        if (courseFinish(data)?.courseModule.id !== activeCompleteModuleId || !isCourseDone(data)) setActiveCompleteModuleId(null);
     }, [data, activeCompleteModuleId]);
 
     // Same for a quiz whose lessons aren't all done after all: back to the lesson.
@@ -1085,13 +1102,11 @@ export default function LearnPage() {
         showsLesson && activeVideo && !data.isPreview && !activeVideo.isLocked && !activeVideo.isCompleted && !blockingStop,
     );
 
-    // A module's "complete" screen opens once every lesson of it is done —
-    // counting the one "Next" is about to complete — and its quiz is taken.
-    const finishOpens = (courseModule: LearningModule) =>
-        !data.isPreview &&
-        courseModule.videos.length > 0 &&
-        courseModule.videos.every((video) => video.isCompleted || (video.id === activeVideoId && canComplete)) &&
-        quizDone(courseModule);
+    // The course's "complete" screen opens once every lesson is done —
+    // counting the one "Next" is about to complete — and every quiz taken.
+    const finishOpens = () => !data.isPreview && isCourseDone(data, (video) => video.isCompleted || (video.id === activeVideoId && canComplete));
+    // Over (moved to Previous): it's the whole course that's complete, not the latest module.
+    const courseOver = isCourseOver(data);
 
     // The open quiz, while the student hasn't taken it: there's no going on
     // past it until they do.
@@ -1105,7 +1120,7 @@ export default function LearnPage() {
         if (activeStopIndex < 0) return null;
         for (const stop of stops.slice(activeStopIndex + 1)) {
             if (stop.kind === "VIDEO" && stop.courseModule.isLocked) continue;
-            if (stop.kind === "FINISH" && !finishOpens(stop.courseModule)) continue;
+            if (stop.kind === "FINISH" && !finishOpens()) continue;
             return stop;
         }
         return null;
@@ -1148,8 +1163,11 @@ export default function LearnPage() {
      * What "Next" into a "complete" stop finishes: the practice day or
      * assignment open now, or else the module.
      */
-    const finishingLabel =
-        activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP" ? GROUP_LABEL[activeStop.group.kind] : moduleLabel;
+    const finishingLabel = courseOver
+        ? "Course"
+        : activeStop?.kind === "MATERIAL" || activeStop?.kind === "GROUP"
+          ? GROUP_LABEL[activeStop.group.kind]
+          : moduleLabel;
 
     /** What a stop is called on a button or the player's "Up next". */
     const stopTitle = (stop: CourseStop) => {
@@ -1358,6 +1376,7 @@ export default function LearnPage() {
                             milestone={completePlace.milestone}
                             courseModule={completePlace.courseModule}
                             finished={finishedLast(completePlace.milestone, completePlace.courseModule)}
+                            courseOver={courseOver}
                         />
                     ) : activeQuizId ? (
                         <QuizPane key={activeQuizId} quizId={activeQuizId} />
@@ -1576,10 +1595,10 @@ export default function LearnPage() {
                                     )}
 
                                     {nextFinishesCourse && !activeVideo.isCompleted ? (
-                                        // The course's last lesson: "Finish" counts it and opens the module's "complete" screen.
+                                        // The course's last lesson: "Finish" counts it and opens the course's "complete" screen.
                                         <Button
                                             className="rounded-full px-5"
-                                            title={`Finish: ${moduleLabel} complete`}
+                                            title={`Finish: ${courseOver ? "Course" : moduleLabel} complete`}
                                             onClick={advance}
                                         >
                                             <Check className="size-4" /> Finish
@@ -1901,6 +1920,10 @@ function CurriculumSidebar({
     canOpenQuiz,
 }: CurriculumSidebarProps) {
     const query = search.trim().toLowerCase();
+    // The course's one "complete" stop (from the whole course, not a search's matches), and whether it's open yet.
+    const finish = courseFinish(data);
+    const courseDone = isCourseDone(data);
+    const courseOver = isCourseOver(data);
 
     const visibleCurriculum = query
         ? data.curriculum
@@ -2117,6 +2140,7 @@ function CurriculumSidebar({
                                         goToQuiz={goToQuiz}
                                         activeCompleteModuleId={activeCompleteModuleId}
                                         goToModuleComplete={goToModuleComplete}
+                                        finish={finish?.milestone.id === milestone.id ? { courseModule: finish.courseModule, done: courseDone, courseOver } : null}
                                         bookmarkedVideoIds={bookmarkedVideoIds}
                                         onToggleRowBookmark={onToggleRowBookmark}
                                         canOpenLesson={canOpenLesson}
@@ -2183,7 +2207,7 @@ type RouteItem =
     | { kind: "MODULE"; key: string; courseModule: LearningModule; isOpen: boolean }
     | { kind: "VIDEO"; key: string; video: LearningVideo; courseModule: LearningModule }
     | { kind: "QUIZ"; key: string; quiz: LearningQuiz }
-    | { kind: "FINISH"; key: string; courseModule: LearningModule }
+    | { kind: "FINISH"; key: string; courseModule: LearningModule; done: boolean }
     // An assignment or practice day: its heading, its lessons, then its own page.
     | { kind: "GROUP"; key: string; group: WeekGroup; isOpen: boolean }
     | { kind: "MATERIAL"; key: string; group: WeekGroup; material: LessonMaterial }
@@ -2194,7 +2218,7 @@ const isDone = (item: RouteItem) => {
         case "MODULE":
             return item.courseModule.isCompleted && quizDone(item.courseModule);
         case "FINISH":
-            return isModuleDone(item.courseModule);
+            return item.done;
         case "VIDEO":
             return item.video.isCompleted;
         case "QUIZ":
@@ -2238,6 +2262,7 @@ function WeekRoute({
     goToQuiz,
     activeCompleteModuleId,
     goToModuleComplete,
+    finish,
     bookmarkedVideoIds,
     onToggleRowBookmark,
     canOpenLesson,
@@ -2247,6 +2272,11 @@ function WeekRoute({
     canOpenQuiz: (quizId: string) => boolean;
     activeCompleteModuleId: string | null;
     goToModuleComplete: (moduleId: string) => void;
+    /**
+     * The course's "complete" stop, when it's at the end of this week: its
+     * module, whether it's open yet, and whether the course is over.
+     */
+    finish: { courseModule: LearningModule; done: boolean; courseOver: boolean } | null;
     milestone: LearningMilestone;
     /** The course's word for a module ("Module", "Chapter", …). */
     moduleLabel: string;
@@ -2270,16 +2300,8 @@ function WeekRoute({
     // The week in the order it was arranged in — a search only matches
     // lessons, so it leaves assignments and practice days out.
     const items: RouteItem[] = [];
-    // The open module whose "complete" stop is still to place: after the
-    // assignments and practice days that follow it, before the next module.
-    let finishing: LearningModule | null = null;
-    const closeModule = () => {
-        if (finishing) items.push({ kind: "FINISH", key: `FINISH:${finishing.id}`, courseModule: finishing });
-        finishing = null;
-    };
     for (const row of weekRows(milestone, withAssignmentsAndPractice)) {
         if (row.kind === "MODULE") {
-            closeModule();
             const courseModule = row.entry;
             const isOpen = isModuleOpen(courseModule.id);
             items.push({ kind: "MODULE", key: `MODULE:${courseModule.id}`, courseModule, isOpen });
@@ -2292,8 +2314,6 @@ function WeekRoute({
                         : { kind: "QUIZ", key: `QUIZ:${step.quiz.id}`, quiz: step.quiz },
                 );
             }
-            // Not while searching, when only matching lessons show.
-            if (withAssignmentsAndPractice && courseModule.videos.length > 0) finishing = courseModule;
             continue;
         }
         const group: WeekGroup = row.kind === "PRACTICE" ? { kind: "PRACTICE", entry: row.entry } : { kind: "ASSIGNMENT", entry: row.entry };
@@ -2309,7 +2329,10 @@ function WeekRoute({
         }
         if (hasGroupPage(group)) items.push({ kind: "GROUP_PAGE", key: `GROUP_PAGE:${group.entry.id}`, group });
     }
-    closeModule();
+    // The course's one "complete" stop, last in its week — not while searching, when only matching lessons show.
+    if (finish && withAssignmentsAndPractice) {
+        items.push({ kind: "FINISH", key: `FINISH:${finish.courseModule.id}`, courseModule: finish.courseModule, done: finish.done });
+    }
 
     /** Whether this assignment or practice day is the one open in the player. */
     const isActiveGroup = (group: WeekGroup) =>
@@ -2490,18 +2513,20 @@ function WeekRoute({
                         })()
                     ) : item.kind === "FINISH" ? (
                         (() => {
-                            const done = isModuleDone(item.courseModule);
+                            const { done } = item;
+                            const courseOver = finish?.courseOver ?? false;
                             const isActive = activeCompleteModuleId === item.courseModule.id;
-                            // Named for what was just finished: the module, a practice day or an assignment.
+                            // Named for what was just finished: the course once it's over; otherwise
+                            // the last module, or a practice day or assignment after it.
                             const finished = finishedLast(milestone, item.courseModule);
-                            const label = finished ? GROUP_LABEL[finished.kind] : moduleLabel;
+                            const label = courseOver ? "Course" : finished ? GROUP_LABEL[finished.kind] : moduleLabel;
                             return (
                                 // On the wrapper, not the disabled button — a disabled button shows no tooltip.
                                 <div
                                     title={
                                         done
                                             ? undefined
-                                            : `Opens once you finish every lesson${item.courseModule.quiz ? " and the quiz" : ""} in this ${moduleLabel.toLowerCase()}`
+                                            : "Opens once you finish every lesson and quiz in the course"
                                     }
                                 >
                                     <button

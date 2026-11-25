@@ -29,6 +29,7 @@ export const courseSortableFields = [
     "title",
     "price",
     "updatedAt",
+    "position",
 ];
 
 /**

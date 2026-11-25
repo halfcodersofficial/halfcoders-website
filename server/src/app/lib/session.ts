@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from "crypto";
 import { CookieOptions, Request, Response } from "express";
 import status from "http-status";
-import { AccountStatus, LearningStatus } from "../../generated/prisma/enums";
+import { AccountStatus, LearningStatus, SignInMethod, SignInOutcome } from "../../generated/prisma/enums";
 import { envVars, isProduction } from "../config/env";
 import AppError from "../errorHelpers/AppError";
+import { logger } from "../utils/logger";
+import { normaliseIp, rememberIpLocation } from "./ipLocation";
 import { ensureLearningProfile } from "./learningProfile";
 import { prisma } from "./prisma";
 import { Role } from "./roles";
@@ -20,6 +22,11 @@ import { describeUserAgent } from "./userAgent";
  *
  * One account is signed in on at most MAX_DEVICES devices (a session each):
  * signing in on another one means signing out of those first.
+ *
+ * Every sign-in is also written to `SignInEvent`, which outlives the session —
+ * with each one the device limit refused — and a session notes when and from
+ * where it was last used. That's what the admin's student page reads to see
+ * where an account is used from.
  */
 
 export const SESSION_COOKIE = "halfcoders.session_token";
@@ -67,19 +74,61 @@ const cookieOptions = (): CookieOptions => ({
     ...(envVars.COOKIE_DOMAIN && { domain: envVars.COOKIE_DOMAIN }),
 });
 
-/** Signs the person in on this browser: a new session, and its cookie on the response. */
-export const startSession = async (res: Response, req: Request, userId: string) => {
+/** How long a session goes between "last seen" stamps while it's in use from the same address. */
+const SEEN_EVERY_MS = 5 * 60 * 1000;
+
+/** The caller's address, as the proxies in front report it — "::ffff:" taken off an IPv4 one. */
+export const clientIp = (req: Request) => normaliseIp(req.ip) ?? req.ip ?? null;
+
+/** Who's signing in, from where and how — for the sign-in history. */
+export interface SignInAttempt {
+    method: SignInMethod;
+    ipAddress: string | null;
+    userAgent: string | null;
+}
+
+export const signInAttempt = (req: Request, method: SignInMethod): SignInAttempt => ({
+    method,
+    ipAddress: clientIp(req),
+    userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+});
+
+/** Writes a sign-in to the history. Never fails the sign-in itself: a lost history row is only logged. */
+const recordSignIn = async (
+    userId: string,
+    attempt: SignInAttempt,
+    outcome: SignInOutcome,
+    extra: { sessionId?: string; signedOutOthers?: number } = {},
+) => {
+    try {
+        await prisma.signInEvent.create({ data: { userId, outcome, ...attempt, ...extra } });
+        rememberIpLocation(attempt.ipAddress);
+    } catch (error) {
+        logger.error("Couldn't record a sign-in", error);
+    }
+};
+
+/**
+ * Signs the person in on this browser: a new session, and its cookie on the
+ * response. `signedOutOthers` is how many of their devices were signed out to
+ * make room for this one.
+ */
+export const startSession = async (res: Response, req: Request, userId: string, method: SignInMethod, signedOutOthers = 0) => {
     const token = randomBytes(32).toString("base64url");
+    const attempt = signInAttempt(req, method);
     const session = await prisma.session.create({
         data: {
             tokenHash: hashToken(token),
             userId,
             expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-            ipAddress: req.ip ?? null,
-            userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+            ipAddress: attempt.ipAddress,
+            userAgent: attempt.userAgent,
+            lastSeenAt: new Date(),
+            lastIp: attempt.ipAddress,
         },
         select: { id: true },
     });
+    await recordSignIn(userId, attempt, SignInOutcome.SIGNED_IN, { sessionId: session.id, signedOutOthers });
     res.cookie(SESSION_COOKIE, token, { ...cookieOptions(), maxAge: SESSION_TTL_MS });
     return session.id;
 };
@@ -120,13 +169,18 @@ export const extractSessionToken = (cookies: Record<string, string | undefined>,
     return null;
 };
 
-/** Resolves a raw session token to the caller, or explains why it can't. */
-export const resolveSessionToken = async (token: string): Promise<SessionResult> => {
+/**
+ * Resolves a raw session token to the caller, or explains why it can't. With
+ * `seenFrom` (the caller's address), notes that the session was just used.
+ */
+export const resolveSessionToken = async (token: string, seenFrom?: { ip: string | null }): Promise<SessionResult> => {
     const session = await prisma.session.findUnique({
         where: { tokenHash: hashToken(token) },
         select: {
             id: true,
             expiresAt: true,
+            lastSeenAt: true,
+            lastIp: true,
             user: {
                 select: {
                     id: true,
@@ -158,8 +212,25 @@ export const resolveSessionToken = async (token: string): Promise<SessionResult>
     if (profile.status === LearningStatus.DELETED) return { ok: false, reason: "LEARNING_REMOVED" };
 
     // Sliding expiry: written at most about once every two weeks per session.
-    if (session.expiresAt.getTime() - Date.now() < SESSION_TTL_MS / 2) {
-        await prisma.session.update({ where: { id: session.id }, data: { expiresAt: new Date(Date.now() + SESSION_TTL_MS) } });
+    // "Last seen": at most every few minutes, or at once from a new address.
+    const slide = session.expiresAt.getTime() - Date.now() < SESSION_TTL_MS / 2;
+    const ip = seenFrom?.ip ?? null;
+    const moved = ip !== null && ip !== session.lastIp;
+    const seen = seenFrom !== undefined && (moved || !session.lastSeenAt || Date.now() - session.lastSeenAt.getTime() >= SEEN_EVERY_MS);
+    if (slide || seen) {
+        try {
+            await prisma.session.updateMany({
+                where: { id: session.id },
+                data: {
+                    ...(slide && { expiresAt: new Date(Date.now() + SESSION_TTL_MS) }),
+                    ...(seen && { lastSeenAt: new Date(), ...(ip && { lastIp: ip }) }),
+                },
+            });
+            if (moved) rememberIpLocation(ip);
+        } catch (error) {
+            // Bookkeeping only: the request goes ahead either way.
+            logger.error("Couldn't update a session's last use", error);
+        }
     }
 
     return {
@@ -183,7 +254,7 @@ export const resolveSessionToken = async (token: string): Promise<SessionResult>
 export const resolveRequestSession = async (req: Request): Promise<SessionResult> => {
     const token = extractSessionToken(req.cookies ?? {}, req.headers.authorization);
     if (!token) return { ok: false, reason: "NO_CREDENTIAL" };
-    return resolveSessionToken(token);
+    return resolveSessionToken(token, { ip: clientIp(req) });
 };
 
 /** Authenticates a raw `Cookie` header (Socket.IO handshakes). */
@@ -193,12 +264,30 @@ export const resolveCookieHeaderSession = async (cookieHeader: string | undefine
     return resolveSessionToken(token);
 };
 
+/**
+ * Ends sessions and stamps the end on their sign-ins. A session that had
+ * already run out is cleared too, but its sign-in keeps no end: it wasn't
+ * signed out, it expired. `count` is how many live ones were signed out.
+ */
+const endSessions = async (where: { id?: string | { not: string }; userId?: string }) => {
+    const now = new Date();
+    const live = await prisma.session.findMany({ where: { ...where, expiresAt: { gt: now } }, select: { id: true } });
+    await prisma.session.deleteMany({ where });
+    if (live.length > 0) {
+        await prisma.signInEvent.updateMany({
+            where: { sessionId: { in: live.map((session) => session.id) }, endedAt: null },
+            data: { endedAt: now },
+        });
+    }
+    return { count: live.length };
+};
+
 /** Signs this browser out: its session is gone at once. */
-export const endSession = (sessionId: string) => prisma.session.deleteMany({ where: { id: sessionId } });
+export const endSession = (sessionId: string) => endSessions({ id: sessionId });
 
 /** Signs the person out everywhere — except, optionally, the session they're using. */
 export const endAllSessions = (userId: string, exceptSessionId?: string) =>
-    prisma.session.deleteMany({ where: { userId, ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}) } });
+    endSessions({ userId, ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}) });
 
 /** The devices the account is signed in on: its unexpired sessions, newest sign-in first, each named from its user agent. */
 export const liveDevices = async (userId: string) => {
@@ -216,15 +305,20 @@ export const liveDevices = async (userId: string) => {
  * can see which — unless they've chosen to sign out of all of them and carry
  * on here. Only call this once the password has been checked: it answers with
  * the account's devices, and it can sign the account out everywhere.
+ *
+ * Returns how many devices were signed out to make room. A refusal goes into
+ * the sign-in history (with `attempt`): it means someone tried one device more
+ * than the account may use.
  */
-export const makeRoomForDevice = async (userId: string, signOutAllDevices = false) => {
+export const makeRoomForDevice = async (userId: string, signOutAllDevices = false, attempt?: SignInAttempt): Promise<number> => {
     const devices = await liveDevices(userId);
-    if (devices.length < MAX_DEVICES) return;
+    if (devices.length < MAX_DEVICES) return 0;
 
     if (signOutAllDevices) {
-        await endAllSessions(userId);
-        return;
+        const { count } = await endAllSessions(userId);
+        return count;
     }
+    if (attempt) await recordSignIn(userId, attempt, SignInOutcome.DEVICE_LIMIT_REFUSED);
     throw new AppError(status.CONFLICT, `You're already signed in on ${MAX_DEVICES} devices. Sign out of them to sign in here.`).setData({
         code: "DEVICE_LIMIT_EXCEEDED",
         maxDevices: MAX_DEVICES,

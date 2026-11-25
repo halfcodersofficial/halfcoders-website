@@ -5,6 +5,8 @@ import { IQueryParams } from "../../interfaces/query.interface";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { MentorDetailService } from "./mentorDetail.service";
+import { StudentAccessService } from "./studentAccess.service";
+import { StudentActivityService } from "./studentActivity.service";
 import { StudentDetailService } from "./studentDetail.service";
 import { UserService } from "./user.service";
 import { sendCsv } from "../../utils/csvExport";
@@ -100,6 +102,42 @@ const getMentorOverview = catchAsync(async (req: Request, res: Response) => {
         message: "Mentor overview fetched successfully",
         data: result,
     });
+});
+
+const getStudentQuizzes = catchAsync(async (req: Request, res: Response) => {
+    const result = await StudentDetailService.getStudentQuizzes(req.params.userId as string);
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message: "Student quizzes fetched successfully", data: result });
+});
+
+const getStudentActivity = catchAsync(async (req: Request, res: Response) => {
+    const result = await StudentActivityService.getStudentActivity(req.params.userId as string, req.query);
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message: "Student activity fetched successfully", data: result });
+});
+
+const getStudentActivitySummary = catchAsync(async (req: Request, res: Response) => {
+    const result = await StudentActivityService.getStudentActivitySummary(req.params.userId as string);
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message: "Student activity summary fetched successfully", data: result });
+});
+
+const getStudentAccess = catchAsync(async (req: Request, res: Response) => {
+    const result = await StudentAccessService.getStudentAccess(req.params.userId as string);
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message: "Student devices fetched successfully", data: result });
+});
+
+const getStudentSignIns = catchAsync(async (req: Request, res: Response) => {
+    const result = await StudentAccessService.getStudentSignIns(req.params.userId as string, req.query);
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Student sign-ins fetched successfully",
+        data: result.data,
+        meta: result.meta,
+    });
+});
+
+const signOutStudentDevice = catchAsync(async (req: Request, res: Response) => {
+    await StudentAccessService.signOutStudentDevice(req.params.userId as string, req.params.sessionId as string);
+    sendResponse(res, { httpStatusCode: status.OK, success: true, message: "That device has been signed out.", data: null });
 });
 
 const getMentorActivity = catchAsync(async (req: Request, res: Response) => {
@@ -276,6 +314,12 @@ export const UserController = {
     getStudentCounts,
     getStudentOverview,
     getStudentCourse,
+    getStudentQuizzes,
+    getStudentActivity,
+    getStudentActivitySummary,
+    getStudentAccess,
+    getStudentSignIns,
+    signOutStudentDevice,
     getMentors,
     getMentorById,
     getMentorOverview,

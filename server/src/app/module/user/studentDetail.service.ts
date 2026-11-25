@@ -14,18 +14,23 @@ import { prisma } from "../../lib/prisma";
 import { Role } from "../../lib/roles";
 import { finalScore } from "../../utils/assignmentPenalties";
 import { scoreProfileSections } from "../studentProfile/studentProfile.service";
+import { activityPage } from "./studentActivity.service";
+import { assertStudent } from "./studentScope";
 
 /**
  * Everything about one student, for the admin's student detail page: the
  * whole profile they filled in, every course with how far they've got, each
  * assignment with its marks and who gave them (and each earlier marking, from
  * the change history), quizzes, practice days, payments, support visits and
- * XP. `getStudentCourse` opens one course week by week.
+ * XP. `getStudentCourse` opens one course week by week; `getStudentQuizzes`
+ * lists every quiz course by course. The whole activity feed is
+ * studentActivity.service.ts; the overview shows its first few.
  */
 
 const TREND_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FEED_LIMIT = 40;
+/** How much of the activity feed the overview shows — the rest is on the activity page. */
+const FEED_PREVIEW = 4;
 const QUIZ_ATTEMPT_LIMIT = 300;
 
 /** A day as students and mentors in Bangladesh see it. */
@@ -56,14 +61,6 @@ const batchEnded = (phase: CoursePhase) => phase === CoursePhase.PREVIOUS;
 
 const latest = (...dates: (Date | null | undefined)[]) =>
     dates.filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
-
-const assertStudent = async (userId: string) => {
-    const student = await prisma.user.findFirst({
-        where: { id: userId, ...learnerScope(Role.STUDENT) },
-        select: { id: true },
-    });
-    if (!student) throw new AppError(status.NOT_FOUND, "Student not found.");
-};
 
 /**
  * The newest thing each student did — watched a lesson, handed in work, took
@@ -273,8 +270,7 @@ const getStudentOverview = async (userId: string) => {
         notes,
         bookmarks,
         reactions,
-        recentLessons,
-        recentPractice,
+        feed,
         trendLessons,
     ] = await Promise.all([
         prisma.video.groupBy({ by: ["courseId"], where: { ...inTheirCourses, ...publishedLesson }, _count: { _all: true } }),
@@ -368,24 +364,7 @@ const getStudentOverview = async (userId: string) => {
         prisma.lessonNote.count({ where: mine }),
         prisma.lessonInteraction.count({ where: { ...mine, isBookmarked: true } }),
         prisma.lessonInteraction.groupBy({ by: ["reaction"], where: { ...mine, reaction: { not: null } }, _count: { _all: true } }),
-        prisma.videoProgress.findMany({
-            where: { ...mine, isCompleted: true, completedAt: { not: null } },
-            orderBy: { completedAt: "desc" },
-            take: FEED_LIMIT,
-            select: {
-                id: true, completedAt: true,
-                video: { select: { title: true, course: { select: { id: true, title: true } } } },
-            },
-        }),
-        prisma.practiceCompletion.findMany({
-            where: mine,
-            orderBy: { completedAt: "desc" },
-            take: FEED_LIMIT,
-            select: {
-                id: true, completedAt: true, note: true,
-                practiceDay: { select: { title: true, course: { select: { id: true, title: true } } } },
-            },
-        }),
+        activityPage(userId, { limit: FEED_PREVIEW }),
         prisma.videoProgress.findMany({
             where: { ...mine, isCompleted: true, completedAt: { gte: since } },
             select: { completedAt: true },
@@ -474,69 +453,6 @@ const getStudentOverview = async (userId: string) => {
         practice: practiceByDay.get(date) ?? 0,
     }));
 
-    // ---- One feed of what they did, newest first
-    type FeedEntry = {
-        id: string;
-        kind: string;
-        at: Date;
-        title: string;
-        course: { id: string; title: string } | null;
-        detail?: string | null;
-        /** Taka, for a payment. */
-        amount?: number;
-        by?: { id: string; name: string; image: string | null } | null;
-    };
-    const courseOf = (id: string) => enrollments.find((enrollment) => enrollment.courseId === id)?.course ?? null;
-    const feed: FeedEntry[] = [
-        ...recentLessons.map((row) => ({
-            id: `lesson-${row.id}`, kind: "lesson", at: row.completedAt as Date, title: row.video.title,
-            course: row.video.course,
-        })),
-        ...submissionRows.map((row) => ({
-            id: `submit-${row.id}`, kind: "submission", at: row.submittedAt, title: row.assignment.title,
-            course: row.assignment.course,
-        })),
-        ...submissions
-            .filter((row) => row.reviewedAt)
-            .map((row) => ({
-                id: `review-${row.id}`, kind: "review", at: row.reviewedAt as Date, title: row.assignment.title,
-                course: row.assignment.course,
-                detail: row.score !== null ? `${row.score} / ${row.maxScore ?? row.assignment.totalMarks}` : null,
-                by: row.reviewedBy,
-            })),
-        ...quizAttempts
-            .filter((row) => row.completedAt)
-            .map((row) => ({
-                id: `quiz-${row.id}`, kind: "quiz", at: row.completedAt as Date, title: row.quiz.title,
-                course: row.quiz.course, detail: `${row.percentage}%`,
-            })),
-        ...recentPractice.map((row) => ({
-            id: `practice-${row.id}`, kind: "practice", at: row.completedAt, title: row.practiceDay.title,
-            course: row.practiceDay.course,
-        })),
-        ...supportVisits.map((row) => ({
-            id: `support-${row.id}`, kind: "support", at: row.joinedAt, title: row.session.title || "Support session",
-            course: row.session.course, detail: row.topic, by: row.session.mentor,
-        })),
-        ...enrollments.map((row) => ({
-            id: `enrol-${row.id}`, kind: "enrolled", at: row.createdAt, title: row.course.title, course: courseOf(row.courseId),
-        })),
-        ...enrollments
-            .filter((row) => row.certificate)
-            .map((row) => ({
-                id: `certificate-${row.id}`, kind: "certificate", at: row.certificate!.issuedAt, title: row.course.title,
-                course: courseOf(row.courseId), detail: row.certificate!.certificateNo,
-            })),
-        ...orders
-            .filter((row) => row.payment?.paidAt)
-            .map((row) => ({
-                id: `paid-${row.id}`, kind: "payment", at: row.payment!.paidAt as Date, title: row.course.title,
-                course: row.course, amount: row.total,
-            })),
-    ]
-        .sort((a, b) => b.at.getTime() - a.at.getTime())
-        .slice(0, FEED_LIMIT);
-
     // ---- The numbers
     const live = perCourse.filter((row) => row.status !== EnrollmentStatus.CANCELLED);
     const markedPercents = submissions.map((row) => row.percent).filter((value): value is number => value !== null);
@@ -618,7 +534,9 @@ const getStudentOverview = async (userId: string) => {
             dislikes: reactions.find((row) => row.reaction === "DISLIKE")?._count._all ?? 0,
         },
         trend,
-        feed,
+        /** The latest few things they did; `nextCursor` says whether the activity page has more. */
+        feed: feed.data,
+        moreActivity: feed.nextCursor !== null,
     };
 };
 
@@ -788,7 +706,114 @@ const getStudentCourse = async (userId: string, courseId: string) => {
     };
 };
 
+// ── Every quiz, course by course ────────────────────────────────────────────
+
+/**
+ * Each course's quizzes in the order the student meets them — week by week,
+ * then where each sits in its week — with every attempt and the best score.
+ * The ones out in a published week, plus any they took that's been hidden
+ * since, so no attempt drops out of sight. The answers to an attempt are
+ * `GET /quizzes/attempts/:id`.
+ */
+const getStudentQuizzes = async (userId: string) => {
+    await assertStudent(userId);
+
+    const [enrollments, attempts] = await Promise.all([
+        prisma.enrollment.findMany({
+            where: { studentId: userId },
+            orderBy: { createdAt: "desc" },
+            select: {
+                id: true, courseId: true, status: true, progress: true,
+                course: { select: { id: true, title: true, thumbnail: true, milestoneLabel: true, moduleLabel: true } },
+            },
+        }),
+        prisma.quizAttempt.findMany({
+            where: { studentId: userId },
+            orderBy: { startedAt: "asc" },
+            select: {
+                id: true, quizId: true, enrollmentId: true, status: true, totalQuestions: true, correctCount: true,
+                percentage: true, startedAt: true, completedAt: true,
+            },
+        }),
+    ]);
+
+    const taken = [...new Set(attempts.map((attempt) => attempt.quizId))];
+    const quizzes = await prisma.quiz.findMany({
+        where: {
+            courseId: { in: enrollments.map((enrollment) => enrollment.courseId) },
+            OR: [
+                { isPublished: true, module: publishedWeek },
+                { isPublished: true, assignment: publishedWeek },
+                { id: { in: taken } },
+            ],
+        },
+        select: {
+            id: true, title: true, courseId: true, isPublished: true,
+            _count: { select: { questions: true } },
+            module: { select: { title: true, order: true, position: true, isPublished: true, milestone: { select: { title: true, order: true } } } },
+            assignment: { select: { title: true, position: true, isPublished: true, milestone: { select: { title: true, order: true } } } },
+        },
+    });
+
+    const attemptsBy = new Map<string, typeof attempts>();
+    for (const attempt of attempts) attemptsBy.set(attempt.quizId, [...(attemptsBy.get(attempt.quizId) ?? []), attempt]);
+
+    // Week, then place in the week, then a module's number.
+    const place = (quiz: (typeof quizzes)[number]) => {
+        const parent = quiz.module ?? quiz.assignment;
+        return [parent?.milestone.order ?? 0, parent?.position ?? 0, quiz.module?.order ?? 0];
+    };
+    const inOrder = (a: (typeof quizzes)[number], b: (typeof quizzes)[number]) => {
+        const [x, y] = [place(a), place(b)];
+        return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || a.title.localeCompare(b.title);
+    };
+
+    return enrollments.map((enrollment) => {
+        const rows = quizzes
+            .filter((quiz) => quiz.courseId === enrollment.courseId)
+            .sort(inOrder)
+            .map((quiz) => {
+                const mine = (attemptsBy.get(quiz.id) ?? []).filter((attempt) => attempt.enrollmentId === enrollment.id);
+                const scores = mine.filter((attempt) => attempt.status === QuizAttemptStatus.COMPLETED).map((attempt) => attempt.percentage);
+                const parent = quiz.module ?? quiz.assignment;
+                return {
+                    id: quiz.id,
+                    title: quiz.title,
+                    questions: quiz._count.questions,
+                    /** Out for students now. False for one they took that's been hidden since. */
+                    live: quiz.isPublished && Boolean(parent?.isPublished),
+                    week: parent ? { title: parent.milestone.title, order: parent.milestone.order } : null,
+                    module: quiz.module ? { title: quiz.module.title, order: quiz.module.order } : null,
+                    assignment: quiz.assignment ? { title: quiz.assignment.title } : null,
+                    attempts: mine,
+                    bestPercent: scores.length ? Math.max(...scores) : null,
+                    lastTakenAt: latest(...mine.map((attempt) => attempt.completedAt ?? attempt.startedAt)),
+                };
+            });
+
+        const live = rows.filter((row) => row.live);
+        const best = rows.map((row) => row.bestPercent).filter((value): value is number => value !== null);
+        return {
+            enrollmentId: enrollment.id,
+            status: enrollment.status,
+            progress: enrollment.progress,
+            course: enrollment.course,
+            quizzes: rows,
+            stats: {
+                /** Quizzes out for students now. */
+                total: live.length,
+                taken: rows.filter((row) => row.bestPercent !== null).length,
+                averagePercent: average(best),
+                fullMarks: best.filter((value) => value === 100).length,
+                /** Under half marks. */
+                low: best.filter((value) => value < 50).length,
+            },
+        };
+    });
+};
+
 export const StudentDetailService = {
     getStudentOverview,
     getStudentCourse,
+    getStudentQuizzes,
 };

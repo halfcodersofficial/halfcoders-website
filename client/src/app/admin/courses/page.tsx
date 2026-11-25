@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CalendarDays, Eye, EyeOff, Globe, History, Layers, Lock, Pencil, Plus, Tag, Trash2, Users } from "lucide-react";
+import { ArrowUpDown, BookOpen, CalendarDays, Eye, EyeOff, Globe, History, Layers, Lock, Pencil, Plus, Tag, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import CourseOrderModal from "@/components/admin/CourseOrderModal";
 import CoursePriceDialog from "@/components/admin/CoursePriceDialog";
 import CreateCourseModal from "@/components/admin/CreateCourseModal";
 import DataShell from "@/components/admin/DataShell";
@@ -49,6 +50,7 @@ export default function AdminCoursesPage() {
     const [page, setPage] = useState(1);
     const [view, setView] = useState<ViewMode>("grid");
     const [creating, setCreating] = useState(false);
+    const [arranging, setArranging] = useState(false);
     // The course whose price is being changed, straight from the list.
     const [pricingCourse, setPricingCourse] = useState<AdminCourse | null>(null);
 
@@ -270,8 +272,12 @@ export default function AdminCoursesPage() {
                 title="Courses"
                 description="Create a draft, build its curriculum, then publish."
                 action={
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <ViewToggle value={view} onChange={setView} />
+                        {/* The catalogue's order — the list below follows it too. */}
+                        <Button variant="outline" onClick={() => setArranging(true)}>
+                            <ArrowUpDown /> Arrange order
+                        </Button>
                         {newCourseButton}
                     </div>
                 }
@@ -516,6 +522,7 @@ export default function AdminCoursesPage() {
             </DataShell>
 
             <CreateCourseModal open={creating} onOpenChange={setCreating} />
+            <CourseOrderModal open={arranging} onOpenChange={setArranging} onSaved={refresh} />
             <CoursePriceDialog
                 course={pricingCourse}
                 onOpenChange={(open) => !open && setPricingCourse(null)}

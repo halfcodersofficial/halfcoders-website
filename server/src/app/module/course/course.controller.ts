@@ -62,6 +62,17 @@ const getPublicCourses = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const reorderCourses = catchAsync(async (req: Request, res: Response) => {
+    await CourseService.reorderCourses(req.body.orderedIds);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Course order saved",
+        data: null,
+    });
+});
+
 const getAdminCourses = catchAsync(async (req: Request, res: Response) => {
     const result = await CourseService.getAdminCourses(req.query as IQueryParams);
 
@@ -243,6 +254,7 @@ export const CourseController = {
     deleteCourse,
     getPublicCourses,
     getAdminCourses,
+    reorderCourses,
     getCourseBySlug,
     getCourseById,
     getStaffCourseSummary,

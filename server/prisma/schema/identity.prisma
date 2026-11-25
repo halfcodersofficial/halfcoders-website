@@ -41,8 +41,9 @@ model User {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  sessions  Session[]
-  authCodes AuthCode[]
+  sessions     Session[]
+  signInEvents SignInEvent[]
+  authCodes    AuthCode[]
 
   learningProfile LearningProfile?
   mentorProfile   MentorProfile?
@@ -128,20 +129,95 @@ enum Role {
 /// A signed-in browser. The cookie carries a random token; only its SHA-256
 /// is stored, so a leaked table can't be replayed (lib/session.ts).
 model Session {
-  id        String   @id @default(uuid(7))
-  tokenHash String   @unique
-  userId    String
-  expiresAt DateTime
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(uuid(7))
+  tokenHash  String    @unique
+  userId     String
+  expiresAt  DateTime
+  /// The address it signed in from.
+  ipAddress  String?
+  userAgent  String?
+  /// When the device last used Half Coders, and from which address — stamped
+  /// at most every few minutes (lib/session.ts), or at once when the address
+  /// changes. Null until its first request after sign-in.
+  lastSeenAt DateTime?
+  lastIp     String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
   @@map("session")
+  @@schema("learning")
+}
+
+/// How someone got in.
+enum SignInMethod {
+  PASSWORD
+  GOOGLE
+  /// Straight after verifying their email with a code.
+  EMAIL_CODE
+  /// Straight after setting a new password with a reset code.
+  PASSWORD_RESET
+
+  @@schema("learning")
+}
+
+enum SignInOutcome {
+  SIGNED_IN
+  /// The right password, but the account was already on every device it may
+  /// use — so someone tried a device more than the limit allows.
+  DEVICE_LIMIT_REFUSED
+
+  @@schema("learning")
+}
+
+/// Every sign-in, kept for good: a `Session` row goes when its device signs
+/// out, this stays — so the admin can see each device, address and place an
+/// account has been used from, and every time the device limit turned someone
+/// away. What the student page reads to spot a shared account.
+model SignInEvent {
+  id              String        @id @default(uuid(7))
+  userId          String
+  outcome         SignInOutcome
+  /// Null for a sign-in from before this history began (carried over from a
+  /// device that was still signed in).
+  method          SignInMethod?
+  /// The session it started — not a relation: the session row is deleted when
+  /// the device signs out, and this history outlives it. Null when refused.
+  sessionId       String?       @unique
+  /// How many other devices were signed out to make room for this one.
+  signedOutOthers Int           @default(0)
+  ipAddress       String?
+  userAgent       String?
+  /// When that session ended by signing out — by the person, from another of
+  /// their devices, by a new password, or by an admin. Null while it's live,
+  /// or when it simply ran out.
+  endedAt         DateTime?
+  createdAt       DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("sign_in_event")
+  @@schema("learning")
+}
+
+/// Where an IP address is, as an IP lookup service places it
+/// (lib/ipLocation.ts) — roughly: the city of the network, not the person.
+/// One row per address, looked up again once it's a month old.
+model IpLocation {
+  ip         String   @id
+  city       String?
+  region     String?
+  /// ISO 3166 code, e.g. "BD".
+  country    String?
+  /// The network it belongs to — the internet provider, or a host or VPN.
+  network    String?
+  lookedUpAt DateTime @default(now())
+
+  @@map("ip_location")
   @@schema("learning")
 }
 

@@ -35,6 +35,16 @@ router.delete("/students/:userId", checkAuth(Role.SUPER_ADMIN), UserController.d
 // The student detail page: everything about them, and one course week by week.
 router.get("/students/:userId/overview", checkAuth(...ADMINS), UserController.getStudentOverview);
 router.get("/students/:userId/courses/:courseId", checkAuth(...ADMINS), UserController.getStudentCourse);
+// Every quiz, course by course.
+router.get("/students/:userId/quizzes", checkAuth(...ADMINS), UserController.getStudentQuizzes);
+// Everything they did, newest first (paged by a cursor), and the calendar above it.
+router.get("/students/:userId/activity", checkAuth(...ADMINS), UserController.getStudentActivity);
+router.get("/students/:userId/activity/summary", checkAuth(...ADMINS), UserController.getStudentActivitySummary);
+// Where the account is used from — devices, places, every sign-in — to spot
+// a shared account; an admin can sign one of the devices out.
+router.get("/students/:userId/devices", checkAuth(...ADMINS), UserController.getStudentAccess);
+router.get("/students/:userId/sign-ins", checkAuth(...ADMINS), UserController.getStudentSignIns);
+router.delete("/students/:userId/devices/:sessionId", checkAuth(...ADMINS), UserController.signOutStudentDevice);
 
 // Mentor management
 router.get("/mentors", checkAuth(...ADMINS), UserController.getMentors);
