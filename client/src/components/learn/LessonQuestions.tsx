@@ -13,7 +13,7 @@ import { getApiErrorMessage } from "@/lib/httpClient";
 import { linkify } from "@/lib/linkify";
 import { cn, formatDateTime } from "@/lib/utils";
 import { lessonQaService } from "@/services";
-import type { LessonQuestion, QaPerson } from "@/types/domain.types";
+import type { LessonQuestion, LessonTarget, QaPerson } from "@/types/domain.types";
 
 /** A name with a "Mentor" mark on the course's staff. */
 export function QaName({ person }: { person: QaPerson }) {
@@ -30,15 +30,15 @@ export function QaName({ person }: { person: QaPerson }) {
  * mark yours answered. The course's mentors are told about each new
  * question and answer from their own inbox; their replies carry a mark.
  */
-export default function LessonQuestions({ videoId }: { videoId: string }) {
+export default function LessonQuestions({ lesson }: { lesson: LessonTarget }) {
     const queryClient = useQueryClient();
-    const key = ["learning", "lesson-questions", videoId];
-    const { data, isLoading, isError } = useQuery({ queryKey: key, queryFn: () => lessonQaService.forLesson(videoId) });
+    const key = ["learning", "lesson-questions", lesson.kind, lesson.id];
+    const { data, isLoading, isError } = useQuery({ queryKey: key, queryFn: () => lessonQaService.forLesson(lesson) });
     const refresh = () => void queryClient.invalidateQueries({ queryKey: key });
     const [draft, setDraft] = useState("");
     const [focus, setFocus] = useState<string | null>(null);
 
-    useEffect(() => setDraft(""), [videoId]);
+    useEffect(() => setDraft(""), [lesson.kind, lesson.id]);
     // A notification links to its question (#q-…): open the thread there.
     useEffect(() => {
         const hash = window.location.hash;
@@ -49,7 +49,7 @@ export default function LessonQuestions({ videoId }: { videoId: string }) {
     }, [focus, data]);
 
     const ask = useMutation({
-        mutationFn: () => lessonQaService.ask(videoId, draft.trim()),
+        mutationFn: () => lessonQaService.ask(lesson, draft.trim()),
         onSuccess: () => {
             setDraft("");
             toast.success("Asked — your mentors have been told.");

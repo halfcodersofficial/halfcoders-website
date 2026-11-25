@@ -3,17 +3,22 @@ import status from "http-status";
 import { IQueryParams } from "../../interfaces/query.interface";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
+import type { LessonRef } from "../lesson/lesson.service";
 import { LessonQaService } from "./lessonQa.service";
+
+/** Which lesson the route names — a module's (`:videoId`) or a practice day's (`:materialId`). */
+const lessonOf = (req: Request): LessonRef =>
+    req.params.materialId ? { kind: "practice", id: req.params.materialId as string } : { kind: "video", id: req.params.videoId as string };
 
 const ok = (res: Response, message: string, data: unknown, httpStatusCode: number = status.OK) =>
     sendResponse(res, { httpStatusCode, success: true, message, data });
 
 const listForLesson = catchAsync(async (req: Request, res: Response) => {
-    ok(res, "Questions retrieved", await LessonQaService.listForLesson(req.user, req.params.videoId as string));
+    ok(res, "Questions retrieved", await LessonQaService.listForLesson(req.user, lessonOf(req)));
 });
 
 const ask = catchAsync(async (req: Request, res: Response) => {
-    ok(res, "Question posted", await LessonQaService.ask(req.user, req.params.videoId as string, req.body.body), status.CREATED);
+    ok(res, "Question posted", await LessonQaService.ask(req.user, lessonOf(req), req.body.body), status.CREATED);
 });
 
 const answer = catchAsync(async (req: Request, res: Response) => {

@@ -294,8 +294,12 @@ model PracticeMaterial {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  practiceDay PracticeDay @relation(fields: [practiceDayId], references: [id], onDelete: Cascade)
-  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  practiceDay  PracticeDay         @relation(fields: [practiceDayId], references: [id], onDelete: Cascade)
+  course       Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  // A student's notes, bookmarks, reactions and questions on it — as on a module's lessons.
+  notes        LessonNote[]
+  interactions LessonInteraction[]
+  questions    LessonQuestion[]
 
   @@unique([practiceDayId, order])
   @@index([courseId])

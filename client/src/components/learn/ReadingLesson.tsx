@@ -4,7 +4,7 @@ import { FileText, Maximize2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody } from "@/components/ui/modal";
-import { renderLightMarkdown } from "@/lib/lightMarkdown";
+import { lightMarkdownToText, renderLightMarkdown } from "@/lib/lightMarkdown";
 
 interface ReadingLessonProps {
     title: string;
@@ -26,7 +26,7 @@ export default function ReadingLesson({ title, content }: ReadingLessonProps) {
 
     // Escaped and link-restricted by renderLightMarkdown.
     const html = useMemo(() => renderLightMarkdown(content), [content]);
-    const readingTime = `Reading · ${Math.max(1, Math.round(content.trim().split(/\s+/).length / 200))} min`;
+    const readingTime = `Reading · ${Math.max(1, Math.round(lightMarkdownToText(content).trim().split(/\s+/).length / 200))} min`;
 
     // Whether the text runs past the box — measured again when the box
     // resizes (window, sidebar) or the text grows (a font loading in).

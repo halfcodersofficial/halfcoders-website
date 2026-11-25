@@ -2,10 +2,14 @@ import { Request, Response } from "express";
 import status from "http-status";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
-import { LessonService } from "./lesson.service";
+import { type LessonRef, LessonService } from "./lesson.service";
+
+/** Which lesson the route names — a module's (`:videoId`) or a practice day's (`:materialId`). */
+const lessonOf = (req: Request): LessonRef =>
+    req.params.materialId ? { kind: "practice", id: req.params.materialId as string } : { kind: "video", id: req.params.videoId as string };
 
 const getLessonState = catchAsync(async (req: Request, res: Response) => {
-    const result = await LessonService.getLessonState(req.user, req.params.videoId as string);
+    const result = await LessonService.getLessonState(req.user, lessonOf(req));
 
     sendResponse(res, {
         httpStatusCode: status.OK,
@@ -16,7 +20,7 @@ const getLessonState = catchAsync(async (req: Request, res: Response) => {
 });
 
 const saveNote = catchAsync(async (req: Request, res: Response) => {
-    const result = await LessonService.saveNote(req.user, req.params.videoId as string, req.body.content);
+    const result = await LessonService.saveNote(req.user, lessonOf(req), req.body.content);
 
     sendResponse(res, {
         httpStatusCode: status.OK,
@@ -27,11 +31,7 @@ const saveNote = catchAsync(async (req: Request, res: Response) => {
 });
 
 const setBookmark = catchAsync(async (req: Request, res: Response) => {
-    const result = await LessonService.setBookmark(
-        req.user,
-        req.params.videoId as string,
-        req.body.bookmarked,
-    );
+    const result = await LessonService.setBookmark(req.user, lessonOf(req), req.body.bookmarked);
 
     sendResponse(res, {
         httpStatusCode: status.OK,
@@ -42,11 +42,7 @@ const setBookmark = catchAsync(async (req: Request, res: Response) => {
 });
 
 const setReaction = catchAsync(async (req: Request, res: Response) => {
-    const result = await LessonService.setReaction(
-        req.user,
-        req.params.videoId as string,
-        req.body.reaction,
-    );
+    const result = await LessonService.setReaction(req.user, lessonOf(req), req.body.reaction);
 
     sendResponse(res, {
         httpStatusCode: status.OK,

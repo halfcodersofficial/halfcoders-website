@@ -1,38 +1,47 @@
-/// A student's own note against one video (plan-adjacent — the learning page
-/// gained a Notes/Bookmark/Reaction action bar). Kept off `VideoProgress` on
-/// purpose: that row's `updatedAt` feeds the dashboard's learning-streak
-/// calculation, and editing a note is not watching a lesson.
+/// A student's own note against one lesson — a module's (`videoId`) or a
+/// practice day's (`practiceMaterialId`); exactly one is set (a CHECK in the
+/// migration). Kept off `VideoProgress` on purpose: that row's `updatedAt`
+/// feeds the dashboard's learning-streak calculation, and editing a note is
+/// not watching a lesson.
 model LessonNote {
-  id        String   @id @default(uuid(7))
-  studentId String
-  videoId   String
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(uuid(7))
+  studentId          String
+  videoId            String?
+  practiceMaterialId String?
+  content            String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  student          User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  video            Video?            @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  practiceMaterial PracticeMaterial? @relation(fields: [practiceMaterialId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, videoId])
+  @@unique([studentId, practiceMaterialId])
   @@map("lesson_note")
   @@schema("learning")
 }
 
-/// Bookmark + like/dislike on one video, combined because both are simple
-/// per-student-per-video toggles read together by the lesson action bar.
+/// Bookmark + like/dislike on one lesson, combined because both are simple
+/// per-student-per-lesson toggles read together by the lesson action bar. A
+/// module's lesson (`videoId`) or a practice day's (`practiceMaterialId`) —
+/// exactly one, as for `LessonNote`.
 model LessonInteraction {
-  id           String        @id @default(uuid(7))
-  studentId    String
-  videoId      String
-  isBookmarked Boolean       @default(false)
-  reaction     ReactionType?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                 String        @id @default(uuid(7))
+  studentId          String
+  videoId            String?
+  practiceMaterialId String?
+  isBookmarked       Boolean       @default(false)
+  reaction           ReactionType?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  student          User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  video            Video?            @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  practiceMaterial PracticeMaterial? @relation(fields: [practiceMaterialId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, videoId])
+  @@unique([studentId, practiceMaterialId])
   @@index([studentId, isBookmarked])
   @@map("lesson_interaction")
   @@schema("learning")

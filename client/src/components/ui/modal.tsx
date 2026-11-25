@@ -35,9 +35,10 @@ interface ModalProps {
     description?: ReactNode;
     /**
      * `sm` a question with a field or two; `md` a short form; `lg` a long one,
-     * or a detail view with lists in it; `xl` a form beside its own preview.
+     * or a detail view with lists in it; `xl` a form beside its own preview;
+     * `2xl` a page of writing beside its preview (a text lesson).
      */
-    size?: "sm" | "md" | "lg" | "xl";
+    size?: "sm" | "md" | "lg" | "xl" | "2xl";
     /**
      * Off keeps a stray backdrop click from throwing away a half-filled form —
      * SweetAlert's `allowOutsideClick: false`. Escape and the × still close.
@@ -52,6 +53,7 @@ const SIZE = {
     md: "sm:max-w-lg",
     lg: "sm:max-w-2xl",
     xl: "sm:max-w-4xl",
+    "2xl": "sm:max-w-6xl",
 } as const;
 
 export function Modal({

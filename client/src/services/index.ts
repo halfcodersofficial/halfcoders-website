@@ -54,6 +54,7 @@ import type {
     RatingSummary,
     XpHistoryEntry,
     LessonState,
+    LessonTarget,
     LoginPopups,
     MyQueuePosition,
     PendingSupportFeedback,
@@ -315,29 +316,23 @@ export const learningService = {
         httpClient.get<ApiResponse<CourseOutline>>(`/learning/courses/${slug}/outline`).then(unwrap),
 };
 
+/** Where a lesson's own state lives — a module's lesson or a practice day's. */
+const lessonPath = (lesson: LessonTarget) => (lesson.kind === "video" ? `/lessons/videos/${lesson.id}` : `/lessons/practice/${lesson.id}`);
+
 export const lessonService = {
-    state: (videoId: string) =>
-        httpClient.get<ApiResponse<LessonState>>(`/lessons/videos/${videoId}`).then(unwrap),
+    state: (lesson: LessonTarget) => httpClient.get<ApiResponse<LessonState>>(lessonPath(lesson)).then(unwrap),
 
-    saveNote: (videoId: string, content: string) =>
+    saveNote: (lesson: LessonTarget, content: string) =>
+        httpClient.put<ApiResponse<{ note: string | null }>>(`${lessonPath(lesson)}/note`, { content }).then(unwrap),
+
+    setBookmark: (lesson: LessonTarget, bookmarked: boolean) =>
         httpClient
-            .put<ApiResponse<{ note: string | null }>>(`/lessons/videos/${videoId}/note`, { content })
+            .patch<ApiResponse<{ isBookmarked: boolean; reaction: LessonReaction | null }>>(`${lessonPath(lesson)}/bookmark`, { bookmarked })
             .then(unwrap),
 
-    setBookmark: (videoId: string, bookmarked: boolean) =>
+    setReaction: (lesson: LessonTarget, reaction: LessonReaction | null) =>
         httpClient
-            .patch<ApiResponse<{ isBookmarked: boolean; reaction: LessonReaction | null }>>(
-                `/lessons/videos/${videoId}/bookmark`,
-                { bookmarked },
-            )
-            .then(unwrap),
-
-    setReaction: (videoId: string, reaction: LessonReaction | null) =>
-        httpClient
-            .patch<ApiResponse<{ isBookmarked: boolean; reaction: LessonReaction | null }>>(
-                `/lessons/videos/${videoId}/reaction`,
-                { reaction },
-            )
+            .patch<ApiResponse<{ isBookmarked: boolean; reaction: LessonReaction | null }>>(`${lessonPath(lesson)}/reaction`, { reaction })
             .then(unwrap),
 
     courseBookmarks: (courseId: string) =>
@@ -502,10 +497,12 @@ export const announcementService = {
 
 /** Questions on a lesson: asked by its students, answered by classmates and mentors. */
 export const lessonQaService = {
-    forLesson: (videoId: string) =>
-        httpClient.get<ApiResponse<LessonQuestion[]>>(`/lesson-questions/lesson/${videoId}`).then(unwrap),
-    ask: (videoId: string, body: string) =>
-        httpClient.post<ApiResponse<LessonQuestion>>(`/lesson-questions/lesson/${videoId}`, { body }).then(unwrap),
+    forLesson: (lesson: LessonTarget) =>
+        httpClient.get<ApiResponse<LessonQuestion[]>>(`/lesson-questions/${lesson.kind === "video" ? "lesson" : "practice"}/${lesson.id}`).then(unwrap),
+    ask: (lesson: LessonTarget, body: string) =>
+        httpClient
+            .post<ApiResponse<LessonQuestion>>(`/lesson-questions/${lesson.kind === "video" ? "lesson" : "practice"}/${lesson.id}`, { body })
+            .then(unwrap),
     answer: (questionId: string, body: string) =>
         httpClient.post<ApiResponse<LessonAnswer>>(`/lesson-questions/${questionId}/answers`, { body }).then(unwrap),
     setResolved: (questionId: string, isResolved: boolean) =>

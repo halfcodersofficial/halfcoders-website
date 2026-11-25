@@ -172,7 +172,7 @@ function QuestionCard({ question, highlighted, delay }: { question: InboxQuestio
     });
 
     const wait = elapsed(question.createdAt, now);
-    const { course, video } = question;
+    const { course, video, practiceMaterial } = question;
 
     return (
         <li
@@ -187,11 +187,19 @@ function QuestionCard({ question, highlighted, delay }: { question: InboxQuestio
             <p className="flex flex-wrap items-center gap-x-2 border-b border-border bg-secondary/30 px-5 py-2 text-[0.6875rem] font-semibold font-mono uppercase tracking-wider text-muted-foreground sm:px-6">
                 <span className="truncate">{course.title}</span>
                 <span aria-hidden>·</span>
-                <span>
-                    {course.milestoneLabel} {pad2(video.module.milestone.order)} · {course.moduleLabel} {pad2(video.module.order)}
-                </span>
+                {/* Where it was asked: a module's lesson, or a practice day's. */}
+                {video ? (
+                    <span>
+                        {course.milestoneLabel} {pad2(video.module.milestone.order)} · {course.moduleLabel} {pad2(video.module.order)}
+                    </span>
+                ) : practiceMaterial ? (
+                    <span className="truncate">
+                        {course.milestoneLabel} {pad2(practiceMaterial.practiceDay.milestone.order)} · Practice day:{" "}
+                        <span className="normal-case tracking-normal">{practiceMaterial.practiceDay.title}</span>
+                    </span>
+                ) : null}
                 <span aria-hidden>·</span>
-                <span className="truncate normal-case tracking-normal">{video.title}</span>
+                <span className="truncate normal-case tracking-normal">{video?.title ?? practiceMaterial?.title}</span>
             </p>
             <div className="px-5 py-4 sm:px-6">
                 <div className="flex items-start gap-3">

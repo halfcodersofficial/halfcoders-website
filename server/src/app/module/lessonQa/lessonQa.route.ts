@@ -15,6 +15,9 @@ router.get("/manage", checkAuth(...STAFF), LessonQaController.inbox);
 // A lesson's thread — its students and staff (checked in the service).
 router.get("/lesson/:videoId", checkAuth(), LessonQaController.listForLesson);
 router.post("/lesson/:videoId", checkAuth(Role.STUDENT), validateRequest(askZodSchema), LessonQaController.ask);
+// …and a practice day's lesson's.
+router.get("/practice/:materialId", checkAuth(), LessonQaController.listForLesson);
+router.post("/practice/:materialId", checkAuth(Role.STUDENT), validateRequest(askZodSchema), LessonQaController.ask);
 router.post("/:questionId/answers", checkAuth(), validateRequest(answerZodSchema), LessonQaController.answer);
 router.patch("/:questionId", checkAuth(), validateRequest(resolveZodSchema), LessonQaController.setResolved);
 router.delete("/:questionId", checkAuth(), LessonQaController.removeQuestion);
