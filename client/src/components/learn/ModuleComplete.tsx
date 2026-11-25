@@ -36,7 +36,7 @@ const CONFETTI = [
     "-right-5 -bottom-4 size-1.5 rounded-full bg-syn-string delay-150",
 ];
 
-/** "You finished …" — and, for an assignment, where its mark stands. */
+/** "You finished …" — and, for an assignment still being checked, what happens next. */
 function FinishedLine({ finished, courseModule }: { finished: ModuleTrailItem | null; courseModule: LearningModule }) {
     const name = (title: string) => <span className="font-semibold text-editor-fg">&ldquo;{title}&rdquo;</span>;
 
@@ -44,23 +44,7 @@ function FinishedLine({ finished, courseModule }: { finished: ModuleTrailItem | 
     if (finished.kind === "PRACTICE") return <>Congratulations — you finished {name(finished.entry.title)}.</>;
 
     const { entry } = finished;
-    if (entry.isAccepted) {
-        return (
-            <>
-                Congratulations — you finished {name(entry.title)}
-                {entry.score !== null && (
-                    <>
-                        {" "}
-                        and got{" "}
-                        <span className="font-semibold tabular-nums text-editor-fg">
-                            {entry.score}/{entry.totalMarks}
-                        </span>
-                    </>
-                )}
-                .
-            </>
-        );
-    }
+    if (entry.isAccepted) return <>Congratulations — you finished {name(entry.title)}.</>;
     if (entry.submissionStatus === "NEEDS_REVISION") {
         return <>You handed in {name(entry.title)} — it needs a few changes. Open it from the course list to see what to fix.</>;
     }
@@ -117,16 +101,7 @@ export default function ModuleComplete({ course, milestone, courseModule, finish
                 <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted sm:text-base">
                     <FinishedLine finished={finished} courseModule={courseModule} />
                 </p>
-                <p className="mt-1.5 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted">
-                    {finished ? (
-                        <>
-                            That wraps up {moduleLabel.toLowerCase()} <span className="text-editor-fg">&ldquo;{courseModule.title}&rdquo;</span>. Well done —
-                            keep going.
-                        </>
-                    ) : (
-                        "Well done — keep going."
-                    )}
-                </p>
+                {!finished && <p className="mt-1.5 max-w-xl text-pretty text-sm leading-relaxed text-editor-muted">Well done — keep going.</p>}
             </div>
         </EditorWindow>
     );

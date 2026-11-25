@@ -125,7 +125,7 @@ export function RecheckResult({ submission, penalties }: { submission: Assignmen
             </p>
             <p className={cn("mt-1.5", valid ? "text-success-ink" : "text-destructive-ink")}>
                 {valid
-                    ? `Your mentor raised your mark from ${latest.scoreBefore} to ${latest.scoreAfter} — that's your mark now, with nothing taken off.`
+                    ? `Your mentor raised your mark to ${latest.scoreAfter} — that's your mark now, with nothing taken off.`
                     : `The mark stayed at ${latest.scoreBefore}, so ${penalties.recheckInvalidMarks} more marks were taken.`}
             </p>
             {latest.reviewerNote && <p className="mt-1.5 whitespace-pre-line text-muted-foreground wrap-break-word">Mentor: {latest.reviewerNote}</p>}

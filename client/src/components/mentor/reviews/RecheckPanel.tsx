@@ -36,7 +36,12 @@ export default function RecheckPanel({
     const maxScore = submission.maxScore ?? total;
     const fee = penalties.recheckFeeMarks;
     const extra = penalties.recheckInvalidMarks;
-    const before = recheck?.scoreBefore ?? submission.score ?? 0;
+    // Your mark, and the student's own when they asked: yours less what was taken
+    // before this recheck (its fee is already off). A raise has to beat theirs —
+    // so a full mark worn down by earlier fees can still go back up.
+    const given = recheck?.scoreBefore ?? submission.score ?? 0;
+    const before = Math.max(0, given + submission.markAdjustment + fee);
+    const now = Math.max(0, given + submission.markAdjustment);
 
     const [outcome, setOutcome] = useState<Outcome | null>(null);
     const [score, setScore] = useState("");
@@ -85,11 +90,13 @@ export default function RecheckPanel({
                   ? "Score every rubric line, each within its points."
                   : rubric.length === 0 && score === ""
                     ? "Give the new mark."
-                    : !Number.isFinite(newScore) || newScore <= before
-                      ? `A raised mark is more than ${before}.`
-                      : newScore > maxScore
-                        ? `The mark can be at most ${maxScore}.`
-                        : null
+                    : before >= maxScore
+                      ? `Their mark was already ${before} — it can't go higher. If it was right, choose Keep the mark.`
+                      : !Number.isFinite(newScore) || newScore <= before
+                        ? `A raised mark is more than ${before}.`
+                        : newScore > maxScore
+                          ? `The mark can be at most ${maxScore}.`
+                          : null
               : !note.trim()
                 ? "Say why the mark stands — the student will read it."
                 : null;
@@ -122,7 +129,9 @@ export default function RecheckPanel({
                     </p>
                     <p className="mt-2 whitespace-pre-line">“{recheck.reason}”</p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                        Your mark: <span className="font-semibold text-foreground">{before}</span> / {total}. The {fee}-mark fee is already taken.
+                        Their mark when they asked: <span className="font-semibold text-foreground">{before}</span> / {total}
+                        {given !== before && ` (you gave ${given}; ${given - before} came off before)`}. The {fee}-mark fee is already taken, so it&apos;s {now}{" "}
+                        now.
                     </p>
                 </section>
             )}
@@ -225,7 +234,7 @@ export default function RecheckPanel({
                         autoFocus
                     />
                     <span className="block text-xs text-muted-foreground">
-                        More than {before}, at most {maxScore}
+                        More than {before} (their mark when they asked), at most {maxScore}
                         {maxScore !== total && " (it came in late)"}.
                     </span>
                 </label>

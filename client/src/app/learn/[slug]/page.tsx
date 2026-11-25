@@ -2654,11 +2654,14 @@ function WeekRoute({
                                         {item.courseModule.title}
                                     </span>
                                 </span>
-                                <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
-                                    {item.courseModule.isLocked
-                                        ? "Locked"
-                                        : `${item.courseModule.completedVideos}/${item.courseModule.totalVideos} done`}
-                                </span>
+                                {/* Finished says itself with the tick — the count only shows while there's some left. */}
+                                {!isDone(item) && (
+                                    <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">
+                                        {item.courseModule.isLocked
+                                            ? "Locked"
+                                            : `${item.courseModule.completedVideos}/${item.courseModule.totalVideos} done`}
+                                    </span>
+                                )}
                                 {onToggleModule && (
                                     <ChevronDown
                                         aria-hidden
@@ -2831,15 +2834,16 @@ function WeekRoute({
                             const done = groupDone(group);
                             const Icon = group.kind === "PRACTICE" ? Dumbbell : ClipboardCheck;
                             const lessons = group.entry.materials.length;
+                            // Nothing once it's finished — the tick says so. "Submitted" stays: it's still waiting for its mark.
                             const status =
                                 group.kind === "PRACTICE"
                                     ? done
-                                        ? "Done"
+                                        ? null
                                         : lessons > 0
                                             ? `${lessons} lesson${lessons === 1 ? "" : "s"}`
                                             : "To do"
                                     : group.entry.isAccepted
-                                        ? "Marked"
+                                        ? null
                                         : group.entry.isSubmitted
                                             ? "Submitted"
                                             : group.entry.isClosed
@@ -2877,7 +2881,7 @@ function WeekRoute({
                                             </span>
                                             <span className="block truncate text-sm font-semibold leading-snug">{group.entry.title}</span>
                                         </span>
-                                        <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">{status}</span>
+                                        {status && <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted-foreground">{status}</span>}
                                         <ChevronDown
                                             aria-hidden
                                             className={cn(
