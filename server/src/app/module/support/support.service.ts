@@ -1184,6 +1184,20 @@ const notifyLiveSessions = async () => {
     }
 };
 
+/** When `notifyLiveSessions` next has work: the earliest session start after `after`, same filter. */
+const nextLiveSessionAt = async (after: Date) => {
+    const { _min } = await prisma.supportSession.aggregate({
+        where: {
+            status: { notIn: [SupportSessionStatus.CANCELLED, SupportSessionStatus.ENDED] },
+            startTime: { gt: after },
+            liveNotifiedAt: null,
+            course: { phase: { not: CoursePhase.PREVIOUS } },
+        },
+        _min: { startTime: true },
+    });
+    return _min.startTime;
+};
+
 export const SupportService = {
     getMyPastSessions,
     createSession,
@@ -1207,4 +1221,5 @@ export const SupportService = {
     getBoardForStudent,
     getSessionHistory,
     notifyLiveSessions,
+    nextLiveSessionAt,
 };

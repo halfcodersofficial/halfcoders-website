@@ -281,6 +281,15 @@ const publishDueAssignments = async () => {
     }
 };
 
+/** When `publishDueAssignments` next has work: the earliest release after `after`, same filter. */
+const nextAssignmentReleaseAt = async (after: Date) => {
+    const { _min } = await prisma.assignment.aggregate({
+        where: { isPublished: false, releaseAt: { gt: after }, ...SCHEDULED_COURSE_FILTER },
+        _min: { releaseAt: true },
+    });
+    return _min.releaseAt;
+};
+
 /** A week's assignments in their new order — the complete list, like every other reorder. */
 const reorderAssignments = async (user: IRequestUser, milestoneId: string, orderedIds: string[]) => {
     const milestone = await prisma.milestone.findUnique({
@@ -1558,6 +1567,7 @@ export const AssignmentService = {
     createAssignment,
     updateAssignment,
     publishDueAssignments,
+    nextAssignmentReleaseAt,
     reorderAssignments,
     deleteAssignment,
     getAssignmentForStudent,

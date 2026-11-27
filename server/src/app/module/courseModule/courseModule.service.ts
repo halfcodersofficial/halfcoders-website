@@ -227,6 +227,15 @@ const publishDueModules = async () => {
     }
 };
 
+/** When `publishDueModules` next has work: the earliest release after `after`, same filter. */
+const nextModuleReleaseAt = async (after: Date) => {
+    const { _min } = await prisma.courseModule.aggregate({
+        where: { isPublished: false, releaseAt: { gt: after }, ...SCHEDULED_COURSE_FILTER },
+        _min: { releaseAt: true },
+    });
+    return _min.releaseAt;
+};
+
 const deleteModule = async (user: IRequestUser, moduleId: string) => {
     const courseModule = await prisma.courseModule.findUnique({
         where: { id: moduleId },
@@ -302,4 +311,5 @@ export const CourseModuleService = {
     reorderModules,
     getModulesByMilestone,
     publishDueModules,
+    nextModuleReleaseAt,
 };

@@ -1,7 +1,7 @@
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import express, { Application, Request, Response } from "express";
+import express, { Application, NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import path from "path";
 import qs from "qs";
@@ -9,6 +9,7 @@ import { envVars } from "./app/config/env";
 import AppError from "./app/errorHelpers/AppError";
 import { installFriendlyZodMessages } from "./app/errorHelpers/zodMessages";
 import { prisma } from "./app/lib/prisma";
+import { nudgeScheduler } from "./app/lib/scheduler";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
 import { apiRateLimiter } from "./app/middleware/rateLimiter";
@@ -104,7 +105,16 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(express.json({ limit: "2mb" }));
 
-app.use("/api/v1", apiRateLimiter, IndexRoutes);
+// A write may have scheduled something (a release, a support session, a live
+// class), and the scheduler sleeps until the next thing it knows of — so it
+// takes a fresh look once the write is answered, and committed.
+const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const nudgeSchedulerAfterWrite = (req: Request, res: Response, next: NextFunction) => {
+    if (!READ_METHODS.has(req.method)) res.on("close", nudgeScheduler);
+    next();
+};
+
+app.use("/api/v1", nudgeSchedulerAfterWrite, apiRateLimiter, IndexRoutes);
 
 app.get("/", (_req: Request, res: Response) => {
     res.status(200).json({ success: true, message: "Half Coders API is running" });

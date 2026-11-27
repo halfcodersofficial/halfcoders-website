@@ -278,4 +278,22 @@ const remindStartingClasses = async () => {
     }
 };
 
-export const LiveClassService = { listForStaff, listForLearner, listMine, create, update, cancel, remove, remindStartingClasses };
+/**
+ * When `remindStartingClasses` next has work: REMIND_MINUTES before the
+ * earliest class whose reminder window opens after `after`, same filter. No
+ * table yet means nothing to wait for.
+ */
+const nextReminderAt = async (after: Date) => {
+    try {
+        const { _min } = await prisma.liveClass.aggregate({
+            where: { status: LiveClassStatus.SCHEDULED, remindedAt: null, startsAt: { gt: new Date(after.getTime() + REMIND_MINUTES * MINUTE) } },
+            _min: { startsAt: true },
+        });
+        return _min.startsAt ? new Date(_min.startsAt.getTime() - REMIND_MINUTES * MINUTE) : null;
+    } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") return null;
+        throw error;
+    }
+};
+
+export const LiveClassService = { listForStaff, listForLearner, listMine, create, update, cancel, remove, remindStartingClasses, nextReminderAt };

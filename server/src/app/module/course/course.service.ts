@@ -376,6 +376,15 @@ const rollOverBatches = async () => {
     if (moved > 0) logger.update("Next batches moved up", { courses: moved });
 };
 
+/** When `rollOverBatches` next has work: the earliest present-batch end after `after`, same filter. */
+const nextBatchRollOverAt = async (after: Date) => {
+    const { _min } = await prisma.course.aggregate({
+        where: { courseType: CourseType.BOOTCAMP, isDeleted: false, nextStartsAt: { not: null }, endsAt: { gt: after } },
+        _min: { endsAt: true },
+    });
+    return _min.endsAt;
+};
+
 /**
  * What a course needs decided before students can see it: free or paid, how
  * the classes are delivered, online or offline, and a description. A seeded
@@ -1164,4 +1173,5 @@ export const CourseService = {
     downloadCurriculumPdf,
     uploadCourseImage,
     rollOverBatches,
+    nextBatchRollOverAt,
 };

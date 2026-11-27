@@ -32,8 +32,12 @@ services:
     # the graceful shutdown in server.ts. Super admin, categories and courses
     # are seeded by the server itself on boot.
     startCommand: pnpm migrate:prod && exec node dist/src/server.js
-    # 503 until the database answers, so a deploy only goes live once it can serve.
-    healthCheckPath: /readiness
+    # Liveness, not /readiness: Render checks this every few seconds for as
+    # long as the service runs, and a database query that often keeps Neon's
+    # compute from ever scaling to zero — it spent the free plan's monthly
+    # quota in about two weeks. A deploy still can't go live without the
+    # database: the migrate step above fails first.
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_ENV

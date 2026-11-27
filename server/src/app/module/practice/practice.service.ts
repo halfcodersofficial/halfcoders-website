@@ -121,6 +121,15 @@ const publishDuePracticeDays = async () => {
     logger.create("Auto-published scheduled practice days", { count: due.length });
 };
 
+/** When `publishDuePracticeDays` next has work: the earliest release after `after`, same filter. */
+const nextPracticeDayReleaseAt = async (after: Date) => {
+    const { _min } = await prisma.practiceDay.aggregate({
+        where: { isPublished: false, releaseAt: { gt: after }, ...SCHEDULED_COURSE_FILTER },
+        _min: { releaseAt: true },
+    });
+    return _min.releaseAt;
+};
+
 const deletePracticeDay = async (user: IRequestUser, practiceDayId: string) => {
     const practiceDay = await prisma.practiceDay.findUnique({
         where: { id: practiceDayId },
@@ -221,6 +230,7 @@ export const PracticeService = {
     createPracticeDay,
     updatePracticeDay,
     publishDuePracticeDays,
+    nextPracticeDayReleaseAt,
     deletePracticeDay,
     getPracticeDayForStudent,
     markComplete,

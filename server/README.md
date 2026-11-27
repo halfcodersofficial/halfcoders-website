@@ -424,7 +424,9 @@ WebSocket-only (`lib/realtime.ts`), and Vercel rewrites don't carry WebSockets.
    services block outbound SMTP, so no verification email would leave, and
    they sleep after 15 idle minutes. Each start runs `pnpm migrate:prod`
    (a no-op when nothing is pending), then the server, which seeds the super
-   admin, categories and courses itself. `/readiness` is the health check.
+   admin, categories and courses itself. `/health` is the health check —
+   not `/readiness`, whose database query on every check would keep Neon's
+   compute awake around the clock.
 3. **API domain.** On the service: Settings → Custom Domains → add
    `api.half-coders.tech`, and the CNAME Render shows at your DNS provider.
 4. **Vercel.** Import the repository with **Root Directory `client`**, set the
